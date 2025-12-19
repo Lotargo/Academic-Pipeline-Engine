@@ -1,0 +1,28 @@
+<svg width="800" height="200" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="800" height="200" fill="#ffffff"/>
+
+  <!-- Rotating Gear Group -->
+  <g transform="translate(150, 100)">
+    <!-- Gear Path -->
+    <path d="M-20,-10 L-20,-25 L-10,-25 L-10,-35 L10,-35 L10,-25 L20,-25 L20,-10 L35,-10 L35,10 L20,10 L20,25 L10,25 L10,35 L-10,35 L-10,25 L-20,25 L-20,10 L-35,10 L-35,-10 Z" fill="#333333">
+      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="4s" repeatCount="indefinite" />
+    </path>
+    <!-- Center hole -->
+    <circle cx="0" cy="0" r="8" fill="#ffffff"/>
+  </g>
+
+  <!-- Text -->
+  <text x="220" y="115" font-family="Courier New, Courier, monospace" font-size="50" font-weight="bold" fill="#1a1a1a">ACADEMIC ENGINE</text>
+
+  <!-- Blinking Cursor -->
+  <rect x="730" y="70" width="15" height="55" fill="#1a1a1a">
+    <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite" />
+  </rect>
+
+  <!-- Loading Bar Line -->
+  <rect x="220" y="140" width="0" height="4" fill="#333333">
+     <animate attributeName="width" from="0" to="510" dur="1.5s" fill="freeze" />
+  </rect>
+
+</svg>

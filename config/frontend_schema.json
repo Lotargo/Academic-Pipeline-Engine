@@ -1,0 +1,46 @@
+{
+  "$defs": {
+    "AgentConfig": {
+      "properties": {
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "temperature": {
+          "title": "Temperature",
+          "type": "number"
+        },
+        "system_prompt": {
+          "title": "System Prompt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "model",
+        "temperature",
+        "system_prompt"
+      ],
+      "title": "AgentConfig",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "agents": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AgentConfig"
+      },
+      "title": "Agents",
+      "type": "object"
+    }
+  },
+  "required": [
+    "agents"
+  ],
+  "title": "AppConfig",
+  "type": "object"
+}
