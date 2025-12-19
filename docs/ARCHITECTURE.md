@@ -9,9 +9,9 @@ graph TD
     User[User / CLI] -->|Start Pipeline| Orchestrator
 
     subgraph Core Layer ["Core Layer (src/core)"]
-        Orchestrator[Orchestrator (State Machine)]
+        Orchestrator["Orchestrator (State Machine)"]
         Config[Config Loader]
-        LLM[LLM Client (OpenAI/Mock)]
+        LLM["LLM Client (OpenAI/Mock)"]
     end
 
     subgraph Agent Layer ["Agent Layer (src/agents)"]
