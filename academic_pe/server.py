@@ -150,8 +150,8 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         orig_reviewer_process = None
         if orch._reviewer:
             orig_process = orch._reviewer.process
-            def logged_reviewer_process(task_desc, context=None):
-                res = orig_process(task_desc, context)
+            def logged_reviewer_process(task_description: str, context: Optional[str] = None) -> str:
+                res = orig_process(task_description, context)
                 current_run["reviewer_feedback"].append(res)
                 current_run["logs"].append(f"[Reviewer Feedback]: {res}")
                 return res
@@ -265,7 +265,7 @@ def get_history():
 
 # New Routes for Secrets and Models Manager
 from academic_pe.core.secrets import is_secret_configured, save_secret, get_secret
-import requests
+import requests  # type: ignore
 from openai import OpenAI
 
 class SecretUpdatePayload(BaseModel):

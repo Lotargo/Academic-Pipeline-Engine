@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import os
-from typing import Optional
+from typing import Optional, Union, Any
 
 from openai import OpenAI
 
@@ -157,7 +157,11 @@ class AnthropicProvider(LLMProvider):
             temperature=temperature,
             max_tokens=4096,
         )
-        return message.content[0].text if message.content else ""
+        if message.content:
+            first_block = message.content[0]
+            if hasattr(first_block, "text"):
+                return getattr(first_block, "text") or ""
+        return ""
 
 
 class MockProvider(LLMProvider):
@@ -284,34 +288,35 @@ def create_provider(
     provider: str = "mock",
     base_url: Optional[str] = None,
     retry_config: Optional[RetryConfig] = None,
-    circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
+    circuit_breaker_config: Optional[Union[CircuitBreakerConfig, Any]] = None,
 ) -> LLMProvider:
-    cls = _PROVIDER_REGISTRY.get(provider)
-    if cls is None:
-        raise ValueError(
-            f"Unknown provider: {provider}. "
-            f"Available: {list(_PROVIDER_REGISTRY)}"
-        )
-
     if provider == "custom_openai":
         if not base_url:
             raise ValueError("base_url is required for custom_openai provider")
-        instance: LLMProvider = cls(base_url=base_url)
+        instance: LLMProvider = CustomOpenAIProvider(base_url=base_url)
     elif provider == "lm_studio":
-        instance = cls(base_url=base_url)
+        instance = LMStudioProvider(base_url=base_url)
     else:
+        cls = _PROVIDER_REGISTRY.get(provider)
+        if cls is None:
+            raise ValueError(
+                f"Unknown provider: {provider}. "
+                f"Available: {list(_PROVIDER_REGISTRY)}"
+            )
         instance = cls()
 
     if retry_config is not None and retry_config.max_retries > 0:
         instance = RetryProvider(instance, retry_config)
 
-    if circuit_breaker_config is not None and circuit_breaker_config.enabled:
-        instance = CircuitBreakerProvider(
-            instance,
-            CircuitBreakerConfig(
-                failure_threshold=circuit_breaker_config.failure_threshold,
-                recovery_timeout=circuit_breaker_config.recovery_timeout,
-            ),
-        )
+    if circuit_breaker_config is not None:
+        enabled = getattr(circuit_breaker_config, "enabled", True)
+        if enabled:
+            instance = CircuitBreakerProvider(
+                instance,
+                CircuitBreakerConfig(
+                    failure_threshold=circuit_breaker_config.failure_threshold,
+                    recovery_timeout=circuit_breaker_config.recovery_timeout,
+                ),
+            )
 
     return instance

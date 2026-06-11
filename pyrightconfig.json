@@ -11,5 +11,7 @@
   ],
   "extraPaths": [
     "."
-  ]
+  ],
+  "venvPath": ".",
+  "venv": ".venv"
 }

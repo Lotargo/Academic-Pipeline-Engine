@@ -156,6 +156,7 @@ class TestSetFontStyle:
         run = p.add_run("test")
         set_font_style(run, font_name="Arial", font_size=12)
         assert run.font.name == "Arial"
+        assert run.font.size is not None
         assert run.font.size.pt == 12
 
     def test_sets_bold(self):

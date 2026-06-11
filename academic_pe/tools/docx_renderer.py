@@ -3,7 +3,7 @@ from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 
 def set_font_style(run, font_name='Times New Roman', font_size=14, bold=False, italic=False, subscript=False):
@@ -158,7 +158,7 @@ def render_table_block(doc, table_lines: List[str], font_name='Times New Roman')
     create_table(doc, headers, data_rows, font_name=font_name)
 
 
-def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", config: Optional[any] = None):
+def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", config: Optional[Any] = None):
     import os
     import tempfile
     import logging

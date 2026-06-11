@@ -58,7 +58,7 @@ def test_full_pipeline_mock():
 
     outputs: Dict[str, str] = {}
 
-    def fake_renderer(content, output_filename):
+    def fake_renderer(content, output_filename, config=None):
         outputs.update(content)
         return "test_output.docx"
 

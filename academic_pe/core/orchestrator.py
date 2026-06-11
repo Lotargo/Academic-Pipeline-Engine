@@ -263,8 +263,9 @@ def reload_config(signum=None, frame=None) -> None:
 def install_sighup_handler(config_path: str = "config/agents.yaml") -> None:
     global _CONFIG_PATH
     _CONFIG_PATH = config_path
-    if hasattr(signal, "SIGHUP"):
-        signal.signal(signal.SIGHUP, reload_config)
+    sighup = getattr(signal, "SIGHUP", None)
+    if sighup is not None:
+        signal.signal(sighup, reload_config)
         logger.info("SIGHUP handler installed for config reload.")
     else:
         logger.info("SIGHUP not available on this platform (Windows). Config reload disabled.")
