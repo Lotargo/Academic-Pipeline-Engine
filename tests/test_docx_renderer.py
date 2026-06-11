@@ -4,7 +4,7 @@ import tempfile
 import pytest
 from docx import Document
 
-from src.tools.docx_renderer import render_paper, set_font_style, set_paragraph_format
+from academic_pe.tools.docx_renderer import render_paper, set_font_style, set_paragraph_format
 
 
 @pytest.fixture
@@ -198,3 +198,63 @@ class TestSetParagraphFormat:
         p = doc.add_paragraph()
         set_paragraph_format(p, line_spacing=2.0)
         assert p.paragraph_format.line_spacing == 2.0
+
+
+class TestNewRendererFeatures:
+    def test_render_with_custom_style_and_sections(self, tmp_doc):
+        from academic_pe.core.config import AppConfig, StyleConfig, PipelineConfig, SectionPrompt
+        config = AppConfig(
+            agents={},
+            style=StyleConfig(
+                font_name="Arial",
+                font_size=12,
+                title_font_size=18,
+                line_spacing=2.0,
+                first_line_indent_cm=1.5,
+                alignment="center"
+            ),
+            pipeline=PipelineConfig(
+                title="MY CUSTOM TITLE",
+                sections=[
+                    SectionPrompt(name="conclusion", topic="Done", instruction="test"),
+                    SectionPrompt(name="theory", topic="Intro", instruction="test")
+                ]
+            )
+        )
+        content = {
+            "theory": "Theory text.",
+            "conclusion": "Conclusion text."
+        }
+        render_paper(content, tmp_doc, config=config)
+        assert os.path.exists(tmp_doc)
+        doc = Document(tmp_doc)
+        
+        # Verify title page
+        assert doc.paragraphs[0].text.strip() == "MY CUSTOM TITLE"
+        
+        # Verify section order conclusion then theory
+        text_runs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        # First non-title text should be Conclusion text, then Theory text
+        non_title_texts = [t for t in text_runs if t != "MY CUSTOM TITLE"]
+        assert non_title_texts[0] == "Conclusion text."
+        assert non_title_texts[1] == "Theory text."
+
+    def test_renders_table_from_markdown(self, tmp_doc):
+        content = {
+            "theory": "Heading\n\n| H1 | H2 |\n|---|---|\n| V1 | V2 |\n"
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        assert len(doc.tables) == 1
+        assert len(doc.tables[0].rows) == 2
+        assert doc.tables[0].rows[0].cells[0].text == "H1"
+        assert doc.tables[0].rows[1].cells[1].text == "V2"
+
+    def test_renders_chart_placeholder(self, tmp_doc):
+        content = {
+            "calculation": "Calculations\n\n[Chart: Test Performance]\n"
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        # Check if there is an image in the document shapes or inline shapes
+        assert len(doc.inline_shapes) == 1

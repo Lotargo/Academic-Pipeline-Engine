@@ -5,7 +5,7 @@ description = "AI-Powered Academic Documentation Pipeline with State Machine Orc
 authors = ["Lotargo"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "src"}]
+packages = [{include = "academic_pe"}]
 
 [tool.poetry.dependencies]
 python = "^3.12"

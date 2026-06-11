@@ -1,7 +1,7 @@
-from src.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError
-from src.core.config import AppConfig, AgentConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig
-from src.core.llm import MockProvider
-from src.agents.base import DefaultAgent
+from academic_pe.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError
+from academic_pe.core.config import AppConfig, AgentConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig
+from academic_pe.core.llm import MockProvider
+from academic_pe.agents.base import DefaultAgent
 from typing import Dict
 
 

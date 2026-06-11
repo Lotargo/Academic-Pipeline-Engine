@@ -2,10 +2,10 @@ import json
 import os
 import sys
 
-# Ensure src module is visible
+# Ensure academic_pe module is visible
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from src.core.config import AppConfig
+from academic_pe.core.config import AppConfig
 
 def export_schema():
     """

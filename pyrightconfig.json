@@ -1,0 +1,15 @@
+{
+  "include": [
+    "academic_pe",
+    "tests"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv",
+    "ui"
+  ],
+  "extraPaths": [
+    "."
+  ]
+}

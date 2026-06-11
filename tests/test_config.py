@@ -1,4 +1,4 @@
-from src.core.config import load_config
+from academic_pe.core.config import load_config
 
 
 def test_load_config():
@@ -42,7 +42,7 @@ def test_config_agent_type_optional():
 
 
 def test_config_defaults():
-    from src.core.config import AppConfig, AgentConfig
+    from academic_pe.core.config import AppConfig, AgentConfig
     cfg = AppConfig(
         agents={
             "test": AgentConfig(

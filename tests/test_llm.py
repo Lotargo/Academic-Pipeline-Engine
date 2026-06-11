@@ -1,5 +1,5 @@
 import pytest
-from src.core.llm import (
+from academic_pe.core.llm import (
     MockProvider,
     OpenAIProvider,
     CustomOpenAIProvider,
@@ -7,7 +7,7 @@ from src.core.llm import (
     register_provider,
     LLMProvider,
 )
-from src.core.llm import AnthropicProvider as AnthropicProviderCls
+from academic_pe.core.llm import AnthropicProvider as AnthropicProviderCls
 
 
 class TestMockProvider:
@@ -79,12 +79,14 @@ class TestAnthropicProvider:
 
     def test_missing_package_raises(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        import sys
+        monkeypatch.setitem(sys.modules, "anthropic", None)
         with pytest.raises(ImportError, match="anthropic package"):
             AnthropicProviderCls()
 
 
-from src.core.llm import RetryConfig as LLMRetryConfig
-from src.core.llm import RetryProvider as RetryProviderCls
+from academic_pe.core.llm import RetryConfig as LLMRetryConfig
+from academic_pe.core.llm import RetryProvider as RetryProviderCls
 
 class TestRetryProvider:
     def test_passes_through_on_success(self):
@@ -158,12 +160,12 @@ class TestRetryProvider:
         assert provider._config.max_delay == 60.0
 
 
-from src.core.llm import (
+from academic_pe.core.llm import (
     CircuitBreakerProvider,
     CircuitBreakerConfig as LLMCBCConfig,
     CircuitState,
 )
-from src.core.config import CircuitBreakerConfig as CfgCBConfig
+from academic_pe.core.config import CircuitBreakerConfig as CfgCBConfig
 
 
 class TestCircuitBreaker:

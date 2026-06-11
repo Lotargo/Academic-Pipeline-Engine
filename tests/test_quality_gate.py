@@ -1,5 +1,5 @@
-from src.core.quality_gate import check_volume, check_latex, run_all
-from src.core.config import QualityGateConfig, VolumeGateConfig, LatexGateConfig
+from academic_pe.core.quality_gate import check_volume, check_latex, run_all
+from academic_pe.core.config import QualityGateConfig, VolumeGateConfig, LatexGateConfig
 
 
 def _full_cfg(volume_enabled=True, latex_enabled=True, min_chars=200):

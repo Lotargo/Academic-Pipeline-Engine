@@ -1,7 +1,7 @@
-from src.agents.base import BaseAgent, DefaultAgent
-from src.agents.factory import create_agent, register_agent_type, _AGENT_TYPES
-from src.core.config import AgentConfig
-from src.core.llm import MockProvider
+from academic_pe.agents.base import BaseAgent, DefaultAgent
+from academic_pe.agents.factory import create_agent, register_agent_type, _AGENT_TYPES
+from academic_pe.core.config import AgentConfig
+from academic_pe.core.llm import MockProvider
 
 
 def test_agent_process():
@@ -56,7 +56,7 @@ class TestAgentFactory:
         assert isinstance(agent, DefaultAgent)
 
     def test_create_writer_by_name(self):
-        from src.agents.writer import WriterAgent
+        from academic_pe.agents.writer import WriterAgent
         cfg = AgentConfig(
             role="Writer", model="m", temperature=0.0,
             system_prompt="test",
@@ -65,7 +65,7 @@ class TestAgentFactory:
         assert isinstance(agent, WriterAgent)
 
     def test_create_reviewer_by_name(self):
-        from src.agents.writer import ReviewerAgent
+        from academic_pe.agents.writer import ReviewerAgent
         cfg = AgentConfig(
             role="Reviewer", model="m", temperature=0.0,
             system_prompt="test",
@@ -74,7 +74,7 @@ class TestAgentFactory:
         assert isinstance(agent, ReviewerAgent)
 
     def test_create_with_explicit_agent_type(self):
-        from src.agents.writer import WriterAgent
+        from academic_pe.agents.writer import WriterAgent
         cfg = AgentConfig(
             role="Custom", model="m", temperature=0.0,
             system_prompt="test",
