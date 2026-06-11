@@ -17,6 +17,7 @@ class PipelineState(Enum):
     REVIEWING = auto()
     RENDERING = auto()
     DONE = auto()
+    FAILED = auto()
 
 
 _TRANSITIONS: Dict[PipelineState, List[PipelineState]] = {
@@ -25,10 +26,15 @@ _TRANSITIONS: Dict[PipelineState, List[PipelineState]] = {
     PipelineState.REVIEWING: [PipelineState.DRAFTING, PipelineState.RENDERING],
     PipelineState.RENDERING: [PipelineState.DONE],
     PipelineState.DONE: [],
+    PipelineState.FAILED: [],
 }
 
 
 class InvalidTransitionError(Exception):
+    pass
+
+
+class PipelineError(Exception):
     pass
 
 
@@ -68,65 +74,75 @@ class Orchestrator:
 
     def run_pipeline(self) -> str:
         logger.info("Pipeline started.")
+        output_path = "(no output)"
 
-        # --- DRAFTING ---
-        self.transition_to(PipelineState.DRAFTING)
-        for section in self._config.pipeline.sections:
-            task = f"Write a chapter about {section.topic}. {section.instruction}"
-            logger.debug("Drafting section: %s", section.name)
-            self.context[section.name] = self._writer.process(task)
+        try:
+            # --- DRAFTING ---
+            self.transition_to(PipelineState.DRAFTING)
+            for section in self._config.pipeline.sections:
+                task = f"Write a chapter about {section.topic}. {section.instruction}"
+                logger.debug("Drafting section: %s", section.name)
+                self.context[section.name] = self._writer.process(task)
 
-        # --- REVIEWING ---
-        self.transition_to(PipelineState.REVIEWING)
+            # --- REVIEWING ---
+            self.transition_to(PipelineState.REVIEWING)
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            if self._reviewer is None:
-                logger.info("No reviewer configured, skipping review.")
-                break
+            max_retries = 3
+            for attempt in range(max_retries):
+                if self._reviewer is None:
+                    logger.info("No reviewer configured, skipping review.")
+                    break
 
-            full_text = "\n\n".join(
-                self.context.get(s.name, "") for s in self._config.pipeline.sections
-            )
-            critique = self._reviewer.process(
-                "Check the provided text for academic tone and formatting errors. "
-                "Return exactly one line: APPROVED if the text passes, "
-                "or REJECTED followed by a brief reason.",
-                context=full_text,
-            )
+                full_text = "\n\n".join(
+                    self.context.get(s.name, "") for s in self._config.pipeline.sections
+                )
+                critique = self._reviewer.process(
+                    "Check the provided text for academic tone and formatting errors. "
+                    "Return exactly one line: APPROVED if the text passes, "
+                    "or REJECTED followed by a brief reason.",
+                    context=full_text,
+                )
 
-            if critique.strip().upper().startswith("APPROVED"):
-                logger.info("Reviewer approved the content.")
-                break
+                if critique.strip().upper().startswith("APPROVED"):
+                    logger.info("Reviewer approved the content.")
+                    break
 
-            logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, critique[:100])
+                logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, critique[:100])
 
-            if attempt < max_retries - 1:
-                logger.info("Returning to DRAFTING for revision...")
-                self.transition_to(PipelineState.DRAFTING)
-                for section in self._config.pipeline.sections:
-                    task = (
-                        f"Revise the chapter about {section.topic}. "
-                        f"Address these issues: {critique[:500]}. "
-                        f"{section.instruction}"
-                    )
-                    self.context[section.name] = self._writer.process(task)
-                self.transition_to(PipelineState.REVIEWING)
+                if attempt < max_retries - 1:
+                    logger.info("Returning to DRAFTING for revision...")
+                    self.transition_to(PipelineState.DRAFTING)
+                    for section in self._config.pipeline.sections:
+                        task = (
+                            f"Revise the chapter about {section.topic}. "
+                            f"Address these issues: {critique[:500]}. "
+                            f"{section.instruction}"
+                        )
+                        self.context[section.name] = self._writer.process(task)
+                    self.transition_to(PipelineState.REVIEWING)
+                else:
+                    logger.error("Max retries reached. Proceeding to rendering with current content.")
+
+            # --- RENDERING ---
+            self.transition_to(PipelineState.RENDERING)
+
+            if self._renderer is not None:
+                output_path = self._renderer(self.context, output_filename="Final_Academic_Paper.docx")
             else:
-                logger.error("Max retries reached. Proceeding to rendering with current content.")
+                output_path = "(no renderer configured)"
+                logger.warning("No renderer configured, skipping DOCX generation.")
 
-        # --- RENDERING ---
-        self.transition_to(PipelineState.RENDERING)
+            # --- DONE ---
+            self.transition_to(PipelineState.DONE)
+            logger.info("Pipeline finished. Artifact: %s", output_path)
 
-        if self._renderer is not None:
-            output_path = self._renderer(self.context, output_filename="Final_Academic_Paper.docx")
-        else:
-            output_path = "(no renderer configured)"
-            logger.warning("No renderer configured, skipping DOCX generation.")
+        except Exception:
+            logger.exception("Pipeline failed at state %s", self._state.name)
+            self._state = PipelineState.FAILED
+            raise PipelineError(
+                f"Pipeline failed at {self._state.name}. Check logs for details."
+            ) from None
 
-        # --- DONE ---
-        self.transition_to(PipelineState.DONE)
-        logger.info("Pipeline finished. Artifact: %s", output_path)
         return output_path
 
 

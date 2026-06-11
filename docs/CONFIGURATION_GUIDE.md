@@ -1,32 +1,56 @@
 # Руководство по Конфигурации (Configuration Guide)
 
-Система **Academic Pipeline Engine** использует декларативный подход к конфигурации. Все параметры поведения агентов вынесены из кода в YAML-файлы.
+Система **Academic Pipeline Engine** использует декларативный подход к конфигурации. Все параметры поведения вынесены из кода в YAML-файлы.
 
 ## Структура `agents.yaml`
 
-Файл конфигурации находится в `config/agents.yaml`. Он определяет роли агентов, используемые модели и системные промпты.
+Файл находится в `config/agents.yaml`. Содержит конфигурацию агентов и пайплайна.
 
 ```yaml
 agents:
   writer:
     role: "Writer"
-    model: "gpt-4o"          # Или gpt-3.5-turbo, local-model
-    temperature: 0.7         # Креативность (0.0 - строго, 1.0 - вариативно)
+    model: "gpt-4o"
+    temperature: 0.7         # 0.0 - 2.0 (OpenAI range)
     system_prompt: |
       You are an expert academic writer.
-      Your goal is to draft sections...
+      ...
 
   reviewer:
     role: "Reviewer"
     model: "gpt-4o"
     temperature: 0.3
     system_prompt: |
-      You are a strict academic reviewer...
+      You are a strict academic reviewer.
+      Return exactly one line: APPROVED or REJECTED...
+
+pipeline:
+  sections:
+    - name: theory
+      topic: "State Machines"
+      instruction: "Structure it with H2 and H3 headers."
+    - name: calculation
+      topic: "Algorithmic Complexity"
+      instruction: "Include LaTeX formulas (e.g. $O(n)$)."
+    - name: conclusion
+      topic: "Efficiency of State Machines"
+      instruction: "Summarize key findings and implications."
 ```
 
-## Валидация (Pydantic)
+### Параметры `temperature`
 
-Для загрузки и проверки конфигурации используется библиотека **Pydantic**. Это гарантирует, что если в YAML допущена ошибка (например, пропущено поле `model`), система сообщит об этом при старте, а не упадет в процессе работы.
+- OpenAI: `0.0` (строго) — `2.0` (креативно)
+- Валидируется Pydantic (`Field(ge=0.0, le=2.0)`)
+
+### Параметры `pipeline.sections`
+
+| Поле | Описание |
+|---|---|
+| `name` | Ключ секции в `context` |
+| `topic` | Тема главы (подставляется в промпт) |
+| `instruction` | Дополнительные инструкции для Writer |
+
+## Валидация (Pydantic V2)
 
 Модель конфигурации (`src/core/config.py`):
 
@@ -34,34 +58,41 @@ agents:
 class AgentConfig(BaseModel):
     role: str
     model: str
-    temperature: float
+    temperature: float = Field(ge=0.0, le=2.0)
     system_prompt: str
+
+class SectionPrompt(BaseModel):
+    name: str
+    topic: str
+    instruction: str
+
+class PipelineConfig(BaseModel):
+    sections: List[SectionPrompt]
 
 class AppConfig(BaseModel):
     agents: Dict[str, AgentConfig]
+    pipeline: PipelineConfig  # имеет значения по умолчанию
 ```
 
-## Интеграция с Frontend (JSON Schema)
+## Режимы запуска
 
-Если вы разрабатываете веб-интерфейс для управления пайплайном, вы можете сгенерировать JSON Schema из Pydantic-моделей. Это позволит автоматически строить формы настроек.
+### Без API-ключа (Mock-режим)
 
-**Команда для экспорта:**
-```bash
-python scripts/export_schema.py
+Если `OPENAI_API_KEY` не задан, `create_orchestrator()` использует `MockProvider`:
+
+```python
+from src.core.orchestrator import create_orchestrator
+
+app = create_orchestrator()
+app.run_pipeline()
 ```
 
-**Результат (`config/frontend_schema.json`):**
-```json
-{
-  "title": "AppConfig",
-  "type": "object",
-  "properties": {
-    "agents": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/AgentConfig" }
-    }
-  },
-  ...
-}
+### С реальным API
+
+Установите переменную окружения:
+
+```powershell
+$env:OPENAI_API_KEY = "sk-..."
 ```
-Эту схему можно использовать с библиотеками типа [react-jsonschema-form](https://github.com/rjsf-team/react-jsonschema-form).
+
+Или создайте `.env` файл (потребуется `python-dotenv`).

@@ -63,11 +63,17 @@
     ```
 
 4.  **Запуск пайплайна (пример):**
-    Создайте скрипт `main.py` или используйте тестовый запуск:
     ```python
-    from src.core.orchestrator import Orchestrator
+    from src.core.orchestrator import create_orchestrator
 
-    app = Orchestrator()
+    app = create_orchestrator()
+    app.run_pipeline()
+    ```
+
+    Или с кастомным рендерером:
+    ```python
+    from src.tools.docx_renderer import render_paper
+    app = create_orchestrator(renderer=render_paper)
     app.run_pipeline()
     ```
 

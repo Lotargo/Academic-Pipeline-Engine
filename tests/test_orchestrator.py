@@ -1,5 +1,5 @@
-from src.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError
-from src.core.config import AppConfig, AgentConfig, SectionPrompt
+from src.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError
+from src.core.config import AppConfig, AgentConfig
 from src.core.llm import MockProvider
 from src.agents.base import BaseAgent
 from typing import Dict
@@ -129,3 +129,20 @@ def test_reviewer_loop_rejected_then_approved():
 
     assert orch.state == PipelineState.DONE
     assert result == "(no renderer configured)"
+
+
+def test_pipeline_failure_transitions_to_failed():
+    class FailingProvider(MockProvider):
+        def generate(self, system_prompt, user_prompt, model, temperature):
+            raise RuntimeError("LLM crashed")
+
+    config = _make_config()
+    llm = FailingProvider()
+    writer = BaseAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, config=config)
+
+    try:
+        orch.run_pipeline()
+        assert False, "Should have raised PipelineError"
+    except PipelineError:
+        assert orch.state == PipelineState.FAILED

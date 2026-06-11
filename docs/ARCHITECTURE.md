@@ -9,21 +9,25 @@ graph TD
     User[User / CLI] -->|Start Pipeline| Orchestrator
 
     subgraph Core Layer ["Core Layer (src/core)"]
-        Orchestrator["Orchestrator (State Machine)"]
+        Orchestrator["Orchestrator (FSM)"]
         Config[Config Loader]
-        LLM["LLM Client (OpenAI/Mock)"]
+        LLM["LLMProvider (ABC)"]
+        OpenAI["OpenAIProvider"]
+        Mock["MockProvider"]
     end
 
     subgraph Agent Layer ["Agent Layer (src/agents)"]
         Writer[Writer Agent]
         Reviewer[Reviewer Agent]
-        BaseAgent[Base Agent Class]
+        BaseAgent[BaseAgent]
 
-        Orchestrator -->|Instantiates| Writer
-        Orchestrator -->|Instantiates| Reviewer
-        Writer -- Inherits --> BaseAgent
-        Reviewer -- Inherits --> BaseAgent
+        Orchestrator -->|Uses| Writer
+        Orchestrator -->|Uses| Reviewer
+        Writer -- instance of --> BaseAgent
+        Reviewer -- instance of --> BaseAgent
         BaseAgent -->|Calls| LLM
+        LLM -- implemented by --> OpenAI
+        LLM -- implemented by --> Mock
     end
 
     subgraph Tool Layer ["Tool Layer (src/tools)"]
@@ -44,18 +48,20 @@ graph TD
 
 ### 1. Core Layer (`src/core`)
 Ядро системы. Здесь содержатся механизмы, не зависящие от конкретного документа:
-*   **Orchestrator:** "Мозг" системы. Реализует машину состояний и управляет потоком выполнения.
-*   **LLM Client:** Абстракция для работы с нейросетями. Поддерживает режим Mock (заглушки) для тестирования без API ключей.
-*   **Config Loader:** Отвечает за загрузку и строгую типизацию настроек.
+*   **Orchestrator:** Реализует конечный автомат (FSM) с таблицей переходов и guards. Управляет потоком выполнения через Dependency Injection.
+*   **LLMProvider (ABC):** Абстрактный контракт для LLM-провайдеров. Позволяет переключать модели без изменения кода.
+*   **OpenAIProvider:** Реализация для OpenAI API. Требует `OPENAI_API_KEY`.
+*   **MockProvider:** Заглушка для тестов и разработки без API-ключа.
+*   **Config Loader:** Загрузка и строгая типизация YAML-конфигурации через Pydantic V2.
 
 ### 2. Agent Layer (`src/agents`)
 Слой бизнес-логики агентов.
-*   **BaseAgent:** Базовый класс, инкапсулирующий логику формирования промптов и вызова LLM.
-*   **Role-Specific Agents:** (Опционально) Конкретные реализации агентов (Writer, Reviewer), конфигурируемые через YAML.
+*   **BaseAgent:** Базовый класс, инкапсулирующий формирование промптов и вызов LLM через `LLMProvider`.
+*   **Конфигурируемые экземпляры:** Writer и Reviewer создаются из одного класса `BaseAgent` с разными конфигами из YAML.
 
 ### 3. Tool Layer (`src/tools`)
 Слой инструментов ("Руки" системы).
-*   **Docx Renderer:** Модуль, отвечающий за физическое создание файла `.docx`. Он ничего не "придумывает", только верстает переданный ему контент.
+*   **Docx Renderer:** Модуль, отвечающий за создание файла `.docx`. Ничего не "придумывает", только верстает переданный контент.
 
 ## Структура Директорий
 

@@ -57,18 +57,19 @@
 ## 7. Обработка ошибок и логирование
 
 - [x] Заменить `print()` на `logging` (с уровнями DEBUG/INFO/WARNING/ERROR)
-- [ ] Добавить try/except в `run_pipeline()` с корректным завершением
+- [x] Добавить try/except в `run_pipeline()` с корректным завершением
+- [x] Добавить состояние `FAILED` для аварийного завершения
 - [x] Не допускать тихих ошибок LLM (пробрасывать исключения наверх)
 - [x] Добавить валидацию API-ключа на старте (не тихий mock)
 - [x] Логировать каждый шаг пайплайна в структурированном виде
 
 ## 8. Чистка мёртвого кода
 
-- [ ] Удалить `src/core/socket_manager.py` (или перенести в бранч)
-- [ ] Удалить неиспользуемые функции `create_chart_image()`, `create_table()`
+- [x] Удален `src/core/socket_manager.py`
+- [x] Удалены `create_chart_image()`, `create_table()`
+- [x] Убраны неиспользуемые импорты (`matplotlib`, `os`) из `docx_renderer.py`
 - [ ] Убрать `orchestrator` секцию из `agents.yaml` (пока не нужна)
-- [ ] Удалить неиспользуемые импорты во всех файлах
-- [ ] Решить дублирование `AGENTS.md` / `docs/AGENTS_AND_TOOLS.md`
+- [x] `docs/AGENTS_AND_TOOLS.md` и `AGENTS.md` — теперь различны по смыслу
 
 ## 9. Конфигурация и валидация
 
@@ -81,10 +82,10 @@
 
 ## 10. Документация
 
-- [ ] Обновить `docs/CONFIGURATION_GUIDE.md` под актуальный YAML
-- [ ] Обновить `docs/ARCHITECTURE.md` после изменений
-- [ ] Обновить `docs/ORCHESTRATION.md` под настоящую FSM
-- [ ] Синхронизировать `AGENTS.md` с кодом
+- [x] Обновить `docs/CONFIGURATION_GUIDE.md` под актуальный YAML
+- [x] Обновить `docs/ARCHITECTURE.md` после изменений
+- [x] Обновить `docs/ORCHESTRATION.md` под настоящую FSM
+- [x] Синхронизировать `AGENTS.md` с кодом
 - [ ] Добавить пример `config/agents.example.yaml` с комментариями
 
 ## 11. Тесты
