@@ -274,7 +274,7 @@ class SecretUpdatePayload(BaseModel):
 
 @app.get("/api/secrets")
 def get_secrets_status():
-    providers = ["openai", "anthropic", "google", "custom_openai", "lm_studio"]
+    providers = ["openai", "anthropic", "google", "custom_openai", "lm_studio", "zen"]
     return {p: is_secret_configured(p) for p in providers}
 
 @app.post("/api/secrets")
@@ -355,6 +355,16 @@ def get_provider_models(provider: str, base_url: Optional[str] = None):
         except Exception as e:
             logging.getLogger(__name__).warning("Custom OpenAI/LM Studio models list failed: %s", e)
             return []
+    elif provider == "zen":
+        if not api_key:
+            return ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro", "deepseek-coder"]
+        try:
+            client = OpenAI(api_key=api_key, base_url="https://opencode.ai/zen/v1")
+            resp = client.models.list()
+            return [m.id for m in resp.data]
+        except Exception as e:
+            logging.getLogger(__name__).warning("OpenCode Zen models list failed: %s", e)
+            return ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro", "deepseek-coder"]
             
     return []
 

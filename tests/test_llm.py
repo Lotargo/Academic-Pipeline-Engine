@@ -5,6 +5,7 @@ from academic_pe.core.llm import (
     CustomOpenAIProvider,
     GoogleProvider,
     LMStudioProvider,
+    ZenProvider,
     create_provider,
     register_provider,
     LLMProvider,
@@ -52,6 +53,11 @@ class TestCreateProvider:
     def test_creates_lm_studio(self):
         provider = create_provider("lm_studio")
         assert isinstance(provider, LMStudioProvider)
+
+    def test_creates_zen(self, monkeypatch):
+        monkeypatch.setenv("ZEN_API_KEY", "sk-zen-test")
+        provider = create_provider("zen")
+        assert isinstance(provider, ZenProvider)
 
     def test_unknown_provider_raises(self):
         with pytest.raises(ValueError, match="Unknown provider"):

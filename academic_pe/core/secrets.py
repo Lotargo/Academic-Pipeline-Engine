@@ -30,6 +30,8 @@ def get_secret(provider_name: str) -> Optional[str]:
         return os.getenv("CUSTOM_API_KEY")
     elif provider_name == "lm_studio":
         return os.getenv("LM_STUDIO_API_KEY") or "lm-studio"
+    elif provider_name == "zen":
+        return os.getenv("ZEN_API_KEY")
     return None
 
 def save_secret(provider_name: str, key: str) -> None:

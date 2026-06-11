@@ -108,6 +108,29 @@ class LMStudioProvider(LLMProvider):
         return response.choices[0].message.content or ""
 
 
+class ZenProvider(LLMProvider):
+    def __init__(self, api_key: Optional[str] = None):
+        from academic_pe.core.secrets import get_secret
+        key = api_key or get_secret("zen")
+        if not key:
+            raise ValueError(
+                "OpenCode Zen API key is not configured. "
+                "Please configure it in settings or set the ZEN_API_KEY environment variable."
+            )
+        self._client = OpenAI(api_key=key, base_url="https://opencode.ai/zen/v1")
+
+    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+        response = self._client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
+
 class AnthropicProvider(LLMProvider):
     def __init__(self, api_key: Optional[str] = None):
         from academic_pe.core.secrets import get_secret
@@ -249,6 +272,7 @@ _PROVIDER_REGISTRY: dict[str, type[LLMProvider]] = {
     "anthropic": AnthropicProvider,
     "google": GoogleProvider,
     "lm_studio": LMStudioProvider,
+    "zen": ZenProvider,
 }
 
 

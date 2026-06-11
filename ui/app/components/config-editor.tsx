@@ -557,6 +557,7 @@ export function ConfigEditor() {
                           <SelectItem value="google">Google (Gemini)</SelectItem>
                           <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
                           <SelectItem value="lm_studio">LM Studio</SelectItem>
+                          <SelectItem value="zen">OpenCode Zen</SelectItem>
                           <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
                         </SelectContent>
                       </Select>
@@ -671,6 +672,7 @@ export function ConfigEditor() {
                           <SelectItem value="google">Google (Gemini)</SelectItem>
                           <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
                           <SelectItem value="lm_studio">LM Studio</SelectItem>
+                          <SelectItem value="zen">OpenCode Zen</SelectItem>
                           <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
                         </SelectContent>
                       </Select>

@@ -22,6 +22,7 @@ class ProviderEnum(str, Enum):
     anthropic = "anthropic"
     google = "google"
     lm_studio = "lm_studio"
+    zen = "zen"
     mock = "mock"
 
 
