@@ -4,6 +4,7 @@ import yaml
 import logging
 import threading
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +42,18 @@ current_run = {
 
 # Thread lock for safety
 run_lock = threading.Lock()
+
+
+def _pipeline_output_dir() -> str:
+    try:
+        config = load_config("config/agents.yaml")
+        return config.pipeline.output_dir
+    except Exception:
+        return "exports"
+
+
+def _metadata_dir(output_dir: str) -> str:
+    return os.path.join(output_dir, "_metadata")
 
 # Custom logger handler
 class StatusLogHandler(logging.Handler):
@@ -101,6 +114,15 @@ def get_status():
     with run_lock:
         return current_run
 
+class InterceptingDict(dict):
+    def __init__(self, callback, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.callback = callback
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self.callback(self)
+
 def run_pipeline_thread(topic: str, instructions: Optional[str]):
     global current_run
     
@@ -135,6 +157,12 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         # Synchronize config references to apply topic changes
         orch._config = config
         
+        # Intercept context modifications to update current_run safely in real time
+        def on_context_change(d):
+            with run_lock:
+                current_run["context"] = dict(d)
+        orch.context = InterceptingDict(on_context_change)
+        
         # Set transition hooks
         def on_enter_hook(old_state, new_state):
             current_run["state"] = new_state.name
@@ -167,7 +195,13 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         current_run["state"] = "DONE"
         
         # Save history metadata
-        metadata_filename = f"{os.path.splitext(output_path)[0]}.metadata.json"
+        output_dir = os.path.dirname(output_path) or _pipeline_output_dir()
+        metadata_dir = _metadata_dir(output_dir)
+        os.makedirs(metadata_dir, exist_ok=True)
+        metadata_filename = os.path.join(
+            metadata_dir,
+            f"{Path(output_path).stem}.{datetime.now().strftime('%Y%m%d%H%M%S')}.metadata.json",
+        )
         metadata = {
             "topic": topic,
             "instructions": instructions,
@@ -214,33 +248,26 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
 
 @app.get("/api/download/{filename}")
 def download_file(filename: str):
-    # Determine directory
-    try:
-        config = load_config("config/agents.yaml")
-        output_dir = config.pipeline.output_dir
-    except Exception:
-        output_dir = "."
+    output_dir = _pipeline_output_dir()
         
-    file_path = os.path.join(output_dir, filename)
+    safe_filename = os.path.basename(filename)
+    file_path = os.path.join(output_dir, safe_filename)
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File {filename} not found")
-    return FileResponse(file_path, filename=filename, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        raise HTTPException(status_code=404, detail=f"File {safe_filename} not found")
+    return FileResponse(file_path, filename=safe_filename, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 @app.get("/api/history")
 def get_history():
-    try:
-        config = load_config("config/agents.yaml")
-        output_dir = config.pipeline.output_dir
-    except Exception:
-        output_dir = "."
+    output_dir = _pipeline_output_dir()
+    metadata_dir = _metadata_dir(output_dir)
         
-    if not os.path.exists(output_dir):
+    if not os.path.exists(metadata_dir):
         return []
         
     history = []
-    for f in os.listdir(output_dir):
+    for f in os.listdir(metadata_dir):
         if f.endswith(".metadata.json"):
-            metadata_path = os.path.join(output_dir, f)
+            metadata_path = os.path.join(metadata_dir, f)
             try:
                 with open(metadata_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
@@ -367,4 +394,3 @@ def get_provider_models(provider: str, base_url: Optional[str] = None):
             return ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro", "deepseek-coder"]
             
     return []
-

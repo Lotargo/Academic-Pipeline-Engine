@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { ArrowUp, ArrowDown, Trash2, Plus, Save, RotateCcw, Sliders, Settings2 } from "lucide-react"
+import { ArrowUp, ArrowDown, Trash2, Plus, Save, RotateCcw, Sliders, Settings2, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
 export function ConfigEditor() {
@@ -286,6 +286,22 @@ export function ConfigEditor() {
     )
   }
 
+  if (!config) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 text-center p-8">
+        <AlertTriangle className="h-12 w-12 text-destructive animate-bounce" />
+        <h2 className="text-lg font-semibold text-foreground">Failed to load configuration</h2>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          Please make sure the backend server is running and accessible.
+        </p>
+        <Button onClick={fetchConfig} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+          <RotateCcw className="h-4 w-4" />
+          Try Again
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full w-full overflow-y-auto px-4 py-8 md:px-8">
       <div className="mx-auto max-w-4xl space-y-6">
@@ -441,6 +457,30 @@ export function ConfigEditor() {
                 </div>
 
                 <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Paper Language</label>
+                  <Select
+                    value={config?.pipeline?.language || "en"}
+                    onValueChange={(val: string) => {
+                      setConfig((prev: any) => ({
+                        ...prev,
+                        pipeline: {
+                          ...prev.pipeline,
+                          language: val,
+                        },
+                      }))
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="ru">Russian</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Font Family</label>
                   <Select
                     value={config?.style?.font_name}
@@ -468,10 +508,10 @@ export function ConfigEditor() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="justify">Justify (По ширине)</SelectItem>
-                      <SelectItem value="left">Left (По левому краю)</SelectItem>
-                      <SelectItem value="center">Center (По центру)</SelectItem>
-                      <SelectItem value="right">Right (По правому краю)</SelectItem>
+                      <SelectItem value="justify">Justify</SelectItem>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                      <SelectItem value="right">Right</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -535,7 +575,7 @@ export function ConfigEditor() {
                 {/* Writer Agent Config */}
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-semibold text-sm text-foreground">Writer Agent (Генератор)</h3>
+                    <h3 className="font-semibold text-sm text-foreground">Writer Agent</h3>
                     <span className="rounded bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
                       Active
                     </span>
@@ -577,7 +617,7 @@ export function ConfigEditor() {
                     </div>
                   </div>
 
-                  {config?.agents?.writer?.provider !== "mock" && (
+                  {config?.agents?.writer?.provider && config.agents.writer.provider !== "mock" && (
                     <div className="space-y-1">
                       <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
                       <div className="flex gap-1.5">
@@ -609,7 +649,7 @@ export function ConfigEditor() {
                       <Input
                         value={config?.agents?.writer?.base_url || ""}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("writer", "base_url", e.target.value)}
-                        placeholder={config.agents.writer.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
+                        placeholder={config?.agents?.writer?.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
                         className="h-8 text-xs"
                       />
                     </div>
@@ -650,7 +690,7 @@ export function ConfigEditor() {
                 {/* Reviewer Agent Config */}
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-semibold text-sm text-foreground">Reviewer Agent (Валидатор)</h3>
+                    <h3 className="font-semibold text-sm text-foreground">Reviewer Agent</h3>
                     <span className="rounded bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
                       Strict
                     </span>
@@ -692,7 +732,7 @@ export function ConfigEditor() {
                     </div>
                   </div>
 
-                  {config?.agents?.reviewer?.provider !== "mock" && (
+                  {config?.agents?.reviewer?.provider && config.agents.reviewer.provider !== "mock" && (
                     <div className="space-y-1">
                       <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
                       <div className="flex gap-1.5">
@@ -724,7 +764,7 @@ export function ConfigEditor() {
                       <Input
                         value={config?.agents?.reviewer?.base_url || ""}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("reviewer", "base_url", e.target.value)}
-                        placeholder={config.agents.reviewer.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
+                        placeholder={config?.agents?.reviewer?.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
                         className="h-8 text-xs"
                       />
                     </div>

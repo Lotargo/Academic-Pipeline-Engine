@@ -100,8 +100,9 @@ class StyleConfig(BaseModel):
 class PipelineConfig(BaseModel):
     sections: List[SectionPrompt]
     output_filename: str = "Final_Academic_Paper.docx"
-    output_dir: str = "."
+    output_dir: str = "exports"
     title: str = "GENERATED ACADEMIC PAPER"
+    language: str = "en"
 
 
 class AppConfig(BaseModel):

@@ -1,21 +1,79 @@
-from docx import Document
-from docx.shared import Pt, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
+from __future__ import annotations
+
+import logging
+import os
 import re
-from typing import Dict, List, Optional, Any
+import tempfile
+from typing import Any, Dict, List, Optional
+
+from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Cm, Inches, Pt, RGBColor
+
+logger = logging.getLogger(__name__)
 
 
-def set_font_style(run, font_name='Times New Roman', font_size=14, bold=False, italic=False, subscript=False):
+_INLINE_TOKEN_RE = re.compile(r"(\$\$.*?\$\$|\$.*?\$|\*\*.*?\*\*|\*[^*\n]+\*)", re.DOTALL)
+_LIST_RE = re.compile(r"^(\s*)([-*]|\d+[.)])\s+(.+)$")
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$")
+
+_LATEX_SYMBOLS = {
+    r"\alpha": "alpha",
+    r"\beta": "beta",
+    r"\gamma": "gamma",
+    r"\delta": "delta",
+    r"\epsilon": "epsilon",
+    r"\lambda": "lambda",
+    r"\mu": "mu",
+    r"\pi": "pi",
+    r"\sigma": "sigma",
+    r"\sum": "sum",
+    r"\prod": "prod",
+    r"\int": "int",
+    r"\infty": "infinity",
+    r"\leq": "<=",
+    r"\geq": ">=",
+    r"\neq": "!=",
+    r"\approx": "~",
+    r"\times": "x",
+    r"\cdot": "*",
+    r"\rightarrow": "->",
+    r"\to": "->",
+}
+
+
+def set_font_style(
+    run,
+    font_name: str = "Times New Roman",
+    font_size: int = 14,
+    bold: bool = False,
+    italic: bool = False,
+    subscript: bool = False,
+    superscript: bool = False,
+    color: Optional[RGBColor] = None,
+):
     run.font.name = font_name
-    run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
     run.font.size = Pt(font_size)
     run.bold = bold
     run.italic = italic
     run.font.subscript = subscript
+    run.font.superscript = superscript
+    if color is not None:
+        run.font.color.rgb = color
 
 
-def set_paragraph_format(paragraph, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, first_line_indent_cm=1.25, line_spacing=1.5, space_after=0):
+def set_paragraph_format(
+    paragraph,
+    alignment=WD_ALIGN_PARAGRAPH.JUSTIFY,
+    first_line_indent_cm: float = 1.25,
+    line_spacing: float = 1.5,
+    space_after: int = 6,
+):
     paragraph.alignment = alignment
     paragraph_format = paragraph.paragraph_format
     paragraph_format.first_line_indent = Cm(first_line_indent_cm)
@@ -23,147 +81,347 @@ def set_paragraph_format(paragraph, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, first_
     paragraph_format.space_after = Pt(space_after)
 
 
-def parse_math_content(paragraph, text, font_name='Times New Roman', font_size=14, bold=False, italic=False):
-    text = text.replace(r'\times', '×')
-    pattern = re.compile(r'(_\{[^}]+\})|(_.)')
+def _set_cell_shading(cell, fill: str) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    shd = tc_pr.find(qn("w:shd"))
+    if shd is None:
+        shd = OxmlElement("w:shd")
+        tc_pr.append(shd)
+    shd.set(qn("w:fill"), fill)
+
+
+def _set_cell_margins(cell, top=120, start=120, bottom=120, end=120) -> None:
+    tc = cell._tc
+    tc_pr = tc.get_or_add_tcPr()
+    tc_mar = tc_pr.first_child_found_in("w:tcMar")
+    if tc_mar is None:
+        tc_mar = OxmlElement("w:tcMar")
+        tc_pr.append(tc_mar)
+    for margin_name, value in {
+        "top": top,
+        "start": start,
+        "bottom": bottom,
+        "end": end,
+    }.items():
+        node = tc_mar.find(qn(f"w:{margin_name}"))
+        if node is None:
+            node = OxmlElement(f"w:{margin_name}")
+            tc_mar.append(node)
+        node.set(qn("w:w"), str(value))
+        node.set(qn("w:type"), "dxa")
+
+
+def _set_repeat_table_header(row) -> None:
+    tr_pr = row._tr.get_or_add_trPr()
+    tbl_header = OxmlElement("w:tblHeader")
+    tbl_header.set(qn("w:val"), "true")
+    tr_pr.append(tbl_header)
+
+
+def _normalize_latex(math_content: str) -> str:
+    text = math_content.strip()
+    text = re.sub(r"\\frac\{([^{}]+)\}\{([^{}]+)\}", r"(\1)/(\2)", text)
+    text = re.sub(r"\\sqrt\{([^{}]+)\}", r"sqrt(\1)", text)
+    text = re.sub(r"\\text\{([^{}]+)\}", r"\1", text)
+    for latex, replacement in _LATEX_SYMBOLS.items():
+        text = text.replace(latex, replacement)
+    text = text.replace("{", "").replace("}", "")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def parse_math_content(
+    paragraph,
+    text: str,
+    font_name: str = "Times New Roman",
+    font_size: int = 14,
+    bold: bool = False,
+    italic: bool = False,
+):
+    text = _normalize_latex(text)
+    pattern = re.compile(r"([_^])\{?([A-Za-z0-9+\-=()]+)\}?")
     last_pos = 0
-    while True:
-        match = pattern.search(text, pos=last_pos)
-        if not match:
-            remaining = text[last_pos:]
-            if remaining:
-                run = paragraph.add_run(remaining)
-                set_font_style(run, font_name=font_name, font_size=font_size, bold=bold, italic=italic)
-            break
+    for match in pattern.finditer(text):
         if match.start() > last_pos:
-            pre = text[last_pos:match.start()]
-            run = paragraph.add_run(pre)
-            set_font_style(run, font_name=font_name, font_size=font_size, bold=bold, italic=italic)
-        group = match.group()
-        if group.startswith('_{'):
-            sub_text = group[2:-1]
-        else:
-            sub_text = group[1:]
-        run = paragraph.add_run(sub_text)
-        set_font_style(run, font_name=font_name, font_size=font_size, bold=bold, italic=italic, subscript=True)
+            run = paragraph.add_run(text[last_pos:match.start()])
+            set_font_style(run, font_name, font_size, bold=bold, italic=italic)
+        marker, value = match.groups()
+        run = paragraph.add_run(value)
+        set_font_style(
+            run,
+            font_name,
+            font_size,
+            bold=bold,
+            italic=italic,
+            subscript=marker == "_",
+            superscript=marker == "^",
+        )
         last_pos = match.end()
+    if last_pos < len(text):
+        run = paragraph.add_run(text[last_pos:])
+        set_font_style(run, font_name, font_size, bold=bold, italic=italic)
 
 
-def add_formatted_text(paragraph, text, font_name='Times New Roman', font_size=14):
-    bold_parts = re.split(r'(\*\*[^*]+\*\*)', text)
-    for b_part in bold_parts:
-        if not b_part: continue
-        is_bold = False
-        content_to_process = b_part
-        if b_part.startswith('**') and b_part.endswith('**'):
-            is_bold = True
-            content_to_process = b_part[2:-2]
-        italic_parts = re.split(r'(\*[^*]+\*)', content_to_process)
-        for i_part in italic_parts:
-            if not i_part: continue
-            is_italic = False
-            inner_content = i_part
-            if i_part.startswith('*') and i_part.endswith('*'):
-                is_italic = True
-                inner_content = i_part[1:-1]
-            math_parts = re.split(r'(\$\$[^$]+\$\$|\$[^$]+\$)', inner_content)
-            for m_part in math_parts:
-                if not m_part: continue
-                if m_part.startswith('$'):
-                    math_content = m_part.strip('$')
-                    parse_math_content(paragraph, math_content, font_name=font_name, font_size=font_size, bold=is_bold, italic=is_italic)
-                else:
-                    run = paragraph.add_run(m_part)
-                    set_font_style(run, font_name=font_name, font_size=font_size, bold=is_bold, italic=is_italic)
+def add_formatted_text(paragraph, text: str, font_name: str = "Times New Roman", font_size: int = 14):
+    for part in _INLINE_TOKEN_RE.split(text):
+        if not part:
+            continue
+        if part.startswith("$$") and part.endswith("$$"):
+            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, italic=True)
+        elif part.startswith("$") and part.endswith("$"):
+            parse_math_content(paragraph, part[1:-1], font_name=font_name, font_size=font_size, italic=True)
+        elif part.startswith("**") and part.endswith("**"):
+            inner = part[2:-2]
+            run = paragraph.add_run(inner)
+            set_font_style(run, font_name=font_name, font_size=font_size, bold=True)
+        elif part.startswith("*") and part.endswith("*"):
+            inner = part[1:-1]
+            run = paragraph.add_run(inner)
+            set_font_style(run, font_name=font_name, font_size=font_size, italic=True)
+        else:
+            run = paragraph.add_run(part)
+            set_font_style(run, font_name=font_name, font_size=font_size)
+
+
+def _add_markdown_paragraph(
+    doc: Document,
+    text: str,
+    style_name: str,
+    font_name: str,
+    font_size: int,
+    alignment,
+    first_line_indent_cm: float,
+    line_spacing: float,
+):
+    paragraph = doc.add_paragraph(style=style_name)
+    if style_name == "Body Text":
+        set_paragraph_format(
+            paragraph,
+            alignment=alignment,
+            first_line_indent_cm=first_line_indent_cm,
+            line_spacing=line_spacing,
+        )
+    add_formatted_text(paragraph, text, font_name=font_name, font_size=font_size)
+    return paragraph
+
+
+def _configure_styles(doc: Document, font_name: str, font_size: int, title_font_size: int) -> None:
+    styles = doc.styles
+    normal = styles["Normal"]
+    normal.font.name = font_name
+    normal._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
+    normal.font.size = Pt(font_size)
+
+    if "Body Text" not in styles:
+        body = styles.add_style("Body Text", WD_STYLE_TYPE.PARAGRAPH)
+    else:
+        body = styles["Body Text"]
+    body.base_style = normal
+    body.font.name = font_name
+    body._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
+    body.font.size = Pt(font_size)
+    body.paragraph_format.space_after = Pt(6)
+
+    for level in range(1, 4):
+        style = styles[f"Heading {level}"]
+        style.font.name = font_name
+        style._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
+        style.font.bold = True
+        style.font.color.rgb = RGBColor(17, 94, 89)
+        style.font.size = Pt(max(font_size + 5 - level, font_size))
+        style.paragraph_format.space_before = Pt(14 if level == 1 else 10)
+        style.paragraph_format.space_after = Pt(6)
+        style.paragraph_format.keep_with_next = True
+
+    if "Document Title" not in styles:
+        title = styles.add_style("Document Title", WD_STYLE_TYPE.PARAGRAPH)
+    else:
+        title = styles["Document Title"]
+    title.font.name = font_name
+    title._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
+    title.font.size = Pt(title_font_size)
+    title.font.bold = True
+    title.font.color.rgb = RGBColor(15, 118, 110)
+    title.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.paragraph_format.space_after = Pt(12)
 
 
 def create_chart_image(output_path: str):
     try:
         import matplotlib
-        matplotlib.use('Agg')
+
+        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+
         fig, ax = plt.subplots(figsize=(6, 3.5))
         x = [1, 2, 3, 4, 5]
         y1 = [10, 15, 25, 40, 55]
         y2 = [8, 12, 18, 28, 38]
-        ax.plot(x, y1, marker='o', color='#0d9488', linewidth=2.5, label='Writer Agent')
-        ax.plot(x, y2, marker='s', color='#0f766e', linewidth=2, linestyle='--', label='Reviewer Agent')
-        ax.set_title('Agent Performance Metrics', fontsize=12, fontweight='bold', color='#1f2937')
-        ax.set_xlabel('Iterations / Run ID', fontsize=10, color='#4b5563')
-        ax.set_ylabel('Efficiency Index (%)', fontsize=10, color='#4b5563')
-        ax.grid(True, linestyle=':', alpha=0.6)
+        ax.plot(x, y1, marker="o", color="#0d9488", linewidth=2.5, label="Writer Agent")
+        ax.plot(x, y2, marker="s", color="#0f766e", linewidth=2, linestyle="--", label="Reviewer Agent")
+        ax.set_title("Agent Performance Metrics", fontsize=12, fontweight="bold", color="#1f2937")
+        ax.set_xlabel("Iterations / Run ID", fontsize=10, color="#4b5563")
+        ax.set_ylabel("Efficiency Index (%)", fontsize=10, color="#4b5563")
+        ax.grid(True, linestyle=":", alpha=0.6)
         ax.legend()
         plt.tight_layout()
         plt.savefig(output_path, dpi=300)
         plt.close(fig)
-        import logging
-        logging.getLogger(__name__).info("Successfully created chart image at %s", output_path)
+        logger.info("Successfully created chart image at %s", output_path)
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error("Failed to create chart image: %s", e)
+        logger.error("Failed to create chart image: %s", e)
 
 
-def create_table(doc, headers: List[str], rows: List[List[str]], font_name='Times New Roman', font_size=11):
-    try:
-        table = doc.add_table(rows=1, cols=len(headers))
-        table.style = 'Table Grid'
-        hdr_cells = table.rows[0].cells
-        for i, header in enumerate(headers):
-            hdr_cells[i].text = header.strip()
-            for paragraph in hdr_cells[i].paragraphs:
-                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                for run in paragraph.runs:
-                    set_font_style(run, font_name=font_name, font_size=font_size, bold=True)
-        
-        for row_data in rows:
-            row_cells = table.add_row().cells
-            for i in range(len(headers)):
-                val = row_data[i] if i < len(row_data) else ""
-                row_cells[i].text = val.strip()
-                for paragraph in row_cells[i].paragraphs:
-                    for run in paragraph.runs:
-                        set_font_style(run, font_name=font_name, font_size=font_size)
-        
-        p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(6)
-        import logging
-        logging.getLogger(__name__).info("Successfully created table with %d rows", len(rows))
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error("Failed to create table: %s", e)
-
-
-def render_table_block(doc, table_lines: List[str], font_name='Times New Roman'):
-    if not table_lines:
+def create_table(doc: Document, headers: List[str], rows: List[List[str]], font_name: str = "Times New Roman", font_size: int = 11):
+    if not headers:
         return
-    
+
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = True
+
+    header_cells = table.rows[0].cells
+    for index, header in enumerate(headers):
+        cell = header_cells[index]
+        cell.text = ""
+        _set_cell_shading(cell, "D9F2EF")
+        _set_cell_margins(cell)
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        paragraph = cell.paragraphs[0]
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = paragraph.add_run(header.strip())
+        set_font_style(run, font_name=font_name, font_size=font_size, bold=True, color=RGBColor(17, 94, 89))
+    _set_repeat_table_header(table.rows[0])
+
+    for row_data in rows:
+        row_cells = table.add_row().cells
+        for index in range(len(headers)):
+            value = row_data[index] if index < len(row_data) else ""
+            cell = row_cells[index]
+            cell.text = ""
+            _set_cell_margins(cell)
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            paragraph = cell.paragraphs[0]
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            add_formatted_text(paragraph, value.strip(), font_name=font_name, font_size=font_size)
+
+    spacer = doc.add_paragraph()
+    spacer.paragraph_format.space_after = Pt(6)
+    logger.info("Successfully created table with %d rows", len(rows))
+
+
+def render_table_block(doc: Document, table_lines: List[str], font_name: str = "Times New Roman"):
     parsed_rows = []
     for line in table_lines:
-        parts = [p.strip() for p in line.split('|')]
-        if len(parts) > 1:
-            if parts[0] == "":
-                parts = parts[1:]
-            if parts and parts[-1] == "":
-                parts = parts[:-1]
+        parts = [part.strip() for part in line.strip().strip("|").split("|")]
+        if parts:
             parsed_rows.append(parts)
-            
+
     if not parsed_rows:
         return
 
     headers = parsed_rows[0]
     data_rows = parsed_rows[1:]
-    if data_rows and any(all(c in '-:| ' for c in cell) for cell in data_rows[0]):
+    if data_rows and all(re.fullmatch(r":?-{3,}:?", cell or "") for cell in data_rows[0]):
         data_rows = data_rows[1:]
-        
+
     create_table(doc, headers, data_rows, font_name=font_name)
 
 
-def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", config: Optional[Any] = None):
-    import os
-    import tempfile
-    import logging
-    logger = logging.getLogger(__name__)
+def _render_chart(doc: Document, stripped: str, section: str, font_name: str, font_size: int) -> None:
+    chart_path = os.path.join(tempfile.gettempdir(), f"chart_{section}.png")
+    create_chart_image(chart_path)
+    paragraph = doc.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = paragraph.add_run()
+    run.add_picture(chart_path, width=Cm(14))
 
+    caption_text = "Figure 1: Generated Chart Output"
+    match = re.search(r"\[Chart:\s*(.*?)\]", stripped)
+    if match:
+        caption_text = f"Figure: {match.group(1)}"
+    caption = doc.add_paragraph()
+    caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_caption = caption.add_run(caption_text)
+    set_font_style(run_caption, font_name=font_name, font_size=max(font_size - 2, 9), italic=True)
+
+
+def _render_markdown_block(
+    doc: Document,
+    section: str,
+    text_block: str,
+    font_name: str,
+    font_size: int,
+    alignment,
+    first_line_indent_cm: float,
+    line_spacing: float,
+) -> None:
+    lines = text_block.split("\n")
+    table_lines: List[str] = []
+
+    def flush_table() -> None:
+        nonlocal table_lines
+        if table_lines:
+            render_table_block(doc, table_lines, font_name=font_name)
+            table_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            flush_table()
+            continue
+
+        if stripped.startswith("|"):
+            table_lines.append(stripped)
+            continue
+
+        flush_table()
+
+        heading = _HEADING_RE.match(stripped)
+        if heading:
+            level = min(len(heading.group(1)), 3)
+            paragraph = doc.add_paragraph(style=f"Heading {level}")
+            add_formatted_text(paragraph, heading.group(2), font_name=font_name, font_size=font_size + 4 - level)
+            continue
+
+        list_match = _LIST_RE.match(line)
+        if list_match:
+            marker = list_match.group(2)
+            body = list_match.group(3)
+            style = "List Number" if marker[0].isdigit() else "List Bullet"
+            paragraph = doc.add_paragraph(style=style)
+            paragraph.paragraph_format.space_after = Pt(3)
+            add_formatted_text(paragraph, body, font_name=font_name, font_size=font_size)
+            continue
+
+        if "[Chart]" in stripped or "[Chart:" in stripped:
+            _render_chart(doc, stripped, section, font_name, font_size)
+            continue
+
+        if stripped.startswith("$$") and stripped.endswith("$$"):
+            paragraph = doc.add_paragraph()
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph.paragraph_format.space_before = Pt(6)
+            paragraph.paragraph_format.space_after = Pt(6)
+            parse_math_content(paragraph, stripped[2:-2], font_name=font_name, font_size=font_size, italic=True)
+            continue
+
+        _add_markdown_paragraph(
+            doc,
+            stripped,
+            "Body Text",
+            font_name,
+            font_size,
+            alignment,
+            first_line_indent_cm,
+            line_spacing,
+        )
+
+    flush_table()
+
+
+def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", config: Optional[Any] = None):
     font_name = "Times New Roman"
     font_size = 14
     title_font_size = 20
@@ -171,9 +429,8 @@ def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", 
     first_line_indent_cm = 1.25
     alignment_str = "justify"
     title_text = "GENERATED ACADEMIC PAPER"
-    
-    order = ['theory', 'calculation', 'conclusion']
-    
+    order = ["theory", "calculation", "conclusion"]
+
     if config is not None:
         if hasattr(config, "style") and config.style is not None:
             font_name = getattr(config.style, "font_name", font_name)
@@ -185,105 +442,67 @@ def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", 
         if hasattr(config, "pipeline") and config.pipeline is not None:
             title_text = getattr(config.pipeline, "title", title_text)
             if hasattr(config.pipeline, "sections") and config.pipeline.sections:
-                order = [s.name for s in config.pipeline.sections]
+                order = [section.name for section in config.pipeline.sections]
 
     alignment_map = {
-        'left': WD_ALIGN_PARAGRAPH.LEFT,
-        'center': WD_ALIGN_PARAGRAPH.CENTER,
-        'right': WD_ALIGN_PARAGRAPH.RIGHT,
-        'justify': WD_ALIGN_PARAGRAPH.JUSTIFY
+        "left": WD_ALIGN_PARAGRAPH.LEFT,
+        "center": WD_ALIGN_PARAGRAPH.CENTER,
+        "right": WD_ALIGN_PARAGRAPH.RIGHT,
+        "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
     }
-    align_val = alignment_map.get(alignment_str.lower(), WD_ALIGN_PARAGRAPH.JUSTIFY)
+    align_val = alignment_map.get(str(alignment_str).lower(), WD_ALIGN_PARAGRAPH.JUSTIFY)
+
+    output_dir = os.path.dirname(output_filename)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     doc = Document()
+    _configure_styles(doc, font_name, font_size, title_font_size)
 
-    # Title Page
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(100)
-    run = p.add_run(f"{title_text}\n")
-    set_font_style(run, font_name=font_name, font_size=title_font_size, bold=True)
+    section = doc.sections[0]
+    section.top_margin = Inches(0.85)
+    section.bottom_margin = Inches(0.85)
+    section.left_margin = Inches(0.9)
+    section.right_margin = Inches(0.9)
+
+    title = doc.add_paragraph(style="Document Title")
+    title.paragraph_format.space_before = Pt(120)
+    title_run = title.add_run(title_text)
+    set_font_style(
+        title_run,
+        font_name=font_name,
+        font_size=title_font_size,
+        bold=True,
+        color=RGBColor(15, 118, 110),
+    )
     doc.add_page_break()
 
-    for section in order:
-        if section in content:
-            text_block = content[section]
-            lines = text_block.split('\n')
-            
-            in_table = False
-            table_lines = []
+    for section_name in order:
+        text_block = content.get(section_name, "")
+        if not text_block.strip():
+            continue
+        _render_markdown_block(
+            doc,
+            section_name,
+            text_block,
+            font_name,
+            font_size,
+            align_val,
+            first_line_indent_cm,
+            line_spacing,
+        )
 
-            for line in lines:
-                stripped = line.strip()
-                
-                if stripped.startswith('|'):
-                    in_table = True
-                    table_lines.append(stripped)
-                    continue
-                else:
-                    if in_table:
-                        render_table_block(doc, table_lines, font_name=font_name)
-                        in_table = False
-                        table_lines = []
-
-                if not stripped: continue
-
-                if stripped.startswith('# '):
-                    p = doc.add_paragraph()
-                    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                    p.paragraph_format.space_before = Pt(12)
-                    p.paragraph_format.space_after = Pt(12)
-                    run = p.add_run(stripped[2:])
-                    set_font_style(run, font_name=font_name, font_size=font_size + 2, bold=True)
-                elif stripped.startswith('## '):
-                    p = doc.add_paragraph()
-                    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                    p.paragraph_format.space_before = Pt(10)
-                    p.paragraph_format.space_after = Pt(10)
-                    run = p.add_run(stripped[3:])
-                    set_font_style(run, font_name=font_name, font_size=font_size + 1, bold=True)
-                elif stripped.startswith('### '):
-                    p = doc.add_paragraph()
-                    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                    p.paragraph_format.space_before = Pt(8)
-                    p.paragraph_format.space_after = Pt(8)
-                    run = p.add_run(stripped[4:])
-                    set_font_style(run, font_name=font_name, font_size=font_size, bold=True)
-                elif '[Chart]' in stripped or '[Chart:' in stripped:
-                    temp_dir = tempfile.gettempdir()
-                    chart_path = os.path.join(temp_dir, f"chart_{section}.png")
-                    create_chart_image(chart_path)
-                    p = doc.add_paragraph()
-                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = p.add_run()
-                    run.add_picture(chart_path, width=Cm(14))
-                    
-                    caption_text = "Figure 1: Generated Chart Output"
-                    match = re.search(r'\[Chart:\s*(.*?)\]', stripped)
-                    if match:
-                        caption_text = f"Figure: {match.group(1)}"
-                    p_cap = doc.add_paragraph()
-                    p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run_cap = p_cap.add_run(caption_text)
-                    set_font_style(run_cap, font_name=font_name, font_size=font_size - 2, italic=True)
-                else:
-                    p = doc.add_paragraph()
-                    set_paragraph_format(
-                        p, 
-                        alignment=align_val, 
-                        first_line_indent_cm=first_line_indent_cm, 
-                        line_spacing=line_spacing
-                    )
-                    add_formatted_text(p, stripped, font_name=font_name, font_size=font_size)
-            
-            if in_table:
-                render_table_block(doc, table_lines, font_name=font_name)
+    if not any(value.strip() for value in content.values()):
+        paragraph = doc.add_paragraph(style="Body Text")
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = paragraph.add_run("No content was generated.")
+        set_font_style(run, font_name=font_name, font_size=font_size, italic=True)
 
     try:
         doc.save(output_filename)
         logger.info("Saved document successfully to %s", output_filename)
-    except Exception as e:
-        logger.error("Failed to save generated document to %s: %s", output_filename, e)
+    except Exception as exc:
+        logger.error("Failed to save generated document to %s: %s", output_filename, exc)
         raise
 
     return output_filename

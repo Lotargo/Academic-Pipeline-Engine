@@ -33,7 +33,7 @@ def test_config_has_circuit_breaker():
 def test_config_has_output_fields():
     config = load_config("config/agents.yaml")
     assert config.pipeline.output_filename == "Final_Academic_Paper.docx"
-    assert config.pipeline.output_dir == "."
+    assert config.pipeline.output_dir == "exports"
 
 
 def test_config_agent_type_optional():
@@ -55,3 +55,4 @@ def test_config_defaults():
     assert cfg.fsm.enabled is False
     assert cfg.style.font_name == "Times New Roman"
     assert cfg.pipeline.output_filename == "Final_Academic_Paper.docx"
+    assert cfg.pipeline.output_dir == "exports"

@@ -6,11 +6,14 @@ import { SearchBar } from "./search-bar"
 import { ConfigEditor } from "./config-editor"
 import { FSMMonitor } from "./fsm-monitor"
 import { DocumentPreview } from "./document-preview"
+import { LiveDocumentCanvas } from "./live-document-canvas"
 import { toast } from "sonner"
-import { Sparkles, FileText, ArrowRight } from "lucide-react"
+import { Sparkles, FileText, ArrowRight, Sun, Moon } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { useTheme } from "next-themes"
 
 export function Search() {
+  const { theme, setTheme } = useTheme()
   const [activeTab, setActiveTab] = useState<string>("workspace")
   const [historyList, setHistoryList] = useState<any[]>([])
   const [selectedPaper, setSelectedPaper] = useState<any>(null)
@@ -27,9 +30,22 @@ export function Search() {
     topic: ""
   })
 
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch("/api/status")
+      if (res.ok) {
+        const data = await res.json()
+        setStatus(data)
+      }
+    } catch (e) {
+      console.error("Error fetching pipeline status on mount:", e)
+    }
+  }
+
   // Poll intervals
   useEffect(() => {
     fetchHistory()
+    fetchStatus()
   }, [])
 
   useEffect(() => {
@@ -135,12 +151,23 @@ export function Search() {
             </span>
           </div>
 
-          {status.status === "RUNNING" && (
-            <div className="flex items-center gap-2 rounded-full bg-teal-500/10 px-3 py-1 text-[10px] font-bold text-teal-600 dark:text-teal-400 animate-pulse border border-teal-500/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-              <span>Pipeline Compiling</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {status.status === "RUNNING" && (
+              <div className="flex items-center gap-2 rounded-full bg-teal-500/10 px-3 py-1 text-[10px] font-bold text-teal-600 dark:text-teal-400 animate-pulse border border-teal-500/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+                <span>Pipeline Compiling</span>
+              </div>
+            )}
+            
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card/40 text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 cursor-pointer shadow-sm"
+              title="Toggle theme"
+            >
+              <Sun className="h-4.5 w-4.5 dark:hidden" />
+              <Moon className="h-4.5 w-4.5 hidden dark:block" />
+            </button>
+          </div>
         </header>
 
         {/* Tab Switchboard */}
@@ -174,7 +201,7 @@ export function Search() {
           {/* Pipeline Monitor / Log Tab */}
           {!selectedPaper && activeTab === "fsm" && (
             <div className="h-full w-full overflow-y-auto px-6 py-6 md:px-8">
-              <div className="mx-auto max-w-4xl space-y-6">
+              <div className="mx-auto max-w-7xl w-full space-y-6">
                 <div className="border-b pb-4">
                   <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground">
                     Pipeline Execution Monitor
@@ -184,21 +211,17 @@ export function Search() {
                   </p>
                 </div>
                 
-                <FSMMonitor status={status} onRetry={() => setActiveTab("workspace")} />
-                
-                {status.status === "COMPLETED" && (
-                  <div className="border-t pt-6 space-y-4">
-                    <h3 className="text-sm font-semibold flex items-center gap-1.5 text-teal-600">
-                      <FileText className="h-4 w-4" />
-                      Generated Document Preview
-                    </h3>
-                    <DocumentPreview
-                      topic={status.topic}
-                      context={status.context}
-                      docxFilename={status.docx_filename}
-                    />
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Column: FSM Visualizer & Logs */}
+                  <div className="lg:col-span-5 w-full">
+                    <FSMMonitor status={status} onRetry={() => setActiveTab("workspace")} />
                   </div>
-                )}
+                  
+                  {/* Right Column: Live Document Paper Canvas */}
+                  <div className="lg:col-span-7 w-full">
+                    <LiveDocumentCanvas status={status} />
+                  </div>
+                </div>
               </div>
             </div>
           )}

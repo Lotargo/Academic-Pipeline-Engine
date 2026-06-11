@@ -17,6 +17,8 @@ matplotlib = "^3.8"
 anthropic = "^0.70"
 fastapi = "^0.110.0"
 uvicorn = "^0.28.0"
+requests = "^2.31.0"
+deep-translator = "^1.11.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

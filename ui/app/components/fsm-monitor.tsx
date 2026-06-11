@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, Fragment } from "react"
 import { Button } from "@/components/ui/button"
 import { Play, AlertCircle, CheckCircle, Terminal, RefreshCw, Layers } from "lucide-react"
 
@@ -27,6 +27,7 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
 
   // Get status color for each node
   const getNodeStatus = (state: FSMState) => {
+    if (status?.status === "COMPLETED") return "completed"
     if (isFailed && activeState === state) return "failed"
     if (activeState === state) return "active"
     
@@ -47,55 +48,83 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
           Execution Pipeline (Finite State Machine)
         </h2>
 
-        <div className="relative flex flex-col md:flex-row items-center justify-between gap-4 py-4 md:px-4">
+        <div className="relative flex flex-col gap-4 py-2 px-1">
           {statesList.map((state, index) => {
             const nodeStatus = getNodeStatus(state)
+            const stateDesc = {
+              INIT: "Initializing compilation pipeline and overrides",
+              DRAFTING: "Cooperative Writer Agent generating draft sections",
+              REVIEWING: "Strict Reviewer Agent auditing academic quality",
+              RENDERING: "Formatting and compiling draft to Microsoft Word",
+              DONE: "Academic document compiled and ready for preview",
+              FAILED: "Pipeline compilation failed due to check issues"
+            }[state] || ""
             
             return (
-              <div key={state} className="flex flex-col md:flex-row items-center flex-1 w-full md:w-auto relative">
-                {/* Node Box */}
-                <div
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 w-32 md:w-36 h-20 transition-all duration-500 z-10 ${
-                    nodeStatus === "completed"
-                      ? "border-emerald-500 bg-emerald-500/5 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
-                      : nodeStatus === "active"
-                      ? "border-teal-500 bg-teal-500/5 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 animate-pulse shadow-[0_0_20px_rgba(14,148,136,0.3)] font-semibold scale-105"
-                      : nodeStatus === "failed"
-                      ? "border-red-500 bg-red-500/5 dark:bg-red-500/10 text-red-600 dark:text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.3)] font-semibold"
-                      : "border-border bg-muted/20 text-muted-foreground"
-                  }`}
-                >
-                  <span className="text-[10px] uppercase font-mono tracking-wider mb-1 opacity-70">
-                    Step {index + 1}
-                  </span>
-                  <span className="text-xs font-bold tracking-tight text-center">{state}</span>
-                  {nodeStatus === "completed" && <CheckCircle className="h-4 w-4 mt-1 text-emerald-500" />}
-                  {nodeStatus === "active" && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-ping" />
-                      <span className="text-[9px] font-mono">Running...</span>
+              <Fragment key={state}>
+                {/* Node Row */}
+                <div className="flex items-start gap-4 w-full relative group">
+                  {/* Status Circle on Left */}
+                  <div
+                    className={`flex items-center justify-center rounded-full border-2 w-9 h-9 shrink-0 transition-all duration-500 z-10 ${
+                      nodeStatus === "completed"
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]"
+                        : nodeStatus === "active"
+                        ? "border-teal-500 bg-teal-500/10 text-teal-600 dark:text-teal-400 animate-pulse shadow-[0_0_15px_rgba(14,148,136,0.3)] scale-105"
+                        : nodeStatus === "failed"
+                        ? "border-red-500 bg-red-500/10 text-red-600 dark:text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                        : "border-border bg-muted/40 text-muted-foreground/60"
+                    }`}
+                  >
+                    {nodeStatus === "completed" && <CheckCircle className="h-4.5 w-4.5 text-emerald-500" />}
+                    {nodeStatus === "active" && <span className="h-2 w-2 rounded-full bg-teal-500 animate-ping" />}
+                    {nodeStatus === "failed" && <AlertCircle className="h-4.5 w-4.5 text-red-500" />}
+                    {nodeStatus === "idle" && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />}
+                  </div>
+
+                  {/* Step Card on Right */}
+                  <div
+                    className={`flex-1 flex items-center justify-between p-3.5 rounded-xl border transition-all duration-300 ${
+                      nodeStatus === "completed"
+                        ? "border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                        : nodeStatus === "active"
+                        ? "border-teal-500/30 bg-teal-500/5 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 shadow-sm font-semibold scale-[1.01]"
+                        : nodeStatus === "failed"
+                        ? "border-red-500/20 bg-red-500/5 dark:bg-red-500/10 text-red-700 dark:text-red-400"
+                        : "border-border/60 bg-muted/5 text-muted-foreground/60"
+                    }`}
+                  >
+                    <div className="flex flex-col text-left space-y-0.5">
+                      <span className="text-[9px] uppercase font-mono tracking-wider opacity-60">
+                        Step {index + 1}
+                      </span>
+                      <span className="text-xs font-bold tracking-tight text-foreground">{state}</span>
+                      <span className="text-[10px] leading-tight text-muted-foreground font-sans line-clamp-2 max-w-[280px]">
+                        {stateDesc}
+                      </span>
                     </div>
-                  )}
-                  {nodeStatus === "failed" && <AlertCircle className="h-4 w-4 mt-1 text-red-500" />}
+                    
+                    <div className="text-[9px] font-mono tracking-tight shrink-0 self-start mt-1">
+                      {nodeStatus === "completed" && <span className="text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold uppercase">Done</span>}
+                      {nodeStatus === "active" && <span className="text-teal-500 bg-teal-500/10 px-1.5 py-0.5 rounded font-bold uppercase animate-pulse">Running</span>}
+                      {nodeStatus === "failed" && <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded font-bold uppercase">Failed</span>}
+                      {nodeStatus === "idle" && <span className="text-muted-foreground/50 bg-muted/20 px-1.5 py-0.5 rounded font-normal uppercase">Awaiting</span>}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Connector Line (except for last element) */}
+                {/* Vertical Connector Line (between steps) */}
                 {index < statesList.length - 1 && (
-                  <div className="hidden md:block flex-1 h-0.5 bg-border relative w-full mx-2 z-0">
+                  <div className="w-0.5 h-5 bg-border dark:bg-zinc-800 ml-4.5 -my-2 relative z-0">
                     {nodeStatus === "completed" && (
                       <div className="absolute inset-0 bg-emerald-500 transition-all duration-1000" />
                     )}
                     {nodeStatus === "active" && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-border animate-shimmer" 
-                           style={{
-                             backgroundSize: "200% 100%",
-                             animation: "shimmer 1.5s infinite linear"
-                           }}
-                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-teal-500 to-border" />
                     )}
                   </div>
                 )}
-              </div>
+              </Fragment>
             )
           })}
 

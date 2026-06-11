@@ -8,6 +8,7 @@ from typing import Callable, Dict, List, Optional, Protocol
 
 from academic_pe.core.config import AppConfig, load_config
 from academic_pe.agents.base import BaseAgent
+from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
 
 logger = logging.getLogger(__name__)
 
@@ -114,14 +115,24 @@ class Orchestrator:
     def run_pipeline(self) -> str:
         logger.info("Pipeline started.")
         output_path = "(no output)"
+        target_language = getattr(self._config.pipeline, "language", "en")
 
         try:
             # --- DRAFTING ---
             self.transition_to(PipelineState.DRAFTING)
             for section in self._config.pipeline.sections:
                 task = f"Write a chapter about {section.topic}. {section.instruction}"
+                if target_language == "ru":
+                    task += (
+                        " Write the final section in Russian. Preserve Markdown structure "
+                        "and keep LaTeX formulas unchanged."
+                    )
                 logger.debug("Drafting section: %s", section.name)
-                self.context[section.name] = self._writer.process(task)
+                draft_content = self._writer.process(task)
+                if target_language == "ru" and not has_cyrillic(draft_content):
+                    logger.info("Translating section %s to Russian...", section.name)
+                    draft_content = translate_markdown_to_ru(draft_content)
+                self.context[section.name] = draft_content
 
             # --- REVIEWING ---
             self.transition_to(PipelineState.REVIEWING)
@@ -169,7 +180,16 @@ class Orchestrator:
                             f"Address these issues: {reason[:500]}. "
                             f"{section.instruction}"
                         )
-                        self.context[section.name] = self._writer.process(task)
+                        if target_language == "ru":
+                            task += (
+                                " Write the final section in Russian. Preserve Markdown structure "
+                                "and keep LaTeX formulas unchanged."
+                            )
+                        revised_content = self._writer.process(task)
+                        if target_language == "ru" and not has_cyrillic(revised_content):
+                            logger.info("Translating revised section %s to Russian...", section.name)
+                            revised_content = translate_markdown_to_ru(revised_content)
+                        self.context[section.name] = revised_content
                     self.transition_to(PipelineState.REVIEWING)
                 else:
                     logger.error("Max retries reached. Proceeding to rendering with current content.")

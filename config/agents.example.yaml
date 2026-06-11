@@ -86,4 +86,5 @@ pipeline:
       topic: "Efficiency of State Machines"
       instruction: "Summarize key findings and implications."
   output_filename: "Final_Academic_Paper.docx"
-  output_dir: "."
+  output_dir: "exports"
+  language: "en"
