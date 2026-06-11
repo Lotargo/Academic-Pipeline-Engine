@@ -3,14 +3,21 @@ from __future__ import annotations
 import logging
 import os
 import signal
+import threading
 from enum import Enum, auto
 from typing import Callable, Dict, List, Optional, Protocol
 
 from academic_pe.core.config import AppConfig, load_config
 from academic_pe.agents.base import BaseAgent
+from academic_pe.core.language import detect_language, language_instruction
+from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, render_template
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
 
 logger = logging.getLogger(__name__)
+
+
+class PipelineCancelled(Exception):
+    pass
 
 
 class PipelineState(Enum):
@@ -67,12 +74,15 @@ class Orchestrator:
         self._config = config
         self._state: PipelineState = PipelineState.INIT
         self.context: Dict[str, str] = {}
+        self.user_topic: str = ""
+        self.user_instructions: str = ""
         self._state_history: List[PipelineState] = []
         self._hooks: Dict[str, List[HookFn]] = {
             "on_enter": [],
             "on_exit": [],
         }
         self._transitions: Dict[PipelineState, List[PipelineState]] = dict(_DEFAULT_TRANSITIONS)
+        self._cancel_event: threading.Event = threading.Event()
 
     @property
     def state(self) -> PipelineState:
@@ -87,6 +97,13 @@ class Orchestrator:
 
     def on_exit(self, callback: HookFn) -> None:
         self._hooks["on_exit"].append(callback)
+
+    def cancel(self) -> None:
+        self._cancel_event.set()
+
+    def _check_cancelled(self) -> None:
+        if self._cancel_event.is_set():
+            raise PipelineCancelled("Pipeline was cancelled by user")
 
     def transition_to(self, new_state: PipelineState) -> None:
         allowed = self._transitions.get(self._state, [])
@@ -112,24 +129,32 @@ class Orchestrator:
         self._state = prev
         return prev
 
-    def run_pipeline(self) -> str:
+    def run_pipeline(self, render_artifact: bool = True) -> str:
         logger.info("Pipeline started.")
         output_path = "(no output)"
-        target_language = getattr(self._config.pipeline, "language", "en")
+        raw_language_policy = getattr(self._config.pipeline, "language", "auto")
+        language_policy = getattr(raw_language_policy, "value", raw_language_policy)
+        prompt_text = " ".join(x for x in [self.user_topic, self.user_instructions] if x)
+        target_language = detect_language(prompt_text) if language_policy == "auto" else str(language_policy)
 
         try:
             # --- DRAFTING ---
             self.transition_to(PipelineState.DRAFTING)
             for section in self._config.pipeline.sections:
-                task = f"Write a chapter about {section.topic}. {section.instruction}"
-                if target_language == "ru":
-                    task += (
-                        " Write the final section in Russian. Preserve Markdown structure "
-                        "and keep LaTeX formulas unchanged."
-                    )
+                self._check_cancelled()
+                task = render_template(
+                    DEFAULT_DRAFT_TEMPLATE,
+                    {
+                        "section": section,
+                        "language": target_language,
+                        "language_instruction": language_instruction(target_language),
+                        "user_topic": self.user_topic,
+                        "user_instructions": self.user_instructions,
+                    },
+                )
                 logger.debug("Drafting section: %s", section.name)
                 draft_content = self._writer.process(task)
-                if target_language == "ru" and not has_cyrillic(draft_content):
+                if language_policy == "ru" and not has_cyrillic(draft_content):
                     logger.info("Translating section %s to Russian...", section.name)
                     draft_content = translate_markdown_to_ru(draft_content)
                 self.context[section.name] = draft_content
@@ -141,6 +166,7 @@ class Orchestrator:
 
             max_retries = 3
             for attempt in range(max_retries):
+                self._check_cancelled()
                 if self._reviewer is None:
                     logger.info("No reviewer configured, skipping review.")
                     break
@@ -149,9 +175,10 @@ class Orchestrator:
                     self.context.get(s.name, "") for s in self._config.pipeline.sections
                 )
                 critique = self._reviewer.process(
-                    "Check the provided text for academic tone and formatting errors. "
-                    "Return exactly one line: APPROVED if the text passes, "
-                    "or REJECTED followed by a brief reason.",
+                    render_template(
+                        DEFAULT_REVIEW_TEMPLATE,
+                        {"language": target_language},
+                    ),
                     context=full_text,
                 )
 
@@ -175,18 +202,20 @@ class Orchestrator:
                     logger.info("Returning to DRAFTING for revision...")
                     self.transition_to(PipelineState.DRAFTING)
                     for section in self._config.pipeline.sections:
-                        task = (
-                            f"Revise the chapter about {section.topic}. "
-                            f"Address these issues: {reason[:500]}. "
-                            f"{section.instruction}"
+                        self._check_cancelled()
+                        task = render_template(
+                            DEFAULT_REVISION_TEMPLATE,
+                            {
+                                "section": section,
+                                "reviewer_reason": reason[:500],
+                                "language": target_language,
+                                "language_instruction": language_instruction(target_language),
+                                "user_topic": self.user_topic,
+                                "user_instructions": self.user_instructions,
+                            },
                         )
-                        if target_language == "ru":
-                            task += (
-                                " Write the final section in Russian. Preserve Markdown structure "
-                                "and keep LaTeX formulas unchanged."
-                            )
                         revised_content = self._writer.process(task)
-                        if target_language == "ru" and not has_cyrillic(revised_content):
+                        if language_policy == "ru" and not has_cyrillic(revised_content):
                             logger.info("Translating revised section %s to Russian...", section.name)
                             revised_content = translate_markdown_to_ru(revised_content)
                         self.context[section.name] = revised_content
@@ -209,26 +238,32 @@ class Orchestrator:
             # --- RENDERING ---
             self.transition_to(PipelineState.RENDERING)
 
-            output_filename = self._config.pipeline.output_filename
-            output_dir = self._config.pipeline.output_dir
-            os.makedirs(output_dir, exist_ok=True)
-            output_path = os.path.join(output_dir, output_filename)
+            if render_artifact and self._renderer is not None:
+                output_filename = self._config.pipeline.output_filename
+                output_dir = self._config.pipeline.output_dir
+                os.makedirs(output_dir, exist_ok=True)
+                output_path = os.path.join(output_dir, output_filename)
 
-            if self._renderer is not None:
                 import inspect
                 sig = inspect.signature(self._renderer)
                 if "config" in sig.parameters:
                     output_path = self._renderer(self.context, output_filename=output_path, config=self._config)
                 else:
                     output_path = self._renderer(self.context, output_filename=output_path)
-            else:
+            elif render_artifact:
                 output_path = "(no renderer configured)"
                 logger.warning("No renderer configured, skipping DOCX generation.")
+            else:
+                output_path = ""
+                logger.info("Artifact rendering skipped. Draft content is ready for explicit export.")
 
             # --- DONE ---
             self.transition_to(PipelineState.DONE)
             logger.info("Pipeline finished. Artifact: %s", output_path)
 
+        except PipelineCancelled:
+            self._state = PipelineState.FAILED
+            raise
         except PipelineError:
             raise
         except Exception:

@@ -77,6 +77,49 @@ def test_full_pipeline_mock():
     assert "conclusion" in orch.context
 
 
+def test_auto_language_uses_user_prompt_language_for_drafting():
+    config = _make_config()
+    config.pipeline.language = "auto"
+
+    class CapturingProvider(MockProvider):
+        def __init__(self):
+            self.prompts = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature):
+            self.prompts.append(user_prompt)
+            return "APPROVED" if "Check the provided text" in user_prompt else "English draft content for the section."
+
+    llm = CapturingProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, config=config)
+    orch.user_topic = "AI Agent Design Principles"
+    orch.run_pipeline(render_artifact=False)
+
+    assert any("Write the final section in English." in prompt for prompt in llm.prompts)
+    assert not any("Write the final section in Russian." in prompt for prompt in llm.prompts)
+
+
+def test_auto_language_detects_russian_user_prompt():
+    config = _make_config()
+    config.pipeline.language = "auto"
+
+    class CapturingProvider(MockProvider):
+        def __init__(self):
+            self.prompts = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature):
+            self.prompts.append(user_prompt)
+            return "Текст раздела на русском языке."
+
+    llm = CapturingProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, config=config)
+    orch.user_topic = "Принципы проектирования AI агентов"
+    orch.run_pipeline(render_artifact=False)
+
+    assert any("Write the final section in Russian." in prompt for prompt in llm.prompts)
+
+
 def test_reviewer_loop_approves():
     config = AppConfig(
         agents={

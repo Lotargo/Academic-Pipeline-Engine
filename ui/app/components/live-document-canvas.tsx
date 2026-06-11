@@ -1,12 +1,17 @@
 import { useState } from "react"
-import { FileText, Loader2, Sparkles, CheckCircle2, PenTool, Check, Copy, FileDown } from "lucide-react"
+import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, FileDown } from "lucide-react"
+import { toast } from "sonner"
+import type { Messages } from "@/lib/i18n"
 
 interface LiveDocumentCanvasProps {
   status: any
+  onStatusUpdate?: (status: any) => void
+  t: Messages
 }
 
-export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
+export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCanvasProps) {
   const [copied, setCopied] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const context = status?.context || {}
   const activeState = status?.state || "INIT"
   const isRunning = status?.status === "RUNNING"
@@ -16,6 +21,35 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
     const docxFilename = status?.docx_filename
     if (!docxFilename) return
     window.open(`/api/download/${docxFilename}`, "_blank")
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch("/api/export/docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || "Export failed")
+      }
+      onStatusUpdate?.({
+        ...status,
+        docx_filename: data.filename,
+        export_report: data,
+      })
+      if (data.status === "passed") {
+        toast.success("DOCX export passed quality checks")
+      } else {
+        toast.warning("DOCX exported with QA issues")
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to export DOCX")
+    } finally {
+      setExporting(false)
+    }
   }
 
   const copyToClipboard = () => {
@@ -57,10 +91,22 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
     }
   }
 
+  const formatMath = (text: string) => text
+    .replace(/\\text\{([^}]+)\}/g, "$1")
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+    .replace(/\\sum/g, "∑")
+    .replace(/\\tau/g, "τ")
+    .replace(/\\epsilon/g, "ε")
+    .replace(/\\alpha/g, "α")
+    .replace(/\\beta/g, "β")
+    .replace(/\\lambda/g, "λ")
+    .replace(/\\_/g, "_")
+    .replace(/[{}]/g, "")
+
   // Inline styling parser (supports bold, italic, and LaTeX blocks)
   const parseInlineStyles = (text: string) => {
     if (!text) return null
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\$\$.*?\$\$|\$.*?\$)/g)
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\\\(.*?\\\)|\$\$.*?\$\$|\$.*?\$)/g)
 
     return parts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**")) {
@@ -71,15 +117,22 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
       }
       if (part.startsWith("$$") && part.endsWith("$$")) {
         return (
-          <span key={index} className="block my-3 py-2 px-4 rounded bg-zinc-100 dark:bg-zinc-800/50 font-mono text-center text-xs border border-zinc-200 dark:border-zinc-700 select-all text-teal-600 dark:text-teal-400">
-            {part.slice(2, -2)}
+          <span key={index} className="block my-3 py-3 px-4 rounded-md bg-sky-50/70 dark:bg-sky-950/20 font-mono text-center text-sm border border-sky-200/70 dark:border-sky-800/50 select-all text-sky-800 dark:text-sky-200">
+            {formatMath(part.slice(2, -2))}
           </span>
+        )
+      }
+      if (part.startsWith("\\(") && part.endsWith("\\)")) {
+        return (
+          <code key={index} className="px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/30 font-mono text-sm text-sky-800 dark:text-sky-200 select-all">
+            {formatMath(part.slice(2, -2))}
+          </code>
         )
       }
       if (part.startsWith("$") && part.endsWith("$")) {
         return (
-          <code key={index} className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800/80 font-mono text-xs text-teal-600 dark:text-teal-400 select-all">
-            {part.slice(1, -1)}
+          <code key={index} className="px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/30 font-mono text-sm text-sky-800 dark:text-sky-200 select-all">
+            {formatMath(part.slice(1, -1))}
           </code>
         )
       }
@@ -90,27 +143,42 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
   // Render paragraphs and headers
   const renderContent = (text: string) => {
     if (!text) return null
-    return text.split("\n").map((line, idx) => {
+    const normalized = text.replace(/\\\[((?:.|\n)*?)\\\]/g, "\n$$$1$$\n")
+    return normalized.split("\n").map((line, idx) => {
       const stripped = line.trim()
       if (!stripped) return null
 
-      if (stripped.startsWith("# ")) {
+      if (stripped.startsWith("### ")) {
         return (
-          <h2 key={idx} className="text-lg font-bold font-sans tracking-tight border-b border-zinc-200 dark:border-zinc-800 pb-1 pt-3 mb-2 text-zinc-900 dark:text-zinc-50">
-            {stripped.slice(2)}
-          </h2>
+          <h4 key={idx} className="text-base font-semibold font-sans tracking-normal pt-2 mb-2 text-slate-800 dark:text-slate-100">
+            {stripped.slice(4)}
+          </h4>
         )
       }
       if (stripped.startsWith("## ")) {
         return (
-          <h3 key={idx} className="text-base font-bold font-sans tracking-tight pt-2 mb-2 text-zinc-800 dark:text-zinc-100">
+          <h3 key={idx} className="text-lg font-bold font-sans tracking-tight pt-3 mb-2 text-slate-800 dark:text-slate-50">
             {stripped.slice(3)}
           </h3>
         )
       }
+      if (stripped.startsWith("# ")) {
+        return (
+          <h2 key={idx} className="text-xl font-bold font-sans tracking-tight border-b border-slate-200 dark:border-slate-800 pb-2 pt-4 mb-3 text-slate-900 dark:text-slate-50">
+            {stripped.slice(2)}
+          </h2>
+        )
+      }
+      if (stripped.startsWith("$$") && stripped.endsWith("$$")) {
+        return (
+          <div key={idx} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
+            {formatMath(stripped.slice(2, -2))}
+          </div>
+        )
+      }
       if (stripped.startsWith("- ") || stripped.startsWith("* ")) {
         return (
-          <ul key={idx} className="list-disc list-inside pl-4 my-1 text-zinc-700 dark:text-zinc-300">
+          <ul key={idx} className="list-disc pl-6 my-2 text-slate-700 dark:text-slate-300 leading-relaxed">
             <li>{parseInlineStyles(stripped.slice(2))}</li>
           </ul>
         )
@@ -119,12 +187,12 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
         if (stripped.includes("---")) return null
         const cells = stripped.split("|").map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1)
         return (
-          <div key={idx} className="overflow-x-auto my-2 border border-zinc-200 dark:border-zinc-850 rounded">
-            <table className="min-w-full border-collapse text-xs">
+          <div key={idx} className="overflow-x-auto my-3 border border-slate-200 dark:border-slate-800 rounded-md">
+            <table className="min-w-full border-collapse text-sm">
               <tbody>
-                <tr className="bg-zinc-50 dark:bg-zinc-900/60">
+                <tr className="bg-slate-50 dark:bg-slate-900/60">
                   {cells.map((cell, cidx) => (
-                    <td key={cidx} className="border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 font-mono text-zinc-700 dark:text-zinc-300">{cell}</td>
+                    <td key={cidx} className="border border-slate-200 dark:border-slate-800 px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{parseInlineStyles(cell)}</td>
                   ))}
                 </tr>
               </tbody>
@@ -134,7 +202,7 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
       }
 
       return (
-        <p key={idx} className="indent-6 text-justify text-zinc-700 dark:text-zinc-300 mb-3 leading-relaxed">
+        <p key={idx} className="indent-6 text-justify text-slate-700 dark:text-slate-300 mb-4 leading-8 text-[16px]">
           {parseInlineStyles(stripped)}
         </p>
       )
@@ -144,13 +212,13 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
   return (
     <div className="w-full h-full flex flex-col space-y-4">
       {/* Document Sheet Container */}
-      <div className="relative flex-1 bg-[#fdfdfc] dark:bg-[#151518] text-zinc-850 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl shadow-xl p-6 md:p-10 font-serif min-h-[650px] overflow-y-auto max-h-[80vh] scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 transition-all duration-300">
+      <div className="relative flex-1 bg-[#fbfaf7] dark:bg-[#191b20] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800/80 rounded-xl shadow-sm p-6 md:p-10 font-serif min-h-[650px] overflow-y-auto max-h-[80vh] scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 transition-colors duration-200">
         
         {/* Paper Header / Running Metadata */}
         <div className="flex items-center justify-between border-b border-zinc-200/60 dark:border-zinc-800/60 pb-3 mb-6 text-[10px] font-mono tracking-widest text-zinc-400 dark:text-zinc-500 uppercase">
           <div className="flex items-center gap-1.5">
             <FileText className="h-3 w-3" />
-            <span>Academic PE Compiler</span>
+            <span>{t.document.compiler}</span>
           </div>
           <div className="flex items-center gap-2">
             {isRunning && (
@@ -159,42 +227,51 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
                 </span>
-                <span className="text-amber-500 font-bold">Compiling Draft ({activeState})</span>
+                <span className="text-amber-600 dark:text-amber-300 font-bold">{t.document.compilingDraft} ({activeState})</span>
               </>
             )}
             {isCompleted && (
               <div className="flex items-center gap-1.5 lowercase tracking-normal font-sans">
                 <button
                   onClick={copyToClipboard}
-                  className="px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1 text-[10px] font-bold text-zinc-650 dark:text-zinc-400 cursor-pointer border-0"
+                  className="px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1 text-[10px] font-bold text-zinc-600 dark:text-zinc-400 cursor-pointer border-0"
                 >
                   {copied ? (
                     <>
                       <Check className="h-3 w-3 text-emerald-500" />
-                      copied
+                      {t.document.copied}
                     </>
                   ) : (
                     <>
                       <Copy className="h-3.5 w-3.5" />
-                      copy
+                      {t.document.copy}
                     </>
                   )}
                 </button>
-                {status?.docx_filename && (
+                {status?.docx_filename ? (
                   <button
                     onClick={handleDownload}
                     className="px-2 py-1 rounded bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-950/40 transition-colors flex items-center gap-1 text-[10px] font-bold cursor-pointer border-0"
                   >
                     <FileDown className="h-3.5 w-3.5" />
-                    download docx
+                    {t.document.downloadDocx}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="px-2 py-1 rounded bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-950/40 disabled:opacity-60 transition-colors flex items-center gap-1 text-[10px] font-bold cursor-pointer border-0"
+                  >
+                    {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                    {t.document.exportDocx}
                   </button>
                 )}
                 <span className="text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-0.5 ml-1.5">
-                  <CheckCircle2 className="h-3 w-3 animate-pulse" /> Ready
+                  <CheckCircle2 className="h-3 w-3 animate-pulse" /> {t.document.ready}
                 </span>
               </div>
             )}
-            {!isRunning && !isCompleted && <span className="text-zinc-400">Idle</span>}
+            {!isRunning && !isCompleted && <span className="text-zinc-400">{t.document.idle}</span>}
           </div>
         </div>
 
@@ -204,7 +281,7 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
             {status?.topic || "Technical Research Paper Draft"}
           </h1>
           <div className="text-[11px] font-sans text-zinc-400 dark:text-zinc-500 tracking-wide uppercase italic">
-            Automated Generation Loop by Cooperative Agents
+            {t.document.subtitle}
           </div>
           <div className="w-20 h-0.5 bg-teal-500/30 mx-auto rounded-full mt-4" />
         </div>
@@ -226,14 +303,14 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
                   <div className="text-[10px] font-sans">
                     {hasContent ? (
                       <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Compiled
+                    <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
                       </span>
                     ) : isDrafting ? (
                       <span className="text-amber-500 dark:text-amber-400 font-bold flex items-center gap-1 animate-pulse">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Drafting...
+                        <Loader2 className="h-3 w-3 animate-spin" /> {t.document.drafting}
                       </span>
                     ) : (
-                      <span className="text-zinc-350 dark:text-zinc-650">Pending</span>
+                      <span className="text-zinc-400 dark:text-zinc-500">{t.document.pending}</span>
                     )}
                   </div>
                 </div>
@@ -248,14 +325,14 @@ export function LiveDocumentCanvas({ status }: LiveDocumentCanvasProps) {
                     <PenTool className="h-5 w-5 text-amber-500 animate-bounce" />
                     <div>
                       <h4 className="text-xs font-sans font-bold text-zinc-800 dark:text-zinc-200">Writer Agent Drafting</h4>
-                      <p className="text-[11px] font-sans text-zinc-400 dark:text-zinc-500 mt-1 max-w-sm">
-                        Generating styled content, markdown sections, and LaTeX complexity metrics for this chapter.
+                      <p className="text-xs font-sans text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm">
+                        Markdown and LaTeX preview updates as sections arrive from the agent stream.
                       </p>
                     </div>
                   </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800/60 p-6 flex flex-col items-center justify-center text-center text-zinc-300 dark:text-zinc-700">
-                    <span className="text-xs font-sans italic">Awaiting document compiler pipeline...</span>
+                    <span className="text-xs font-sans italic">{t.document.awaiting}</span>
                   </div>
                 )}
               </div>

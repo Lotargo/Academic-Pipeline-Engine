@@ -19,11 +19,27 @@ elif [ "$choice" = "2" ]; then
     echo "Starting local deployment..."
     
     # Run backend
-    if command -v uv &> /dev/null; then
+    if [ -x ".venv/bin/python" ]; then
+        if ! .venv/bin/python -c "import fastapi, uvicorn, yaml, docx, requests, jinja2, fitz" >/dev/null 2>&1; then
+            echo "Installing missing Backend Python dependencies into .venv..."
+            .venv/bin/python -m pip install -e . || exit 1
+        fi
+        echo "Starting Backend API Server using .venv..."
+        .venv/bin/python -m uvicorn academic_pe.server:app --host 0.0.0.0 --port 8000 &
+        BACKEND_PID=$!
+    elif command -v uv &> /dev/null; then
+        if ! uv run python -c "import fastapi, uvicorn, yaml, docx, requests, jinja2, fitz" >/dev/null 2>&1; then
+            echo "Installing missing Backend Python dependencies using uv..."
+            uv pip install -e . || exit 1
+        fi
         echo "Starting Backend API Server using uv..."
         uv run uvicorn academic_pe.server:app --host 0.0.0.0 --port 8000 &
         BACKEND_PID=$!
     else
+        if ! python3 -c "import fastapi, uvicorn, yaml, docx, requests, jinja2, fitz" >/dev/null 2>&1; then
+            echo "Installing missing Backend Python dependencies using python..."
+            python3 -m pip install -e . || exit 1
+        fi
         echo "Starting Backend API Server using python..."
         python3 -m uvicorn academic_pe.server:app --host 0.0.0.0 --port 8000 &
         BACKEND_PID=$!

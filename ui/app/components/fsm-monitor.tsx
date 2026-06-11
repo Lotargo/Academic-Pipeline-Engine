@@ -1,29 +1,42 @@
 "use client"
 
-import { useEffect, useRef, Fragment } from "react"
+import { Fragment, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Play, AlertCircle, CheckCircle, Terminal, RefreshCw, Layers } from "lucide-react"
+import { Play, AlertCircle, CheckCircle, Terminal, RefreshCw, Layers, XCircle } from "lucide-react"
+import { toast } from "sonner"
+import type { Messages } from "@/lib/i18n"
 
-type FSMState = "INIT" | "DRAFTING" | "REVIEWING" | "RENDERING" | "DONE" | "FAILED"
+type FSMState = "INIT" | "DRAFTING" | "REVIEWING" | "RENDERING" | "DONE" | "FAILED" | "CANCELLED"
 
 interface FSMMonitorProps {
   status: any
   onRetry?: () => void
+  t: Messages
 }
 
-export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
-  const terminalEndRef = useRef<HTMLDivElement>(null)
-
-  // Auto scroll terminal to bottom on new logs
-  useEffect(() => {
-    if (terminalEndRef.current) {
-      terminalEndRef.current.scrollIntoView({ behavior: "smooth" })
-    }
-  }, [status?.logs])
-
+export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
   const statesList: FSMState[] = ["INIT", "DRAFTING", "REVIEWING", "RENDERING", "DONE"]
   const activeState = status?.state || "INIT"
   const isFailed = status?.status === "FAILED" || activeState === "FAILED"
+  const isCancelled = status?.status === "CANCELLED" || activeState === "CANCELLED"
+  const isRunning = status?.status === "RUNNING"
+  const [cancelling, setCancelling] = useState(false)
+
+  const handleCancel = async () => {
+    setCancelling(true)
+    try {
+      const res = await fetch("/api/cancel", { method: "POST" })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || "Failed to cancel pipeline")
+      }
+      toast.info("Pipeline cancellation requested")
+    } catch (e: any) {
+      toast.error(e.message || "Failed to cancel")
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   // Get status color for each node
   const getNodeStatus = (state: FSMState) => {
@@ -43,21 +56,21 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
     <div className="space-y-6 w-full">
       {/* Visual Pipeline Flow */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <h2 className="text-sm font-semibold mb-6 flex items-center gap-2">
-          <Layers className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-          Execution Pipeline (Finite State Machine)
+        <h2 className="text-base font-semibold mb-6 flex items-center gap-2">
+          <Layers className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+          {t.fsm.title}
         </h2>
 
         <div className="relative flex flex-col gap-4 py-2 px-1">
           {statesList.map((state, index) => {
             const nodeStatus = getNodeStatus(state)
             const stateDesc = {
-              INIT: "Initializing compilation pipeline and overrides",
-              DRAFTING: "Cooperative Writer Agent generating draft sections",
-              REVIEWING: "Strict Reviewer Agent auditing academic quality",
-              RENDERING: "Formatting and compiling draft to Microsoft Word",
-              DONE: "Academic document compiled and ready for preview",
-              FAILED: "Pipeline compilation failed due to check issues"
+              INIT: t.fsm.initDesc,
+              DRAFTING: t.fsm.draftingDesc,
+              REVIEWING: t.fsm.reviewingDesc,
+              RENDERING: t.fsm.renderingDesc,
+              DONE: t.fsm.doneDesc,
+              FAILED: t.fsm.failedDesc
             }[state] || ""
             
             return (
@@ -66,19 +79,19 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
                 <div className="flex items-start gap-4 w-full relative group">
                   {/* Status Circle on Left */}
                   <div
-                    className={`flex items-center justify-center rounded-full border-2 w-9 h-9 shrink-0 transition-all duration-500 z-10 ${
+                    className={`flex items-center justify-center rounded-full border-2 w-10 h-10 shrink-0 transition-all duration-300 z-10 ${
                       nodeStatus === "completed"
-                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]"
+                        ? "border-sky-400 bg-sky-400/10 text-sky-700 dark:text-sky-300"
                         : nodeStatus === "active"
-                        ? "border-teal-500 bg-teal-500/10 text-teal-600 dark:text-teal-400 animate-pulse shadow-[0_0_15px_rgba(14,148,136,0.3)] scale-105"
+                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-700 dark:text-cyan-300 shadow-sm scale-105"
                         : nodeStatus === "failed"
-                        ? "border-red-500 bg-red-500/10 text-red-600 dark:text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                        ? "border-rose-400 bg-rose-400/10 text-rose-700 dark:text-rose-300"
                         : "border-border bg-muted/40 text-muted-foreground/60"
                     }`}
                   >
-                    {nodeStatus === "completed" && <CheckCircle className="h-4.5 w-4.5 text-emerald-500" />}
-                    {nodeStatus === "active" && <span className="h-2 w-2 rounded-full bg-teal-500 animate-ping" />}
-                    {nodeStatus === "failed" && <AlertCircle className="h-4.5 w-4.5 text-red-500" />}
+                    {nodeStatus === "completed" && <CheckCircle className="h-5 w-5 text-sky-500" />}
+                    {nodeStatus === "active" && <span className="h-2.5 w-2.5 rounded-full bg-cyan-500 animate-pulse" />}
+                    {nodeStatus === "failed" && <AlertCircle className="h-5 w-5 text-rose-500" />}
                     {nodeStatus === "idle" && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />}
                   </div>
 
@@ -86,29 +99,29 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
                   <div
                     className={`flex-1 flex items-center justify-between p-3.5 rounded-xl border transition-all duration-300 ${
                       nodeStatus === "completed"
-                        ? "border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                        ? "border-sky-400/25 bg-sky-400/10 dark:bg-sky-400/10 text-sky-800 dark:text-sky-200"
                         : nodeStatus === "active"
-                        ? "border-teal-500/30 bg-teal-500/5 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 shadow-sm font-semibold scale-[1.01]"
+                        ? "border-cyan-400/35 bg-cyan-400/10 dark:bg-cyan-400/10 text-cyan-800 dark:text-cyan-200 shadow-sm font-semibold"
                         : nodeStatus === "failed"
-                        ? "border-red-500/20 bg-red-500/5 dark:bg-red-500/10 text-red-700 dark:text-red-400"
+                        ? "border-rose-400/25 bg-rose-400/10 dark:bg-rose-400/10 text-rose-800 dark:text-rose-200"
                         : "border-border/60 bg-muted/5 text-muted-foreground/60"
                     }`}
                   >
                     <div className="flex flex-col text-left space-y-0.5">
-                      <span className="text-[9px] uppercase font-mono tracking-wider opacity-60">
-                        Step {index + 1}
+                      <span className="text-[11px] uppercase font-mono tracking-wider opacity-80">
+                        {t.fsm.step} {index + 1}
                       </span>
-                      <span className="text-xs font-bold tracking-tight text-foreground">{state}</span>
-                      <span className="text-[10px] leading-tight text-muted-foreground font-sans line-clamp-2 max-w-[280px]">
+                      <span className="text-sm font-bold tracking-tight text-foreground">{state}</span>
+                      <span className="text-xs leading-snug text-muted-foreground font-sans max-w-[320px]">
                         {stateDesc}
                       </span>
                     </div>
                     
                     <div className="text-[9px] font-mono tracking-tight shrink-0 self-start mt-1">
-                      {nodeStatus === "completed" && <span className="text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold uppercase">Done</span>}
-                      {nodeStatus === "active" && <span className="text-teal-500 bg-teal-500/10 px-1.5 py-0.5 rounded font-bold uppercase animate-pulse">Running</span>}
-                      {nodeStatus === "failed" && <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded font-bold uppercase">Failed</span>}
-                      {nodeStatus === "idle" && <span className="text-muted-foreground/50 bg-muted/20 px-1.5 py-0.5 rounded font-normal uppercase">Awaiting</span>}
+                      {nodeStatus === "completed" && <span className="text-sky-600 dark:text-sky-300 bg-sky-500/10 px-2 py-1 rounded font-bold uppercase">{t.fsm.done}</span>}
+                      {nodeStatus === "active" && <span className="text-cyan-600 dark:text-cyan-300 bg-cyan-500/10 px-2 py-1 rounded font-bold uppercase animate-pulse">{t.fsm.running}</span>}
+                      {nodeStatus === "failed" && <span className="text-rose-600 dark:text-rose-300 bg-rose-500/10 px-2 py-1 rounded font-bold uppercase">{t.fsm.failed}</span>}
+                      {nodeStatus === "idle" && <span className="text-muted-foreground/60 bg-muted/30 px-2 py-1 rounded font-normal uppercase">{t.fsm.awaiting}</span>}
                     </div>
                   </div>
                 </div>
@@ -117,10 +130,10 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
                 {index < statesList.length - 1 && (
                   <div className="w-0.5 h-5 bg-border dark:bg-zinc-800 ml-4.5 -my-2 relative z-0">
                     {nodeStatus === "completed" && (
-                      <div className="absolute inset-0 bg-emerald-500 transition-all duration-1000" />
+                      <div className="absolute inset-0 bg-sky-400 transition-all duration-1000" />
                     )}
                     {nodeStatus === "active" && (
-                      <div className="absolute inset-0 bg-gradient-to-b from-teal-500 to-border" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-cyan-400 to-border" />
                     )}
                   </div>
                 )}
@@ -129,13 +142,25 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
           })}
 
           {/* FAILED Alert Overlay box */}
-          {isFailed && (
+          {(isFailed || isCancelled) && (
             <div className="absolute inset-0 bg-background/80 dark:bg-background/90 z-20 flex flex-col items-center justify-center p-6 rounded-2xl animate-in fade-in duration-300">
-              <AlertCircle className="h-12 w-12 text-red-500 mb-2 animate-bounce" />
-              <h3 className="text-lg font-bold text-red-500">Pipeline Execution Failed</h3>
-              <p className="text-xs text-muted-foreground text-center max-w-md mt-1 mb-4">
-                {status?.error || "An unexpected error occurred during execution. Please check the logs below."}
-              </p>
+              {isCancelled ? (
+                <>
+                  <XCircle className="h-12 w-12 text-amber-500 mb-2" />
+                  <h3 className="text-lg font-bold text-amber-500">Pipeline Cancelled</h3>
+                  <p className="text-xs text-muted-foreground text-center max-w-md mt-1 mb-4">
+                    Pipeline execution was cancelled by user request.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-12 w-12 text-red-500 mb-2 animate-bounce" />
+                  <h3 className="text-lg font-bold text-red-500">Pipeline Execution Failed</h3>
+                  <p className="text-xs text-muted-foreground text-center max-w-md mt-1 mb-4">
+                    {status?.error || "An unexpected error occurred during execution. Please check the logs below."}
+                  </p>
+                </>
+              )}
               {onRetry && (
                 <Button size="sm" onClick={onRetry} className="bg-teal-600 hover:bg-teal-700 text-white gap-1.5">
                   <RefreshCw className="h-3.5 w-3.5" />
@@ -151,7 +176,7 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
       {status?.reviewer_feedback?.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-5 space-y-3 shadow-sm">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Reviewer Audit Feedback
+            {t.fsm.feedback}
           </h3>
           <div className="space-y-2.5">
             {status.reviewer_feedback.map((critique: string, idx: number) => {
@@ -186,20 +211,34 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
         <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
           <div className="flex items-center gap-2">
             <Terminal className="h-4 w-4 text-teal-400" />
-            <span className="text-xs font-mono font-bold tracking-tight text-zinc-400">Live Agent Console Stream</span>
+            <span className="text-xs font-mono font-bold tracking-tight text-zinc-300">{t.fsm.console}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="relative flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                status?.status === "RUNNING" ? "bg-teal-400" : "bg-zinc-600"
-              }`} />
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                status?.status === "RUNNING" ? "bg-teal-500" : "bg-zinc-500"
-              }`} />
-            </span>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase">
-              {status?.status === "RUNNING" ? "Online" : "Paused"}
-            </span>
+          <div className="flex items-center gap-3">
+            {isRunning && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="h-7 px-3 text-[10px] font-bold uppercase border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 gap-1.5"
+              >
+                <XCircle className="h-3 w-3" />
+                {cancelling ? "Cancelling..." : "Cancel"}
+              </Button>
+            )}
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  isRunning ? "bg-teal-400" : "bg-zinc-600"
+                }`} />
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  isRunning ? "bg-teal-500" : "bg-zinc-500"
+                }`} />
+              </span>
+              <span className="text-[10px] font-mono text-zinc-500 uppercase">
+                {isRunning ? t.fsm.online : t.fsm.paused}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -220,7 +259,6 @@ export function FSMMonitor({ status, onRetry }: FSMMonitorProps) {
           {status?.logs?.length === 0 && (
             <div className="text-zinc-600 italic">No execution logs logged. Trigger pipeline to start...</div>
           )}
-          <div ref={terminalEndRef} />
         </div>
       </div>
     </div>

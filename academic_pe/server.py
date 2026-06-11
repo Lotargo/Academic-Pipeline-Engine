@@ -3,17 +3,19 @@ import json
 import yaml
 import logging
 import threading
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from academic_pe.core.config import load_config, AppConfig
-from academic_pe.core.orchestrator import create_orchestrator, PipelineState
-from academic_pe.tools.docx_renderer import render_paper
+from academic_pe.core.orchestrator import create_orchestrator, PipelineState, PipelineCancelled
+from academic_pe.tools.export_qa import export_docx_with_qa
+from academic_pe.tools.libreoffice import discover_soffice
 
 # Create FastAPI app
 app = FastAPI(title="Academic PE API Server", version="0.1.0")
@@ -35,6 +37,7 @@ current_run = {
     "context": {},
     "reviewer_feedback": [],
     "docx_filename": None,
+    "export_report": None,
     "error": None,
     "topic": "",
     "timestamp": None
@@ -42,6 +45,10 @@ current_run = {
 
 # Thread lock for safety
 run_lock = threading.Lock()
+
+# Current orchestrator instance for cancellation
+_current_orchestrator = None
+_orchestrator_lock = threading.Lock()
 
 
 def _pipeline_output_dir() -> str:
@@ -81,6 +88,12 @@ class RunRequest(BaseModel):
 class ConfigUpdateRequest(BaseModel):
     config: dict
 
+
+class ExportRequest(BaseModel):
+    filename: Optional[str] = None
+    topic: Optional[str] = None
+    context: Optional[Dict[str, str]] = None
+
 # Routes
 @app.get("/api/config")
 def get_config():
@@ -114,6 +127,27 @@ def get_status():
     with run_lock:
         return current_run
 
+
+@app.get("/api/status/stream")
+async def status_stream():
+    async def event_generator():
+        last_payload = None
+        while True:
+            with run_lock:
+                payload = json.dumps(current_run, ensure_ascii=False, default=str)
+                running = current_run.get("status") == "RUNNING"
+
+            if payload != last_payload:
+                yield f"data: {payload}\n\n"
+                last_payload = payload
+
+            if not running:
+                await asyncio.sleep(1.5)
+            else:
+                await asyncio.sleep(0.25)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 class InterceptingDict(dict):
     def __init__(self, callback, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -124,7 +158,7 @@ class InterceptingDict(dict):
         self.callback(self)
 
 def run_pipeline_thread(topic: str, instructions: Optional[str]):
-    global current_run
+    global current_run, _current_orchestrator
     
     # Configure logging capturing
     status_handler = StatusLogHandler(current_run["logs"])
@@ -150,12 +184,18 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
                 if instructions:
                     sec.instruction = f"{sec.instruction} Guideline: {instructions}"
 
-        # Initialize orchestrator
-        # We pass the render_paper directly to render
-        orch = create_orchestrator(config_path="config/agents.yaml", renderer=render_paper)
+        # Initialize orchestrator. Draft generation no longer renders DOCX;
+        # export happens only through /api/export/docx.
+        orch = create_orchestrator(config_path="config/agents.yaml")
+        
+        # Store orchestrator for cancellation
+        with _orchestrator_lock:
+            _current_orchestrator = orch
         
         # Synchronize config references to apply topic changes
         orch._config = config
+        orch.user_topic = topic or ""
+        orch.user_instructions = instructions or ""
         
         # Intercept context modifications to update current_run safely in real time
         def on_context_change(d):
@@ -186,16 +226,17 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
             orch._reviewer.process = logged_reviewer_process
 
         # Run pipeline
-        output_path = orch.run_pipeline()
+        output_path = orch.run_pipeline(render_artifact=False)
         
         # Update current context preview
         current_run["context"] = orch.context
-        current_run["docx_filename"] = os.path.basename(output_path)
+        current_run["docx_filename"] = os.path.basename(output_path) if output_path else None
+        current_run["export_report"] = None
         current_run["status"] = "COMPLETED"
         current_run["state"] = "DONE"
         
         # Save history metadata
-        output_dir = os.path.dirname(output_path) or _pipeline_output_dir()
+        output_dir = os.path.dirname(output_path) if output_path else _pipeline_output_dir()
         metadata_dir = _metadata_dir(output_dir)
         os.makedirs(metadata_dir, exist_ok=True)
         metadata_filename = os.path.join(
@@ -207,7 +248,7 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
             "instructions": instructions,
             "timestamp": current_run["timestamp"],
             "status": "COMPLETED",
-            "docx_filename": os.path.basename(output_path),
+            "docx_filename": os.path.basename(output_path) if output_path else None,
             "context": orch.context,
             "logs": current_run["logs"],
             "reviewer_feedback": current_run["reviewer_feedback"]
@@ -215,6 +256,11 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         with open(metadata_filename, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
             
+    except PipelineCancelled:
+        current_run["status"] = "CANCELLED"
+        current_run["state"] = "CANCELLED"
+        current_run["logs"].append("[FSM] Pipeline cancelled by user")
+        logging.getLogger(__name__).info("Pipeline cancelled by user request")
     except Exception as e:
         current_run["status"] = "FAILED"
         current_run["state"] = "FAILED"
@@ -222,6 +268,8 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         current_run["logs"].append(f"[Error]: {str(e)}")
         logging.getLogger(__name__).exception("Pipeline background execution failed")
     finally:
+        with _orchestrator_lock:
+            _current_orchestrator = None
         root_logger.removeHandler(status_handler)
 
 @app.post("/api/run")
@@ -239,12 +287,93 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["context"] = {}
         current_run["reviewer_feedback"] = []
         current_run["docx_filename"] = None
+        current_run["export_report"] = None
         current_run["error"] = None
         current_run["topic"] = payload.topic
         current_run["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     background_tasks.add_task(run_pipeline_thread, payload.topic, payload.instructions)
     return {"status": "started", "message": "Pipeline execution started in the background"}
+
+
+@app.post("/api/cancel")
+def cancel_pipeline():
+    global _current_orchestrator
+    
+    with _orchestrator_lock:
+        if _current_orchestrator is None:
+            raise HTTPException(status_code=400, detail="No pipeline is currently running")
+        
+        _current_orchestrator.cancel()
+    
+    return {"status": "cancelling", "message": "Pipeline cancellation requested"}
+
+
+@app.get("/api/export/prerequisites")
+def export_prerequisites():
+    discovery = discover_soffice()
+    return {
+        "libreoffice": {
+            "available": discovery.available,
+            "executable": discovery.executable,
+            "source": discovery.source,
+            "install_hint": discovery.install_hint,
+        }
+    }
+
+
+@app.post("/api/export/docx")
+def export_docx(payload: ExportRequest):
+    global current_run
+    if payload.context:
+        context = dict(payload.context)
+        topic = payload.topic or "Untitled"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        with run_lock:
+            if current_run["status"] == "RUNNING":
+                raise HTTPException(status_code=400, detail="Cannot export while generation is still running")
+            context = dict(current_run.get("context") or {})
+            topic = current_run.get("topic") or "Untitled"
+            timestamp = current_run.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    with run_lock:
+        if not payload.context and current_run["status"] == "RUNNING":
+            raise HTTPException(status_code=400, detail="Cannot export while generation is still running")
+
+    if not context:
+        raise HTTPException(status_code=400, detail="No draft content is available to export")
+
+    config = load_config("config/agents.yaml")
+    result = export_docx_with_qa(context, config, output_filename=payload.filename)
+
+    with run_lock:
+        if not payload.context:
+            current_run["docx_filename"] = result.filename
+            current_run["export_report"] = result.to_dict()
+        current_run["logs"].append(f"[Export QA]: {result.status.upper()} for {result.filename}")
+
+    metadata_dir = _metadata_dir(config.pipeline.output_dir)
+    os.makedirs(metadata_dir, exist_ok=True)
+    metadata_filename = os.path.join(
+        metadata_dir,
+        f"{Path(result.filename).stem}.{datetime.now().strftime('%Y%m%d%H%M%S')}.metadata.json",
+    )
+    metadata = {
+        "topic": topic,
+        "instructions": None,
+        "timestamp": timestamp,
+        "status": "COMPLETED",
+        "docx_filename": result.filename,
+        "context": context,
+        "logs": current_run.get("logs", []),
+        "reviewer_feedback": current_run.get("reviewer_feedback", []),
+        "export_report": result.to_dict(),
+    }
+    with open(metadata_filename, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+    return result.to_dict()
 
 @app.get("/api/download/{filename}")
 def download_file(filename: str):
@@ -271,9 +400,9 @@ def get_history():
             try:
                 with open(metadata_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
-                # Verify that the associated docx exists
+                # Include draft records and exported DOCX records.
                 docx_name = data.get("docx_filename")
-                if docx_name and os.path.exists(os.path.join(output_dir, docx_name)):
+                if not docx_name or os.path.exists(os.path.join(output_dir, docx_name)):
                     history.append({
                         "filename": docx_name,
                         "topic": data.get("topic", "Unknown"),
@@ -281,7 +410,8 @@ def get_history():
                         "status": data.get("status", "COMPLETED"),
                         "context": data.get("context", {}),
                         "logs": data.get("logs", []),
-                        "reviewer_feedback": data.get("reviewer_feedback", [])
+                        "reviewer_feedback": data.get("reviewer_feedback", []),
+                        "export_report": data.get("export_report"),
                     })
             except Exception as e:
                 logging.getLogger(__name__).warning("Failed to load metadata file %s: %s", f, e)

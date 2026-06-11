@@ -8,12 +8,16 @@ import { FSMMonitor } from "./fsm-monitor"
 import { DocumentPreview } from "./document-preview"
 import { LiveDocumentCanvas } from "./live-document-canvas"
 import { toast } from "sonner"
-import { Sparkles, FileText, ArrowRight, Sun, Moon } from "lucide-react"
+import { Sparkles, FileText, ArrowRight, Sun, Moon, XCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
+import { messages, normalizeLanguage, type Messages, type UiLanguage } from "@/lib/i18n"
 
 export function Search() {
   const { theme, setTheme } = useTheme()
+  const [language, setLanguage] = useState<UiLanguage>("en")
+  const t: Messages = messages[language]
   const [activeTab, setActiveTab] = useState<string>("workspace")
   const [historyList, setHistoryList] = useState<any[]>([])
   const [selectedPaper, setSelectedPaper] = useState<any>(null)
@@ -26,6 +30,7 @@ export function Search() {
     context: {},
     reviewer_feedback: [],
     docx_filename: null,
+    export_report: null,
     error: null,
     topic: ""
   })
@@ -42,37 +47,77 @@ export function Search() {
     }
   }
 
+  const fetchLanguage = async () => {
+    try {
+      const res = await fetch("/api/config")
+      if (res.ok) {
+        const data = await res.json()
+        setLanguage(normalizeLanguage(data?.ui?.language || data?.pipeline?.language))
+      }
+    } catch (e) {
+      console.error("Error loading UI language:", e)
+    }
+  }
+
   // Poll intervals
   useEffect(() => {
     fetchHistory()
     fetchStatus()
+    fetchLanguage()
+    window.addEventListener("ape-config-saved", fetchLanguage)
+    return () => window.removeEventListener("ape-config-saved", fetchLanguage)
   }, [])
 
   useEffect(() => {
     let interval: any
-    if (status.status === "RUNNING") {
+    let events: EventSource | null = null
+    let notified = false
+    if (status.status === "RUNNING" && typeof window !== "undefined" && "EventSource" in window) {
+      events = new EventSource("/api/status/stream")
+      events.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        setStatus(data)
+        if (data.status === "COMPLETED" && !notified) {
+          notified = true
+          fetchHistory()
+          toast.success(t.workspace.generated)
+          events?.close()
+        } else if (data.status === "FAILED" && !notified) {
+          notified = true
+          toast.error(t.fsm.failed)
+          events?.close()
+        } else if (data.status === "CANCELLED" && !notified) {
+          notified = true
+          toast.info("Pipeline was cancelled")
+          events?.close()
+        }
+      }
+      events.onerror = () => events?.close()
+    } else if (status.status === "RUNNING") {
       interval = setInterval(async () => {
-        try {
-          const res = await fetch("/api/status")
-          if (res.ok) {
-            const data = await res.json()
-            setStatus(data)
-            
-            // If completed, fetch history list to refresh sidebar
-            if (data.status === "COMPLETED") {
-              fetchHistory()
-              toast.success("Document compilation complete!")
-            } else if (data.status === "FAILED") {
-              toast.error("Pipeline compilation failed")
-            }
+        const res = await fetch("/api/status")
+        if (res.ok) {
+          const data = await res.json()
+          setStatus(data)
+          if (data.status === "COMPLETED" && !notified) {
+            notified = true
+            fetchHistory()
+            toast.success(t.workspace.generated)
+          } else if (data.status === "FAILED" && !notified) {
+            notified = true
+            toast.error(t.fsm.failed)
+          } else if (data.status === "CANCELLED" && !notified) {
+            notified = true
+            toast.info("Pipeline was cancelled")
           }
-        } catch (e) {
-          console.error("Error fetching pipeline status:", e)
         }
       }, 1000)
     }
-    return () => clearInterval(interval)
-  }, [status.status])
+    return () => {
+      clearInterval(interval)
+      events?.close()
+    }
+  }, [status.status, language])
 
   const fetchHistory = async () => {
     try {
@@ -95,6 +140,7 @@ export function Search() {
       context: {},
       reviewer_feedback: [],
       docx_filename: null,
+      export_report: null,
       error: null,
       topic: topic
     })
@@ -112,7 +158,7 @@ export function Search() {
         const err = await res.json()
         throw new Error(err.detail || "Failed to start pipeline")
       }
-      toast.info("Document generation pipeline initiated...")
+      toast.info(t.nav.pipelineDrafting)
     } catch (e: any) {
       toast.error(e.message || "Failed to start execution")
       setStatus((prev: any) => ({
@@ -131,6 +177,7 @@ export function Search() {
         historyList={historyList}
         selectedPaper={selectedPaper}
         setSelectedPaper={setSelectedPaper}
+        t={t}
       />
 
       {/* Main Workspace Frame */}
@@ -139,24 +186,46 @@ export function Search() {
         <header className="h-14 border-b border-border/80 bg-card/50 flex items-center justify-between px-6 shrink-0 z-30 select-none">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-muted-foreground capitalize">
-              {selectedPaper ? "Archive Viewer" : activeTab}
+              {selectedPaper ? t.nav.archiveViewer : activeTab}
             </span>
             <span className="text-muted-foreground/30 text-xs">/</span>
             <span className="text-xs font-black text-foreground truncate max-w-[200px] md:max-w-md">
               {selectedPaper
                 ? selectedPaper.topic
                 : status.status === "RUNNING"
-                ? `Running: ${status.topic}`
-                : "Active Workspace"}
+                ? `${t.nav.running}: ${status.topic}`
+                : t.nav.activeWorkspace}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
             {status.status === "RUNNING" && (
-              <div className="flex items-center gap-2 rounded-full bg-teal-500/10 px-3 py-1 text-[10px] font-bold text-teal-600 dark:text-teal-400 animate-pulse border border-teal-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-                <span>Pipeline Compiling</span>
-              </div>
+              <>
+                <div className="flex items-center gap-2 rounded-full bg-teal-500/10 px-3 py-1 text-[10px] font-bold text-teal-600 dark:text-teal-400 animate-pulse border border-teal-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+                  <span>{t.nav.pipelineDrafting}</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/cancel", { method: "POST" })
+                      if (!res.ok) {
+                        const err = await res.json()
+                        throw new Error(err.detail || "Failed to cancel pipeline")
+                      }
+                      toast.info("Pipeline cancellation requested")
+                    } catch (e: any) {
+                      toast.error(e.message || "Failed to cancel")
+                    }
+                  }}
+                  className="h-7 px-3 text-[10px] font-bold uppercase border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 gap-1.5"
+                >
+                  <XCircle className="h-3 w-3" />
+                  Cancel
+                </Button>
+              </>
             )}
             
             <button
@@ -190,6 +259,7 @@ export function Search() {
                   topic={selectedPaper.topic}
                   context={selectedPaper.context}
                   docxFilename={selectedPaper.filename}
+                  t={t}
                 />
               </div>
             </div>
@@ -214,12 +284,12 @@ export function Search() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   {/* Left Column: FSM Visualizer & Logs */}
                   <div className="lg:col-span-5 w-full">
-                    <FSMMonitor status={status} onRetry={() => setActiveTab("workspace")} />
+                    <FSMMonitor status={status} onRetry={() => setActiveTab("workspace")} t={t} />
                   </div>
                   
                   {/* Right Column: Live Document Paper Canvas */}
                   <div className="lg:col-span-7 w-full">
-                    <LiveDocumentCanvas status={status} />
+                    <LiveDocumentCanvas status={status} onStatusUpdate={setStatus} t={t} />
                   </div>
                 </div>
               </div>
@@ -241,7 +311,7 @@ export function Search() {
                       Academic Pipeline Engine
                     </h1>
                     <p className="text-xs md:text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
-                      Deploy cooperative AI agent loops to automatically draft, peer-review, and format publication-grade scientific and technical documents.
+                      {t.workspace.subtitle}
                     </p>
                   </div>
                 </div>
@@ -250,6 +320,7 @@ export function Search() {
                 <SearchBar
                   onSearch={handleStartGeneration}
                   disabled={status.status === "RUNNING"}
+                  t={t}
                 />
 
                 {/* Active compilation summary card */}
@@ -260,13 +331,13 @@ export function Search() {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500" />
                       </span>
-                      <span className="font-semibold">Currently generating paper: "{status.topic}"</span>
+                      <span className="font-semibold">{t.workspace.current}: "{status.topic}"</span>
                     </div>
                     <button
                       onClick={() => setActiveTab("fsm")}
                       className="text-teal-600 dark:text-teal-400 hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
                     >
-                      View Logs <ArrowRight className="h-3 w-3" />
+                      {t.workspace.viewLogs} <ArrowRight className="h-3 w-3" />
                     </button>
                   </div>
                 )}
@@ -274,7 +345,7 @@ export function Search() {
                 {status.status === "COMPLETED" && (
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs flex items-center justify-between">
                     <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
-                      ✓ Successfully generated "{status.topic}"
+                      ✓ {t.workspace.generated}: "{status.topic}"
                     </span>
                     <button
                       onClick={() => {
@@ -283,7 +354,24 @@ export function Search() {
                       }}
                       className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
                     >
-                      View Generated Document <ArrowRight className="h-3 w-3" />
+                      {t.workspace.viewDocument} <ArrowRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+
+                {status.status === "CANCELLED" && (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs flex items-center justify-between">
+                    <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                      ⚠ Pipeline was cancelled
+                    </span>
+                    <button
+                      onClick={() => {
+                        setSelectedPaper(null)
+                        setActiveTab("workspace")
+                      }}
+                      className="text-amber-600 dark:text-amber-400 hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
+                    >
+                      Start New Run <ArrowRight className="h-3 w-3" />
                     </button>
                   </div>
                 )}

@@ -1,0 +1,56 @@
+from academic_pe.core.config import AgentConfig, AppConfig, PipelineConfig, SectionPrompt
+from academic_pe.tools.export_qa import export_docx_with_qa, render_docx_pages
+from academic_pe.tools.libreoffice import discover_soffice
+
+
+def test_discover_soffice_not_found(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: None)
+    monkeypatch.setattr("pathlib.Path.exists", lambda _: False)
+
+    result = discover_soffice()
+
+    assert result.available is False
+    assert result.executable is None
+    assert "Install LibreOffice" in result.install_hint
+
+
+def test_render_docx_pages_skips_without_soffice(monkeypatch, tmp_path):
+    monkeypatch.setattr("academic_pe.tools.libreoffice.shutil.which", lambda _: None)
+    monkeypatch.setattr("academic_pe.tools.libreoffice.Path.exists", lambda _: False)
+
+    docx_path = tmp_path / "missing.docx"
+    result = render_docx_pages(str(docx_path), str(tmp_path / "qa"))
+
+    assert result.status == "skipped"
+    assert "LibreOffice" in result.message
+
+
+def test_export_docx_with_qa_creates_docx_when_visual_qa_skipped(monkeypatch, tmp_path):
+    monkeypatch.setattr("academic_pe.tools.export_qa.discover_soffice", lambda: type(
+        "Discovery",
+        (),
+        {
+            "available": False,
+            "executable": None,
+            "install_hint": "Install LibreOffice",
+        },
+    )())
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(role="Writer", model="mock", temperature=0, system_prompt="test"),
+        },
+        pipeline=PipelineConfig(
+            sections=[SectionPrompt(name="theory", topic="Theory", instruction="")],
+            output_dir=str(tmp_path),
+            output_filename="paper.docx",
+        ),
+    )
+
+    result = export_docx_with_qa({"theory": "## Heading\n\nBody text."}, config)
+
+    assert result.filename == "paper.docx"
+    assert (tmp_path / "paper.docx").exists()
+    assert result.status == "passed"
+    assert result.render.status == "skipped"
+    assert any(issue.severity == "warning" for issue in result.issues)

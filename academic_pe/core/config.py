@@ -26,6 +26,12 @@ class ProviderEnum(str, Enum):
     mock = "mock"
 
 
+class LanguagePolicy(str, Enum):
+    auto = "auto"
+    en = "en"
+    ru = "ru"
+
+
 class AgentConfig(BaseModel):
     role: str
     model: str = Field(..., min_length=1)
@@ -97,12 +103,16 @@ class StyleConfig(BaseModel):
     alignment: str = "justify"
 
 
+class UIConfig(BaseModel):
+    language: str = "ru"
+
+
 class PipelineConfig(BaseModel):
     sections: List[SectionPrompt]
     output_filename: str = "Final_Academic_Paper.docx"
     output_dir: str = "exports"
     title: str = "GENERATED ACADEMIC PAPER"
-    language: str = "en"
+    language: LanguagePolicy = LanguagePolicy.auto
 
 
 class AppConfig(BaseModel):
@@ -112,6 +122,7 @@ class AppConfig(BaseModel):
     quality_gate: QualityGateConfig = QualityGateConfig()
     fsm: FSMConfig = FSMConfig()
     style: StyleConfig = StyleConfig()
+    ui: UIConfig = UIConfig()
     pipeline: PipelineConfig = PipelineConfig(sections=[
         SectionPrompt(name="theory", topic="State Machines",
                       instruction="Structure it with H2 and H3 headers."),

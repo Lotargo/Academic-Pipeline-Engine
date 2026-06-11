@@ -127,6 +127,9 @@ export function ConfigEditor() {
           alignment: "justify",
         }
       }
+      if (!data.ui) {
+        data.ui = { language: "ru" }
+      }
       setConfig(data)
     } catch (e: any) {
       toast.error(e.message || "Error reading settings")
@@ -162,6 +165,7 @@ export function ConfigEditor() {
         const err = await res.json()
         throw new Error(err.detail || "Failed to update configuration")
       }
+      window.dispatchEvent(new CustomEvent("ape-config-saved"))
       toast.success("Configuration saved and reloaded!")
     } catch (e: any) {
       toast.error(e.message || "Failed to save settings")
@@ -457,9 +461,9 @@ export function ConfigEditor() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Paper Language</label>
+                  <label className="text-xs font-medium text-muted-foreground">Document Language</label>
                   <Select
-                    value={config?.pipeline?.language || "en"}
+                    value={config?.pipeline?.language || "auto"}
                     onValueChange={(val: string) => {
                       setConfig((prev: any) => ({
                         ...prev,
@@ -474,8 +478,33 @@ export function ConfigEditor() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="auto">Auto (prompt language)</SelectItem>
                       <SelectItem value="en">English</SelectItem>
                       <SelectItem value="ru">Russian</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Interface Language</label>
+                  <Select
+                    value={config?.ui?.language || "ru"}
+                    onValueChange={(val: string) => {
+                      setConfig((prev: any) => ({
+                        ...prev,
+                        ui: {
+                          ...(prev.ui || {}),
+                          language: val,
+                        },
+                      }))
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ru">Russian</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -56,3 +56,5 @@ def test_config_defaults():
     assert cfg.style.font_name == "Times New Roman"
     assert cfg.pipeline.output_filename == "Final_Academic_Paper.docx"
     assert cfg.pipeline.output_dir == "exports"
+    assert cfg.pipeline.language == "auto"
+    assert cfg.ui.language == "ru"

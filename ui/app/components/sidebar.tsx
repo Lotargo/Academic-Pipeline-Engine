@@ -14,6 +14,7 @@ import {
   ChevronRight
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import type { Messages } from "@/lib/i18n"
 
 interface SidebarProps {
   activeTab: string
@@ -21,6 +22,7 @@ interface SidebarProps {
   historyList: any[]
   selectedPaper: any
   setSelectedPaper: (paper: any) => void
+  t: Messages
 }
 
 export function Sidebar({
@@ -28,7 +30,8 @@ export function Sidebar({
   setActiveTab,
   historyList,
   selectedPaper,
-  setSelectedPaper
+  setSelectedPaper,
+  t
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -44,7 +47,7 @@ export function Sidebar({
 
   return (
     <div
-      className={`relative flex flex-col border-r border-border bg-background py-4 transition-all duration-300 ease-in-out z-50 h-screen shrink-0 select-none ${
+      className={`relative flex flex-col border-r border-border bg-background py-4 transition-[width] duration-200 ease-out z-50 h-screen shrink-0 select-none overflow-hidden ${
         collapsed ? "w-16" : "w-[260px]"
       }`}
     >
@@ -79,7 +82,7 @@ export function Sidebar({
           }`}
         >
           <Plus className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>New Generation</span>}
+          {!collapsed && <span>{t.nav.newGeneration}</span>}
         </Button>
       </div>
 
@@ -98,7 +101,7 @@ export function Sidebar({
           title="Workspace Dashboard"
         >
           <Play className="h-4.5 w-4.5 shrink-0" />
-          {!collapsed && <span>Workspace</span>}
+          {!collapsed && <span>{t.nav.workspace}</span>}
         </button>
 
         <button
@@ -111,7 +114,7 @@ export function Sidebar({
           title="FSM Flow Monitor"
         >
           <Workflow className="h-4.5 w-4.5 shrink-0" />
-          {!collapsed && <span>Pipeline Flow</span>}
+          {!collapsed && <span>{t.nav.pipeline}</span>}
         </button>
 
         <button
@@ -124,7 +127,7 @@ export function Sidebar({
           title="Engine Configuration"
         >
           <Sliders className="h-4.5 w-4.5 shrink-0" />
-          {!collapsed && <span>Agent Settings</span>}
+          {!collapsed && <span>{t.nav.settings}</span>}
         </button>
       </nav>
 
@@ -133,7 +136,7 @@ export function Sidebar({
         <div className="px-4 py-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Clock className="h-3 w-3" />
-            Recent Papers
+            {t.nav.recent}
           </span>
         </div>
       )}
@@ -169,7 +172,7 @@ export function Sidebar({
           
           {historyList.length === 0 && !collapsed && (
             <div className="px-3 py-4 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg border-border/60 mx-1">
-              No generated papers in archive.
+              {t.nav.emptyHistory}
             </div>
           )}
         </div>
@@ -182,7 +185,7 @@ export function Sidebar({
         </div>
         {!collapsed && (
           <div className="flex flex-col overflow-hidden leading-tight">
-            <span className="text-[11px] font-bold text-foreground">Academic User</span>
+            <span className="text-[11px] font-bold text-foreground">{t.nav.user}</span>
             <span className="text-[9px] text-muted-foreground truncate">pe-engine@lotargo.org</span>
           </div>
         )}

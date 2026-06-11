@@ -1,19 +1,30 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { FileDown, FileText, Check, ListCollapse, Eye } from "lucide-react"
+import { FileDown, FileText, Check, Eye, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import type { Messages } from "@/lib/i18n"
 
 interface DocumentPreviewProps {
   topic: string
   context: Record<string, string>
-  docxFilename: string
+  docxFilename?: string | null
+  t: Messages
 }
 
-export function DocumentPreview({ topic, context, docxFilename }: DocumentPreviewProps) {
+export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPreviewProps) {
   const [activeTab, setActiveTab] = useState<string>(Object.keys(context)[0] || "")
   const [copied, setCopied] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportedFilename, setExportedFilename] = useState<string | null>(docxFilename || null)
+  const [exportReport, setExportReport] = useState<any>(null)
+
+  useEffect(() => {
+    setExportedFilename(docxFilename || null)
+    setExportReport(null)
+  }, [docxFilename, topic])
 
   const sections = Object.entries(context).filter(([_, text]) => !!text)
 
@@ -23,19 +34,54 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
   }
 
   const handleDownload = () => {
-    if (!docxFilename) return
-    window.open(`/api/download/${docxFilename}`, "_blank")
+    if (!exportedFilename) return
+    window.open(`/api/download/${exportedFilename}`, "_blank")
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch("/api/export/docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, context }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || "Export failed")
+      }
+      setExportedFilename(data.filename)
+      setExportReport(data)
+      if (data.status === "passed") {
+        toast.success("DOCX export passed quality checks")
+      } else {
+        toast.warning("DOCX exported with QA issues")
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to export DOCX")
+    } finally {
+      setExporting(false)
+    }
   }
 
   // Calculate stats
   const totalChars = sections.reduce((acc, [_, text]) => acc + text.length, 0)
   const totalWords = sections.reduce((acc, [_, text]) => acc + text.split(/\s+/).filter(Boolean).length, 0)
 
+  const formatMath = (text: string) => text
+    .replace(/\\text\{([^}]+)\}/g, "$1")
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+    .replace(/\\sum/g, "∑")
+    .replace(/\\tau/g, "τ")
+    .replace(/\\epsilon/g, "ε")
+    .replace(/\\_/g, "_")
+    .replace(/[{}]/g, "")
+
   // Custom basic markdown formatter
   const renderMarkdown = (text: string) => {
-    if (!text) return <p className="italic text-muted-foreground">Empty content.</p>
+    if (!text) return <p className="italic text-muted-foreground">{t.document.empty}</p>
 
-    const lines = text.split("\n")
+    const lines = text.replace(/\\\[((?:.|\n)*?)\\\]/g, "\n$$$1$$\n").split("\n")
     return (
       <div className="space-y-4 font-serif text-[15px] leading-relaxed text-foreground antialiased select-text">
         {lines.map((line, idx) => {
@@ -43,15 +89,14 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
           if (!stripped) return null
 
           // H1
-          if (stripped.startsWith("# ")) {
+          if (stripped.startsWith("### ")) {
             return (
-              <h1 key={idx} className="text-xl md:text-2xl font-bold font-sans tracking-tight border-b pb-2 pt-4 text-foreground">
-                {stripped.slice(2)}
-              </h1>
+              <h3 key={idx} className="text-base md:text-lg font-semibold font-sans tracking-normal pt-2 text-foreground">
+                {stripped.slice(4)}
+              </h3>
             )
           }
 
-          // H2
           if (stripped.startsWith("## ")) {
             return (
               <h2 key={idx} className="text-lg md:text-xl font-bold font-sans tracking-tight pt-3 text-foreground">
@@ -60,12 +105,19 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
             )
           }
 
-          // H3
-          if (stripped.startsWith("### ")) {
+          if (stripped.startsWith("# ")) {
             return (
-              <h3 key={idx} className="text-base md:text-lg font-bold font-sans tracking-tight pt-2 text-foreground">
-                {stripped.slice(4)}
-              </h3>
+              <h1 key={idx} className="text-xl md:text-2xl font-bold font-sans tracking-tight border-b pb-2 pt-4 text-foreground">
+                {stripped.slice(2)}
+              </h1>
+            )
+          }
+
+          if (stripped.startsWith("$$") && stripped.endsWith("$$")) {
+            return (
+              <div key={idx} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
+                {formatMath(stripped.slice(2, -2))}
+              </div>
             )
           }
 
@@ -80,7 +132,7 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
                   <tbody>
                     <tr className="bg-accent/40">
                       {cells.map((cell, cidx) => (
-                        <td key={cidx} className="border border-border/85 px-3 py-2 font-mono">{cell}</td>
+                        <td key={cidx} className="border border-border/85 px-3 py-2 font-mono">{parseInlineStyles(cell)}</td>
                       ))}
                     </tr>
                   </tbody>
@@ -108,7 +160,7 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
   // Parse bold, italic, and math ($...$, $$...$$) inline
   const parseInlineStyles = (text: string) => {
     // Escape standard replacements
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\$\$.*?\$\$|\$.*?\$)/g)
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\\\(.*?\\\)|\$\$.*?\$\$|\$.*?\$)/g)
 
     return parts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**")) {
@@ -120,14 +172,21 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
       if (part.startsWith("$$") && part.endsWith("$$")) {
         return (
           <span key={index} className="block my-3 py-2 px-4 rounded bg-accent/20 font-mono text-center text-xs border border-border/40 select-all">
-            {part.slice(2, -2)}
+            {formatMath(part.slice(2, -2))}
           </span>
+        )
+      }
+      if (part.startsWith("\\(") && part.endsWith("\\)")) {
+        return (
+          <code key={index} className="px-1.5 py-0.5 rounded bg-accent/30 font-mono text-xs text-sky-700 dark:text-sky-300 select-all">
+            {formatMath(part.slice(2, -2))}
+          </code>
         )
       }
       if (part.startsWith("$") && part.endsWith("$")) {
         return (
           <code key={index} className="px-1.5 py-0.5 rounded bg-accent/30 font-mono text-xs text-teal-600 dark:text-teal-400 select-all">
-            {part.slice(1, -1)}
+            {formatMath(part.slice(1, -1))}
           </code>
         )
       }
@@ -149,7 +208,7 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
       <div className="lg:col-span-1 space-y-4">
         <Card className="rounded-2xl border border-border bg-card p-4 shadow-sm">
           <CardHeader className="p-1 pb-3">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Chapters</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t.document.chapters}</CardTitle>
           </CardHeader>
           <CardContent className="p-0 flex flex-row lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible">
             {sections.map(([name]) => (
@@ -171,19 +230,19 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
         {/* Paper Stats */}
         <Card className="rounded-2xl border border-border bg-card p-4 shadow-sm hidden lg:block">
           <CardHeader className="p-1 pb-3">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Document Stats</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t.document.stats}</CardTitle>
           </CardHeader>
           <CardContent className="p-0 space-y-2.5 text-xs">
             <div className="flex justify-between border-b pb-1.5 border-border/40">
-              <span className="text-muted-foreground">Total Words:</span>
+              <span className="text-muted-foreground">{t.document.words}:</span>
               <span className="font-semibold">{totalWords}</span>
             </div>
             <div className="flex justify-between border-b pb-1.5 border-border/40">
-              <span className="text-muted-foreground">Total Characters:</span>
+              <span className="text-muted-foreground">{t.document.chars}:</span>
               <span className="font-semibold">{totalChars}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">File Format:</span>
+              <span className="text-muted-foreground">{t.document.format}:</span>
               <span className="font-semibold flex items-center gap-1 text-teal-600 dark:text-teal-400">
                 <FileText className="h-3 w-3" />
                 Microsoft Word
@@ -201,8 +260,15 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
               <Eye className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h2 className="text-xs font-bold text-muted-foreground uppercase">Document Ready</h2>
-              <p className="text-sm font-semibold truncate max-w-xs sm:max-w-md text-foreground">{docxFilename}</p>
+              <h2 className="text-xs font-bold text-muted-foreground uppercase">{t.document.ready}</h2>
+              <p className="text-sm font-semibold truncate max-w-xs sm:max-w-md text-foreground">
+                {exportedFilename || t.document.readyForExport}
+              </p>
+              {exportReport?.issues?.length > 0 && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  QA: {exportReport.issues.length} issue(s), see export logs.
+                </p>
+              )}
             </div>
           </div>
 
@@ -211,17 +277,22 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
               {copied ? (
                 <>
                   <Check className="h-3.5 w-3.5 mr-1 text-emerald-500" />
-                  Copied Text
+                  {t.document.copied}
                 </>
               ) : (
-                "Copy Content"
+                t.document.copy
               )}
             </Button>
             
-            {docxFilename && (
+            {exportedFilename ? (
               <Button size="sm" onClick={handleDownload} className="bg-teal-600 hover:bg-teal-700 text-white text-xs h-9 gap-1.5 shadow-sm">
                 <FileDown className="h-3.5 w-3.5" />
-                Download DOCX
+                {t.document.downloadDocx}
+              </Button>
+            ) : (
+              <Button size="sm" onClick={handleExport} disabled={exporting} className="bg-teal-600 hover:bg-teal-700 text-white text-xs h-9 gap-1.5 shadow-sm">
+                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                {t.document.exportDocx}
               </Button>
             )}
           </div>
@@ -230,13 +301,13 @@ export function DocumentPreview({ topic, context, docxFilename }: DocumentPrevie
         {/* Paper Text Display */}
         <div className="rounded-2xl border border-border bg-card p-6 md:p-8 min-h-[300px] shadow-sm relative">
           <div className="absolute top-4 right-4 bg-muted/40 text-[9px] uppercase tracking-wider font-mono text-muted-foreground px-2 py-1 rounded">
-            Academic Layout Preview
+            {t.document.preview}
           </div>
           {activeTab && context[activeTab] ? (
             renderMarkdown(context[activeTab])
           ) : (
             <div className="flex h-48 w-full items-center justify-center text-muted-foreground text-sm italic">
-              No content compiled for this chapter yet.
+              {t.document.empty}
             </div>
           )}
         </div>
