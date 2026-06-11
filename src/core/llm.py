@@ -1,31 +1,41 @@
+from abc import ABC, abstractmethod
 import os
 from openai import OpenAI
-from typing import Optional
 
-class LLMClient:
+
+class LLMProvider(ABC):
+    @abstractmethod
+    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+        ...
+
+
+class OpenAIProvider(LLMProvider):
     def __init__(self):
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        # If API key is not set, we run in Mock mode
-        self.client = OpenAI(api_key=self.api_key) if self.api_key else None
-
-    def generate(self, system_prompt: str, user_prompt: str, model: str = "gpt-3.5-turbo") -> str:
-        """
-        Generates text using an OpenAI-compatible API.
-        Returns mock text if no client is initialized.
-        """
-        if not self.client:
-            # Mock behavior for testing/demo without keys
-            return f"# Generated Section\n\nThis is a mock response for prompt: {user_prompt[:30]}...\n\nIdeally this would be real academic text."
-
-        try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.7
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "OPENAI_API_KEY environment variable is not set. "
+                "Use MockProvider for testing or set the variable."
             )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            return f"LLM Generation Error: {str(e)}"
+        self._client = OpenAI(api_key=api_key)
+
+    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+        response = self._client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
+
+class MockProvider(LLMProvider):
+    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+        return (
+            f"# Generated Section\n\n"
+            f"This is a mock response for prompt: {user_prompt[:60]}...\n\n"
+            f"System prompt used: {system_prompt[:60]}...\n"
+            f"Model: {model}, Temperature: {temperature}"
+        )

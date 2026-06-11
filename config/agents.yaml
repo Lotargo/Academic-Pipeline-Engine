@@ -15,12 +15,16 @@ agents:
     system_prompt: |
       You are a strict academic reviewer.
       Your goal is to check the drafted text for logic errors, informal language, and AI markers.
-      Provide constructive feedback or approve the text.
+      Return exactly one line: APPROVED if the text passes, or REJECTED followed by a brief reason.
 
-  orchestrator:
-    role: "Orchestrator"
-    model: "gpt-3.5-turbo"
-    temperature: 0.0
-    system_prompt: |
-      You are the State Machine Orchestrator.
-      You decide the next step in the pipeline: 'write', 'review', or 'finalize'.
+pipeline:
+  sections:
+    - name: theory
+      topic: "State Machines"
+      instruction: "Structure it with H2 and H3 headers."
+    - name: calculation
+      topic: "Algorithmic Complexity"
+      instruction: "Include LaTeX formulas (e.g. $O(n)$)."
+    - name: conclusion
+      topic: "Efficiency of State Machines"
+      instruction: "Summarize key findings and implications."

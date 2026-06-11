@@ -1,9 +1,15 @@
+from __future__ import annotations
+
+import logging
 from enum import Enum, auto
-from typing import Dict, Any, Optional
-from src.core.config import load_config
-from src.core.llm import LLMClient
+from typing import Dict, List, Optional, Protocol
+
+from src.core.config import AppConfig, load_config
+from src.core.llm import LLMProvider, MockProvider
 from src.agents.base import BaseAgent
-from src.tools.docx_renderer import render_paper
+
+logger = logging.getLogger(__name__)
+
 
 class PipelineState(Enum):
     INIT = auto()
@@ -12,70 +18,136 @@ class PipelineState(Enum):
     RENDERING = auto()
     DONE = auto()
 
+
+_TRANSITIONS: Dict[PipelineState, List[PipelineState]] = {
+    PipelineState.INIT: [PipelineState.DRAFTING],
+    PipelineState.DRAFTING: [PipelineState.REVIEWING],
+    PipelineState.REVIEWING: [PipelineState.DRAFTING, PipelineState.RENDERING],
+    PipelineState.RENDERING: [PipelineState.DONE],
+    PipelineState.DONE: [],
+}
+
+
+class InvalidTransitionError(Exception):
+    pass
+
+
+class Renderer(Protocol):
+    def __call__(self, content: Dict[str, str], output_filename: str) -> str:
+        ...
+
+
 class Orchestrator:
-    def __init__(self, config_path: str = "config/agents.yaml"):
-        self.config = load_config(config_path)
-        self.llm = LLMClient()
-        self.state = PipelineState.INIT
+    def __init__(
+        self,
+        writer: BaseAgent,
+        config: AppConfig,
+        reviewer: Optional[BaseAgent] = None,
+        renderer: Optional[Renderer] = None,
+    ):
+        self._writer = writer
+        self._reviewer = reviewer
+        self._renderer = renderer
+        self._config = config
+        self._state: PipelineState = PipelineState.INIT
         self.context: Dict[str, str] = {}
 
-        # Initialize Agents
-        writer_cfg = self.config.agents.get('writer')
-        reviewer_cfg = self.config.agents.get('reviewer')
+    @property
+    def state(self) -> PipelineState:
+        return self._state
 
-        if not writer_cfg:
-            raise ValueError("Writer agent configuration is missing")
-
-        self.writer = BaseAgent(writer_cfg, self.llm)
-        self.reviewer = BaseAgent(reviewer_cfg, self.llm) if reviewer_cfg else None
-
-    def run_pipeline(self):
-        """
-        Executes the linear pipeline: Draft -> Review -> Render.
-        """
-        print(f"[{self.state.name}] Pipeline initialized.")
-
-        # --- STATE: DRAFTING ---
-        self.state = PipelineState.DRAFTING
-        print(f"[{self.state.name}] Writer Agent starting tasks...")
-
-        # 1. Draft Theory
-        self.context['theory'] = self.writer.process(
-            "Write a detailed Chapter 1 (Theory) about State Machines. Structure it with H2 and H3 headers."
-        )
-
-        # 2. Draft Calculation
-        self.context['calculation'] = self.writer.process(
-            "Write a Chapter 2 (Calculations) with LaTeX formulas illustrating algorithmic complexity ($O(n)$)."
-        )
-
-        # 3. Draft Conclusion
-        self.context['conclusion'] = self.writer.process(
-            "Write a Conclusion summarizing the efficiency of State Machines."
-        )
-
-        # --- STATE: REVIEWING ---
-        self.state = PipelineState.REVIEWING
-        print(f"[{self.state.name}] Reviewer Agent validating content...")
-
-        if self.reviewer:
-            # Demonstration of review loop (non-blocking in this MVP)
-            critique = self.reviewer.process(
-                "Check the provided text for academic tone and formatting errors. Return 'APPROVED' or a list of issues.",
-                context=self.context['theory'][:1000] # Send first part for check
+    def transition_to(self, new_state: PipelineState) -> None:
+        allowed = _TRANSITIONS.get(self._state, [])
+        if new_state not in allowed:
+            raise InvalidTransitionError(
+                f"Cannot transition from {self._state.name} to {new_state.name}. "
+                f"Allowed: {[s.name for s in allowed]}"
             )
-            print(f"Reviewer Status: {critique[:50]}...")
+        logger.info("State: %s -> %s", self._state.name, new_state.name)
+        self._state = new_state
+
+    def run_pipeline(self) -> str:
+        logger.info("Pipeline started.")
+
+        # --- DRAFTING ---
+        self.transition_to(PipelineState.DRAFTING)
+        for section in self._config.pipeline.sections:
+            task = f"Write a chapter about {section.topic}. {section.instruction}"
+            logger.debug("Drafting section: %s", section.name)
+            self.context[section.name] = self._writer.process(task)
+
+        # --- REVIEWING ---
+        self.transition_to(PipelineState.REVIEWING)
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            if self._reviewer is None:
+                logger.info("No reviewer configured, skipping review.")
+                break
+
+            full_text = "\n\n".join(
+                self.context.get(s.name, "") for s in self._config.pipeline.sections
+            )
+            critique = self._reviewer.process(
+                "Check the provided text for academic tone and formatting errors. "
+                "Return exactly one line: APPROVED if the text passes, "
+                "or REJECTED followed by a brief reason.",
+                context=full_text,
+            )
+
+            if critique.strip().upper().startswith("APPROVED"):
+                logger.info("Reviewer approved the content.")
+                break
+
+            logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, critique[:100])
+
+            if attempt < max_retries - 1:
+                logger.info("Returning to DRAFTING for revision...")
+                self.transition_to(PipelineState.DRAFTING)
+                for section in self._config.pipeline.sections:
+                    task = (
+                        f"Revise the chapter about {section.topic}. "
+                        f"Address these issues: {critique[:500]}. "
+                        f"{section.instruction}"
+                    )
+                    self.context[section.name] = self._writer.process(task)
+                self.transition_to(PipelineState.REVIEWING)
+            else:
+                logger.error("Max retries reached. Proceeding to rendering with current content.")
+
+        # --- RENDERING ---
+        self.transition_to(PipelineState.RENDERING)
+
+        if self._renderer is not None:
+            output_path = self._renderer(self.context, output_filename="Final_Academic_Paper.docx")
         else:
-            print("Reviewer not configured, skipping.")
+            output_path = "(no renderer configured)"
+            logger.warning("No renderer configured, skipping DOCX generation.")
 
-        # --- STATE: RENDERING ---
-        self.state = PipelineState.RENDERING
-        print(f"[{self.state.name}] Sending content to Docx Renderer...")
-
-        output_path = render_paper(self.context, output_filename="Final_Academic_Paper.docx")
-
-        # --- STATE: DONE ---
-        self.state = PipelineState.DONE
-        print(f"[{self.state.name}] Workflow complete. Artifact: {output_path}")
-
+        # --- DONE ---
+        self.transition_to(PipelineState.DONE)
+        logger.info("Pipeline finished. Artifact: %s", output_path)
         return output_path
+
+
+def create_orchestrator(
+    config_path: str = "config/agents.yaml",
+    renderer: Optional[Renderer] = None,
+) -> Orchestrator:
+    config = load_config(config_path)
+    llm: LLMProvider = MockProvider()
+
+    writer_cfg = config.agents.get("writer")
+    if not writer_cfg:
+        raise ValueError("Writer agent configuration is missing")
+
+    writer = BaseAgent(writer_cfg, llm)
+    reviewer_cfg = config.agents.get("reviewer")
+    reviewer = BaseAgent(reviewer_cfg, llm) if reviewer_cfg else None
+
+    return Orchestrator(
+        writer=writer,
+        reviewer=reviewer,
+        config=config,
+        renderer=renderer,
+    )
