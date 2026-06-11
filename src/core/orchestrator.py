@@ -123,6 +123,15 @@ class Orchestrator:
                 else:
                     logger.error("Max retries reached. Proceeding to rendering with current content.")
 
+            # --- QUALITY GATE ---
+            from src.core.quality_gate import run_all as run_quality_gate
+            qg_result = run_quality_gate(self.context, self._config.quality_gate)
+            if not qg_result.passed:
+                for issue in qg_result.issues:
+                    logger.warning("Quality Gate: %s", issue)
+            else:
+                logger.info("Quality Gate: all checks passed.")
+
             # --- RENDERING ---
             self.transition_to(PipelineState.RENDERING)
 

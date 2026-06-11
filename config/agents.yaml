@@ -25,6 +25,13 @@ retry:
   base_delay: 1.0
   max_delay: 30.0
 
+quality_gate:
+  volume:
+    enabled: true
+    min_chars: 200
+  latex:
+    enabled: true
+
 pipeline:
   sections:
     - name: theory

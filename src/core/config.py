@@ -25,6 +25,20 @@ class RetryConfig(BaseModel):
     max_delay: float = 30.0
 
 
+class VolumeGateConfig(BaseModel):
+    enabled: bool = True
+    min_chars: int = 200
+
+
+class LatexGateConfig(BaseModel):
+    enabled: bool = True
+
+
+class QualityGateConfig(BaseModel):
+    volume: VolumeGateConfig = VolumeGateConfig()
+    latex: LatexGateConfig = LatexGateConfig()
+
+
 class PipelineConfig(BaseModel):
     sections: List[SectionPrompt]
 
@@ -32,6 +46,7 @@ class PipelineConfig(BaseModel):
 class AppConfig(BaseModel):
     agents: Dict[str, AgentConfig]
     retry: RetryConfig = RetryConfig()
+    quality_gate: QualityGateConfig = QualityGateConfig()
     pipeline: PipelineConfig = PipelineConfig(sections=[
         SectionPrompt(name="theory", topic="State Machines",
                       instruction="Structure it with H2 and H3 headers."),
