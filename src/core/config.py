@@ -9,6 +9,8 @@ class AgentConfig(BaseModel):
     model: str
     temperature: float = Field(ge=0.0, le=2.0)
     system_prompt: str
+    provider: str = "mock"
+    base_url: str | None = None
 
 
 class SectionPrompt(BaseModel):

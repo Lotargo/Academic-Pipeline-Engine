@@ -5,7 +5,7 @@ from enum import Enum, auto
 from typing import Dict, List, Optional, Protocol
 
 from src.core.config import AppConfig, load_config
-from src.core.llm import LLMProvider, MockProvider
+from src.core.llm import create_provider
 from src.agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -146,20 +146,28 @@ class Orchestrator:
         return output_path
 
 
+def _build_agent(cfg: Optional[AppConfig]) -> BaseAgent:
+    from src.core.config import AgentConfig
+
+    if not isinstance(cfg, AgentConfig):
+        raise ValueError("Invalid agent configuration")
+
+    llm = create_provider(provider=cfg.provider, base_url=cfg.base_url)
+    return BaseAgent(cfg, llm)
+
+
 def create_orchestrator(
     config_path: str = "config/agents.yaml",
     renderer: Optional[Renderer] = None,
 ) -> Orchestrator:
     config = load_config(config_path)
-    llm: LLMProvider = MockProvider()
 
     writer_cfg = config.agents.get("writer")
     if not writer_cfg:
         raise ValueError("Writer agent configuration is missing")
 
-    writer = BaseAgent(writer_cfg, llm)
-    reviewer_cfg = config.agents.get("reviewer")
-    reviewer = BaseAgent(reviewer_cfg, llm) if reviewer_cfg else None
+    writer = _build_agent(writer_cfg)
+    reviewer = _build_agent(config.agents["reviewer"]) if "reviewer" in config.agents else None
 
     return Orchestrator(
         writer=writer,

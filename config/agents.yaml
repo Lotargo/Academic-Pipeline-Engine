@@ -1,8 +1,10 @@
 agents:
   writer:
     role: "Writer"
+    provider: mock           # openai | custom_openai | anthropic | mock
     model: "gpt-4o"
     temperature: 0.7
+    # base_url: "http://localhost:11434/v1"   # for custom_openai only
     system_prompt: |
       You are an expert academic writer.
       Your goal is to draft sections of a technical paper based on provided instructions.
@@ -10,6 +12,7 @@ agents:
 
   reviewer:
     role: "Reviewer"
+    provider: mock
     model: "gpt-4o"
     temperature: 0.3
     system_prompt: |

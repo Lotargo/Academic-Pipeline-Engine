@@ -14,6 +14,7 @@ openai = "^1.0"
 PyYAML = "^6.0"
 python-docx = "^1.1"
 matplotlib = "^3.8"
+anthropic = "^0.70"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

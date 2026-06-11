@@ -35,7 +35,10 @@
 - [x] Создать ABC `LLMProvider` с методом `generate()`
 - [x] Реализовать `OpenAIProvider` (текущий)
 - [x] Реализовать `MockProvider` (для тестов)
-- [ ] Добавить поддержку Anthropic / Gemini через конфиг
+- [x] Реализовать `CustomOpenAIProvider` (Ollama, LocalAI, vLLM, Groq и др.)
+- [x] Реализовать `AnthropicProvider` (Claude)
+- [x] Реестр провайдеров `_PROVIDER_REGISTRY` + `register_provider()` + `create_provider()`
+- [x] `provider` и `base_url` поля в `AgentConfig` (выбор из YAML)
 - [ ] Добавить retry с exponential backoff
 - [ ] Добавить timeout и circuit breaker
 
@@ -92,11 +95,12 @@
 
 - [x] Покрыть `MockProvider`
 - [x] Покрыть `ConfigLoader` — загрузка, pipeline sections
-- [x] Покрыть `Orchestrator` — каждый state transition, invalid transition, full pipeline
+- [x] Покрыть `Orchestrator` — каждый state transition, invalid transition, full pipeline, FAILED
 - [x] Покрыть `BaseAgent` — composition prompt, context append
-- [ ] Покрыть `OpenAIProvider` — error scenarios
+- [x] Покрыть `CustomOpenAIProvider` — base_url, custom api_key env
+- [x] Покрыть `AnthropicProvider` — missing key, missing package
+- [x] Покрыть `create_provider()` — все типы, регистрация, ошибки
 - [ ] Покрыть `DocxRenderer` — all sections, missing keys, empty content
-- [ ] Добавить интеграционный тест (full pipeline с MockProvider)
 
 ## 12. Рендерер DOCX
 
