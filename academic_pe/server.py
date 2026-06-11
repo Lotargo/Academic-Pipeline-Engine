@@ -262,3 +262,99 @@ def get_history():
     # Sort by timestamp desc
     history.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     return history
+
+# New Routes for Secrets and Models Manager
+from academic_pe.core.secrets import is_secret_configured, save_secret, get_secret
+import requests
+from openai import OpenAI
+
+class SecretUpdatePayload(BaseModel):
+    provider: str
+    api_key: str
+
+@app.get("/api/secrets")
+def get_secrets_status():
+    providers = ["openai", "anthropic", "google", "custom_openai", "lm_studio"]
+    return {p: is_secret_configured(p) for p in providers}
+
+@app.post("/api/secrets")
+def update_secret_endpoint(payload: SecretUpdatePayload):
+    try:
+        save_secret(payload.provider, payload.api_key)
+        return {"status": "success", "message": f"API key for {payload.provider} saved successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save secret: {str(e)}")
+
+@app.get("/api/models")
+def get_provider_models(provider: str, base_url: Optional[str] = None):
+    # Load API key dynamically
+    api_key = get_secret(provider)
+    
+    if provider == "mock":
+        return ["mock-model-1", "mock-model-2"]
+        
+    elif provider == "openai":
+        if not api_key:
+            return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
+        try:
+            client = OpenAI(api_key=api_key)
+            resp = client.models.list()
+            chat_models = [m.id for m in resp.data if any(x in m.id for x in ["gpt-4", "gpt-3.5", "o1", "o3", "chatgpt"])]
+            return chat_models if chat_models else [m.id for m in resp.data]
+        except Exception as e:
+            logging.getLogger(__name__).warning("OpenAI models list failed: %s", e)
+            return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
+            
+    elif provider == "google":
+        if not api_key:
+            return ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+            r = requests.get(url, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                models = []
+                for m in data.get("models", []):
+                    name = m.get("name", "")
+                    if name.startswith("models/"):
+                        name = name[7:]
+                    if "gemini" in name:
+                        models.append(name)
+                return models if models else ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+        except Exception as e:
+            logging.getLogger(__name__).warning("Google models list failed: %s", e)
+        return ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+        
+    elif provider == "anthropic":
+        if not api_key:
+            return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"]
+        try:
+            headers = {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            }
+            r = requests.get("https://api.anthropic.com/v1/models", headers=headers, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                return [m["id"] for m in data.get("data", [])]
+        except Exception as e:
+            logging.getLogger(__name__).warning("Anthropic models list failed: %s", e)
+        return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"]
+        
+    elif provider in ["custom_openai", "lm_studio"]:
+        url = base_url
+        if not url:
+            url = "http://localhost:1234/v1" if provider == "lm_studio" else None
+        if not url:
+            return []
+        try:
+            client_key = api_key or "lm-studio"
+            client = OpenAI(api_key=client_key, base_url=url)
+            resp = client.models.list()
+            return [m.id for m in resp.data]
+        except Exception as e:
+            logging.getLogger(__name__).warning("Custom OpenAI/LM Studio models list failed: %s", e)
+            return []
+            
+    return []
+

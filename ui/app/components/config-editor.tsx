@@ -15,11 +15,100 @@ export function ConfigEditor() {
   const [config, setConfig] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [secretsStatus, setSecretsStatus] = useState<Record<string, boolean>>({})
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({})
+  const [writerModels, setWriterModels] = useState<string[]>([])
+  const [reviewerModels, setReviewerModels] = useState<string[]>([])
+  const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({})
 
-  // Fetch config on mount
+  // Fetch config and secrets status on mount
   useEffect(() => {
     fetchConfig()
+    fetchSecretsStatus()
   }, [])
+
+  // Auto load models when config is loaded
+  useEffect(() => {
+    if (config?.agents) {
+      if (config.agents.writer) {
+        fetchModelsForAgent("writer", config.agents.writer.provider, config.agents.writer.base_url)
+      }
+      if (config.agents.reviewer) {
+        fetchModelsForAgent("reviewer", config.agents.reviewer.provider, config.agents.reviewer.base_url)
+      }
+    }
+  }, [config === null])
+
+  const fetchSecretsStatus = async () => {
+    try {
+      const res = await fetch("/api/secrets")
+      if (res.ok) {
+        const data = await res.json()
+        setSecretsStatus(data)
+      }
+    } catch (e) {
+      console.error("Error loading secrets status:", e)
+    }
+  }
+
+  const fetchModelsForAgent = async (agentKey: string, provider: string, baseUrl?: string) => {
+    if (!provider || provider === "mock") {
+      const defaultModels = ["mock-model-1", "mock-model-2"]
+      if (agentKey === "writer") setWriterModels(defaultModels)
+      else setReviewerModels(defaultModels)
+      return
+    }
+    setLoadingModels(prev => ({ ...prev, [agentKey]: true }))
+    try {
+      let url = `/api/models?provider=${provider}`
+      if (baseUrl) {
+        url += `&base_url=${encodeURIComponent(baseUrl)}`
+      }
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json()
+        if (agentKey === "writer") setWriterModels(data)
+        else setReviewerModels(data)
+      }
+    } catch (e) {
+      console.error(`Error fetching models for ${agentKey}:`, e)
+    } finally {
+      setLoadingModels(prev => ({ ...prev, [agentKey]: false }))
+    }
+  }
+
+  const handleSaveApiKey = async (provider: string) => {
+    const key = apiKeys[provider]
+    if (!key || !key.trim()) {
+      toast.error("Please enter a valid API key")
+      return
+    }
+    try {
+      const res = await fetch("/api/secrets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, api_key: key }),
+      })
+      if (!res.ok) throw new Error("Failed to save API key")
+      toast.success(`API key for ${provider} saved securely!`)
+      
+      // Update secrets status
+      await fetchSecretsStatus()
+      
+      // Clear key input state
+      setApiKeys(prev => ({ ...prev, [provider]: "" }))
+      
+      // Trigger models fetch since key is updated
+      if (config?.agents?.writer?.provider === provider) {
+        fetchModelsForAgent("writer", provider, config?.agents?.writer?.base_url)
+      }
+      if (config?.agents?.reviewer?.provider === provider) {
+        fetchModelsForAgent("reviewer", provider, config?.agents?.reviewer?.base_url)
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save secret key")
+    }
+  }
 
   const fetchConfig = async () => {
     setLoading(true)
@@ -49,6 +138,21 @@ export function ConfigEditor() {
   const saveConfig = async () => {
     setSaving(true)
     try {
+      // 1. Save any pending API keys first
+      for (const [provider, key] of Object.entries(apiKeys)) {
+        if (key && key.trim()) {
+          const secretRes = await fetch("/api/secrets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ provider, api_key: key }),
+          })
+          if (!secretRes.ok) throw new Error(`Failed to save API key for ${provider}`)
+        }
+      }
+      setApiKeys({})
+      await fetchSecretsStatus()
+
+      // 2. Save config
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -67,16 +171,24 @@ export function ConfigEditor() {
   }
 
   const handleAgentChange = (agentKey: string, field: string, value: any) => {
-    setConfig((prev: any) => ({
-      ...prev,
-      agents: {
-        ...prev.agents,
-        [agentKey]: {
-          ...prev.agents[agentKey],
-          [field]: value,
+    setConfig((prev: any) => {
+      const updatedAgent = {
+        ...prev.agents[agentKey],
+        [field]: value,
+      }
+      
+      if (field === "provider" || field === "base_url") {
+        fetchModelsForAgent(agentKey, updatedAgent.provider, updatedAgent.base_url)
+      }
+      
+      return {
+        ...prev,
+        agents: {
+          ...prev.agents,
+          [agentKey]: updatedAgent,
         },
-      },
-    }))
+      }
+    })
   }
 
   const handleStyleChange = (field: string, value: any) => {
@@ -442,7 +554,9 @@ export function ConfigEditor() {
                         <SelectContent>
                           <SelectItem value="mock">Mock Engine</SelectItem>
                           <SelectItem value="openai">OpenAI (GPT)</SelectItem>
-                          <SelectItem value="custom_openai">Ollama (Custom)</SelectItem>
+                          <SelectItem value="google">Google (Gemini)</SelectItem>
+                          <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
+                          <SelectItem value="lm_studio">LM Studio</SelectItem>
                           <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
                         </SelectContent>
                       </Select>
@@ -462,14 +576,63 @@ export function ConfigEditor() {
                     </div>
                   </div>
 
+                  {config?.agents?.writer?.provider !== "mock" && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
+                      <div className="flex gap-1.5">
+                        <Input
+                          type="password"
+                          value={apiKeys[config.agents.writer.provider] || ""}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                            const val = e.target.value;
+                            setApiKeys((prev: any) => ({ ...prev, [config.agents.writer.provider]: val }))
+                          }}
+                          placeholder={secretsStatus[config.agents.writer.provider] ? "•••••••• (Saved)" : "Enter API Key"}
+                          className="h-8 text-xs flex-1"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSaveApiKey(config.agents.writer.provider)}
+                          className="h-8 text-[10px] px-2"
+                        >
+                          Save Key
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(config?.agents?.writer?.provider === "custom_openai" || config?.agents?.writer?.provider === "lm_studio") && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Base URL</label>
+                      <Input
+                        value={config?.agents?.writer?.base_url || ""}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("writer", "base_url", e.target.value)}
+                        placeholder={config.agents.writer.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  )}
+
                   <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
+                      {loadingModels["writer"] && (
+                        <span className="text-[9px] text-teal-600 animate-pulse">Fetching...</span>
+                      )}
+                    </div>
                     <Input
-                      value={config?.agents?.writer?.model}
+                      list="writer-models-list"
+                      value={config?.agents?.writer?.model || ""}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("writer", "model", e.target.value)}
-                      placeholder="e.g. gpt-4o"
+                      placeholder="Select or type model name"
                       className="h-8 text-xs"
                     />
+                    <datalist id="writer-models-list">
+                      {writerModels.map((m: string) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
                   </div>
 
                   <div className="space-y-1">
@@ -505,7 +668,9 @@ export function ConfigEditor() {
                         <SelectContent>
                           <SelectItem value="mock">Mock Engine</SelectItem>
                           <SelectItem value="openai">OpenAI (GPT)</SelectItem>
-                          <SelectItem value="custom_openai">Ollama (Custom)</SelectItem>
+                          <SelectItem value="google">Google (Gemini)</SelectItem>
+                          <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
+                          <SelectItem value="lm_studio">LM Studio</SelectItem>
                           <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
                         </SelectContent>
                       </Select>
@@ -525,14 +690,63 @@ export function ConfigEditor() {
                     </div>
                   </div>
 
+                  {config?.agents?.reviewer?.provider !== "mock" && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
+                      <div className="flex gap-1.5">
+                        <Input
+                          type="password"
+                          value={apiKeys[config.agents.reviewer.provider] || ""}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                            const val = e.target.value;
+                            setApiKeys((prev: any) => ({ ...prev, [config.agents.reviewer.provider]: val }))
+                          }}
+                          placeholder={secretsStatus[config.agents.reviewer.provider] ? "•••••••• (Saved)" : "Enter API Key"}
+                          className="h-8 text-xs flex-1"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSaveApiKey(config.agents.reviewer.provider)}
+                          className="h-8 text-[10px] px-2"
+                        >
+                          Save Key
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(config?.agents?.reviewer?.provider === "custom_openai" || config?.agents?.reviewer?.provider === "lm_studio") && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Base URL</label>
+                      <Input
+                        value={config?.agents?.reviewer?.base_url || ""}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("reviewer", "base_url", e.target.value)}
+                        placeholder={config.agents.reviewer.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  )}
+
                   <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
+                      {loadingModels["reviewer"] && (
+                        <span className="text-[9px] text-teal-600 animate-pulse">Fetching...</span>
+                      )}
+                    </div>
                     <Input
-                      value={config?.agents?.reviewer?.model}
+                      list="reviewer-models-list"
+                      value={config?.agents?.reviewer?.model || ""}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("reviewer", "model", e.target.value)}
-                      placeholder="e.g. gpt-4o"
+                      placeholder="Select or type model name"
                       className="h-8 text-xs"
                     />
+                    <datalist id="reviewer-models-list">
+                      {reviewerModels.map((m: string) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
                   </div>
 
                   <div className="space-y-1">

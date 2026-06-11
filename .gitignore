@@ -117,5 +117,6 @@ desktop.ini
 *.user
 
 # Project specific rules (from original .gitignore)
+config/secrets.json
 *.docx
 *.png

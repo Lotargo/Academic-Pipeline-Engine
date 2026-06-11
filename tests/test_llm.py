@@ -3,6 +3,8 @@ from academic_pe.core.llm import (
     MockProvider,
     OpenAIProvider,
     CustomOpenAIProvider,
+    GoogleProvider,
+    LMStudioProvider,
     create_provider,
     register_provider,
     LLMProvider,
@@ -41,6 +43,15 @@ class TestCreateProvider:
         monkeypatch.setenv("CUSTOM_API_KEY", "sk-test")
         provider = create_provider("custom_openai", base_url="http://localhost:11434/v1")
         assert isinstance(provider, CustomOpenAIProvider)
+
+    def test_creates_google(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "sk-google-test")
+        provider = create_provider("google")
+        assert isinstance(provider, GoogleProvider)
+
+    def test_creates_lm_studio(self):
+        provider = create_provider("lm_studio")
+        assert isinstance(provider, LMStudioProvider)
 
     def test_unknown_provider_raises(self):
         with pytest.raises(ValueError, match="Unknown provider"):

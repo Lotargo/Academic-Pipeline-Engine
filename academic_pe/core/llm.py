@@ -20,14 +20,15 @@ class LLMProvider(ABC):
 
 
 class OpenAIProvider(LLMProvider):
-    def __init__(self):
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
+    def __init__(self, api_key: Optional[str] = None):
+        from academic_pe.core.secrets import get_secret
+        key = api_key or get_secret("openai")
+        if not key:
             raise ValueError(
-                "OPENAI_API_KEY environment variable is not set. "
-                "Use MockProvider for testing or set the variable."
+                "OpenAI API key is not configured. "
+                "Please configure it in settings or set the OPENAI_API_KEY environment variable."
             )
-        self._client = OpenAI(api_key=api_key)
+        self._client = OpenAI(api_key=key)
 
     def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
         response = self._client.chat.completions.create(
@@ -42,9 +43,58 @@ class OpenAIProvider(LLMProvider):
 
 
 class CustomOpenAIProvider(LLMProvider):
-    def __init__(self, base_url: str, api_key_env: str = "CUSTOM_API_KEY"):
-        api_key = os.getenv(api_key_env, "sk-placeholder")
-        self._client = OpenAI(api_key=api_key, base_url=base_url)
+    def __init__(self, base_url: str, api_key: Optional[str] = None, api_key_env: str = "CUSTOM_API_KEY"):
+        from academic_pe.core.secrets import get_secret
+        key = api_key or get_secret("custom_openai") or os.getenv(api_key_env) or "sk-placeholder"
+        self._client = OpenAI(api_key=key, base_url=base_url)
+
+    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+        response = self._client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
+
+class GoogleProvider(LLMProvider):
+    def __init__(self, api_key: Optional[str] = None):
+        from academic_pe.core.secrets import get_secret
+        key = api_key or get_secret("google")
+        if not key:
+            raise ValueError(
+                "Google Gemini API key is not configured. "
+                "Please configure it in settings or set the GEMINI_API_KEY/GOOGLE_API_KEY environment variable."
+            )
+        self._client = OpenAI(
+            api_key=key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        )
+
+    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+        model_name = model
+        if not model_name.startswith("gemini-"):
+            model_name = "gemini-1.5-flash"
+        response = self._client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
+
+class LMStudioProvider(LLMProvider):
+    def __init__(self, base_url: Optional[str] = None, api_key: Optional[str] = None):
+        from academic_pe.core.secrets import get_secret
+        url = base_url or "http://localhost:1234/v1"
+        key = api_key or get_secret("lm_studio") or "lm-studio"
+        self._client = OpenAI(api_key=key, base_url=url)
 
     def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
         response = self._client.chat.completions.create(
@@ -59,11 +109,13 @@ class CustomOpenAIProvider(LLMProvider):
 
 
 class AnthropicProvider(LLMProvider):
-    def __init__(self):
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
+    def __init__(self, api_key: Optional[str] = None):
+        from academic_pe.core.secrets import get_secret
+        key = api_key or get_secret("anthropic")
+        if not key:
             raise ValueError(
-                "ANTHROPIC_API_KEY environment variable is not set."
+                "Anthropic API key is not configured. "
+                "Please configure it in settings or set the ANTHROPIC_API_KEY environment variable."
             )
         try:
             from anthropic import Anthropic
@@ -72,7 +124,7 @@ class AnthropicProvider(LLMProvider):
                 "anthropic package is required for AnthropicProvider. "
                 "Install it with: pip install anthropic"
             )
-        self._client = Anthropic(api_key=api_key)
+        self._client = Anthropic(api_key=key)
 
     def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
         message = self._client.messages.create(
@@ -195,6 +247,8 @@ _PROVIDER_REGISTRY: dict[str, type[LLMProvider]] = {
     "openai": OpenAIProvider,
     "custom_openai": CustomOpenAIProvider,
     "anthropic": AnthropicProvider,
+    "google": GoogleProvider,
+    "lm_studio": LMStudioProvider,
 }
 
 
@@ -219,6 +273,8 @@ def create_provider(
         if not base_url:
             raise ValueError("base_url is required for custom_openai provider")
         instance: LLMProvider = cls(base_url=base_url)
+    elif provider == "lm_studio":
+        instance = cls(base_url=base_url)
     else:
         instance = cls()
 

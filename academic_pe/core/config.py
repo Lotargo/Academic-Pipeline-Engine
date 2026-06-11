@@ -20,6 +20,8 @@ class ProviderEnum(str, Enum):
     openai = "openai"
     custom_openai = "custom_openai"
     anthropic = "anthropic"
+    google = "google"
+    lm_studio = "lm_studio"
     mock = "mock"
 
 
