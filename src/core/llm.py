@@ -4,6 +4,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import Enum, auto
 import os
 from typing import Optional
 
@@ -128,6 +129,67 @@ class RetryProvider(LLMProvider):
         raise last_error  # type: ignore[misc]
 
 
+class CircuitState(Enum):
+    CLOSED = auto()
+    OPEN = auto()
+    HALF_OPEN = auto()
+
+
+@dataclass
+class CircuitBreakerConfig:
+    failure_threshold: int = 5
+    recovery_timeout: float = 30.0
+
+
+class CircuitBreakerProvider(LLMProvider):
+    def __init__(self, inner: LLMProvider, config: CircuitBreakerConfig = CircuitBreakerConfig()):
+        self._inner = inner
+        self._config = config
+        self._state = CircuitState.CLOSED
+        self._failure_count = 0
+        self._last_failure_time: float = 0.0
+
+    @property
+    def state(self) -> CircuitState:
+        if self._state == CircuitState.OPEN:
+            if time.monotonic() - self._last_failure_time >= self._config.recovery_timeout:
+                self._state = CircuitState.HALF_OPEN
+                logger.info("Circuit breaker: OPEN -> HALF_OPEN")
+        return self._state
+
+    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+        current_state = self.state
+        if current_state == CircuitState.OPEN:
+            raise RuntimeError(
+                f"Circuit breaker is OPEN. "
+                f"Retry after {self._config.recovery_timeout}s."
+            )
+
+        try:
+            result = self._inner.generate(system_prompt, user_prompt, model, temperature)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise
+
+    def _on_success(self) -> None:
+        self._failure_count = 0
+        if self._state == CircuitState.HALF_OPEN:
+            self._state = CircuitState.CLOSED
+            logger.info("Circuit breaker: HALF_OPEN -> CLOSED")
+
+    def _on_failure(self) -> None:
+        self._failure_count += 1
+        self._last_failure_time = time.monotonic()
+        if self._failure_count >= self._config.failure_threshold:
+            self._state = CircuitState.OPEN
+            logger.warning(
+                "Circuit breaker: CLOSED -> OPEN after %d failures",
+                self._failure_count,
+            )
+
+
 _PROVIDER_REGISTRY: dict[str, type[LLMProvider]] = {
     "mock": MockProvider,
     "openai": OpenAIProvider,
@@ -144,6 +206,7 @@ def create_provider(
     provider: str = "mock",
     base_url: Optional[str] = None,
     retry_config: Optional[RetryConfig] = None,
+    circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
 ) -> LLMProvider:
     cls = _PROVIDER_REGISTRY.get(provider)
     if cls is None:
@@ -161,5 +224,14 @@ def create_provider(
 
     if retry_config is not None and retry_config.max_retries > 0:
         instance = RetryProvider(instance, retry_config)
+
+    if circuit_breaker_config is not None and circuit_breaker_config.enabled:
+        instance = CircuitBreakerProvider(
+            instance,
+            CircuitBreakerConfig(
+                failure_threshold=circuit_breaker_config.failure_threshold,
+                recovery_timeout=circuit_breaker_config.recovery_timeout,
+            ),
+        )
 
     return instance

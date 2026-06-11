@@ -21,3 +21,37 @@ def test_load_config():
     assert config.retry.max_retries == 3
     assert config.retry.base_delay == 1.0
     assert config.retry.max_delay == 30.0
+
+
+def test_config_has_circuit_breaker():
+    config = load_config("config/agents.yaml")
+    assert config.circuit_breaker.enabled is False
+    assert config.circuit_breaker.failure_threshold == 5
+    assert config.circuit_breaker.recovery_timeout == 30.0
+
+
+def test_config_has_output_fields():
+    config = load_config("config/agents.yaml")
+    assert config.pipeline.output_filename == "Final_Academic_Paper.docx"
+    assert config.pipeline.output_dir == "."
+
+
+def test_config_agent_type_optional():
+    config = load_config("config/agents.yaml")
+    assert config.agents["writer"].agent_type is None
+
+
+def test_config_defaults():
+    from src.core.config import AppConfig, AgentConfig
+    cfg = AppConfig(
+        agents={
+            "test": AgentConfig(
+                role="Test", model="m", temperature=0.5,
+                system_prompt="test",
+            ),
+        },
+    )
+    assert cfg.circuit_breaker.enabled is False
+    assert cfg.fsm.enabled is False
+    assert cfg.style.font_name == "Times New Roman"
+    assert cfg.pipeline.output_filename == "Final_Academic_Paper.docx"

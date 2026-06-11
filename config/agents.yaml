@@ -25,6 +25,11 @@ retry:
   base_delay: 1.0
   max_delay: 30.0
 
+circuit_breaker:
+  enabled: false
+  failure_threshold: 5
+  recovery_timeout: 30.0
+
 quality_gate:
   volume:
     enabled: true
@@ -43,3 +48,5 @@ pipeline:
     - name: conclusion
       topic: "Efficiency of State Machines"
       instruction: "Summarize key findings and implications."
+  output_filename: "Final_Academic_Paper.docx"
+  output_dir: "."

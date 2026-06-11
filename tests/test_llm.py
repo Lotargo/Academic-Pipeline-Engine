@@ -156,3 +156,98 @@ class TestRetryProvider:
         assert provider._config.max_retries == 5
         assert provider._config.base_delay == 2.0
         assert provider._config.max_delay == 60.0
+
+
+from src.core.llm import (
+    CircuitBreakerProvider,
+    CircuitBreakerConfig as LLMCBCConfig,
+    CircuitState,
+)
+from src.core.config import CircuitBreakerConfig as CfgCBConfig
+
+
+class TestCircuitBreaker:
+    def test_starts_closed(self):
+        inner = MockProvider()
+        cb = CircuitBreakerProvider(inner, LLMCBCConfig(failure_threshold=3))
+        assert cb.state == CircuitState.CLOSED
+
+    def test_passes_through_on_success(self):
+        inner = MockProvider()
+        cb = CircuitBreakerProvider(inner, LLMCBCConfig(failure_threshold=3))
+        result = cb.generate("sys", "hello", "m", 0.0)
+        assert "mock response" in result
+
+    def test_opens_after_threshold(self):
+        class Failing(LLMProvider):
+            def generate(self, system_prompt, user_prompt, model, temperature):
+                raise RuntimeError("fail")
+
+        cb = CircuitBreakerProvider(Failing(), LLMCBCConfig(failure_threshold=3, recovery_timeout=999))
+        for _ in range(3):
+            try:
+                cb.generate("sys", "hello", "m", 0.0)
+            except RuntimeError:
+                pass
+        assert cb.state == CircuitState.OPEN
+
+    def test_blocks_when_open(self):
+        class Failing(LLMProvider):
+            def generate(self, system_prompt, user_prompt, model, temperature):
+                raise RuntimeError("fail")
+
+        cb = CircuitBreakerProvider(Failing(), LLMCBCConfig(failure_threshold=2, recovery_timeout=999))
+        for _ in range(2):
+            try:
+                cb.generate("sys", "hello", "m", 0.0)
+            except RuntimeError:
+                pass
+
+        with pytest.raises(RuntimeError, match="Circuit breaker is OPEN"):
+            cb.generate("sys", "hello", "m", 0.0)
+
+    def test_half_open_after_timeout(self):
+        inner = MockProvider()
+        cb = CircuitBreakerProvider(inner, LLMCBCConfig(failure_threshold=1, recovery_timeout=0.01))
+
+        class FailOnce(LLMProvider):
+            def __init__(self):
+                self.called = False
+            def generate(self, system_prompt, user_prompt, model, temperature):
+                if not self.called:
+                    self.called = True
+                    raise RuntimeError("fail")
+                return "recovered"
+
+        fail_once = FailOnce()
+        cb._inner = fail_once
+        try:
+            cb.generate("sys", "hello", "m", 0.0)
+        except RuntimeError:
+            pass
+        assert cb.state == CircuitState.OPEN
+
+        import time
+        time.sleep(0.02)
+
+        result = cb.generate("sys", "hello", "m", 0.0)
+        assert result == "recovered"
+        assert cb.state == CircuitState.CLOSED
+
+    def test_success_resets_failure_count(self):
+        inner = MockProvider()
+        cb = CircuitBreakerProvider(inner, LLMCBCConfig(failure_threshold=5))
+        cb._failure_count = 4
+        cb.generate("sys", "hello", "m", 0.0)
+        assert cb._failure_count == 0
+
+    def test_create_provider_with_circuit_breaker(self):
+        cbc = CfgCBConfig(enabled=True, failure_threshold=10, recovery_timeout=60.0)
+        provider = create_provider("mock", circuit_breaker_config=cbc)
+        assert isinstance(provider, CircuitBreakerProvider)
+        assert provider._config.failure_threshold == 10
+
+    def test_create_provider_skips_cb_when_disabled(self):
+        cbc = CfgCBConfig(enabled=False)
+        provider = create_provider("mock", circuit_breaker_config=cbc)
+        assert not isinstance(provider, CircuitBreakerProvider)

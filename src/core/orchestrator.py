@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+import os
+import signal
 from enum import Enum, auto
-from typing import Dict, List, Optional, Protocol
+from typing import Callable, Dict, List, Optional, Protocol
 
 from src.core.config import AppConfig, load_config
-from src.core.llm import create_provider
 from src.agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ class PipelineState(Enum):
     FAILED = auto()
 
 
-_TRANSITIONS: Dict[PipelineState, List[PipelineState]] = {
+_DEFAULT_TRANSITIONS: Dict[PipelineState, List[PipelineState]] = {
     PipelineState.INIT: [PipelineState.DRAFTING],
     PipelineState.DRAFTING: [PipelineState.REVIEWING],
     PipelineState.REVIEWING: [PipelineState.DRAFTING, PipelineState.RENDERING],
@@ -43,6 +44,9 @@ class Renderer(Protocol):
         ...
 
 
+HookFn = Callable[[PipelineState, PipelineState], None]
+
+
 class Orchestrator:
     def __init__(
         self,
@@ -57,20 +61,50 @@ class Orchestrator:
         self._config = config
         self._state: PipelineState = PipelineState.INIT
         self.context: Dict[str, str] = {}
+        self._state_history: List[PipelineState] = []
+        self._hooks: Dict[str, List[HookFn]] = {
+            "on_enter": [],
+            "on_exit": [],
+        }
+        self._transitions: Dict[PipelineState, List[PipelineState]] = dict(_DEFAULT_TRANSITIONS)
 
     @property
     def state(self) -> PipelineState:
         return self._state
 
+    @property
+    def previous_state(self) -> Optional[PipelineState]:
+        return self._state_history[-1] if self._state_history else None
+
+    def on_enter(self, callback: HookFn) -> None:
+        self._hooks["on_enter"].append(callback)
+
+    def on_exit(self, callback: HookFn) -> None:
+        self._hooks["on_exit"].append(callback)
+
     def transition_to(self, new_state: PipelineState) -> None:
-        allowed = _TRANSITIONS.get(self._state, [])
+        allowed = self._transitions.get(self._state, [])
         if new_state not in allowed:
             raise InvalidTransitionError(
                 f"Cannot transition from {self._state.name} to {new_state.name}. "
                 f"Allowed: {[s.name for s in allowed]}"
             )
-        logger.info("State: %s -> %s", self._state.name, new_state.name)
+        old_state = self._state
+        for hook in self._hooks["on_exit"]:
+            hook(old_state, new_state)
+        logger.info("State: %s -> %s", old_state.name, new_state.name)
+        self._state_history.append(old_state)
         self._state = new_state
+        for hook in self._hooks["on_enter"]:
+            hook(old_state, new_state)
+
+    def revert(self) -> PipelineState:
+        if not self._state_history:
+            raise PipelineError("No previous state to revert to.")
+        prev = self._state_history.pop()
+        logger.info("Revert: %s -> %s", self._state.name, prev.name)
+        self._state = prev
+        return prev
 
     def run_pipeline(self) -> str:
         logger.info("Pipeline started.")
@@ -86,6 +120,8 @@ class Orchestrator:
 
             # --- REVIEWING ---
             self.transition_to(PipelineState.REVIEWING)
+
+            from src.agents.writer import ReviewerAgent
 
             max_retries = 3
             for attempt in range(max_retries):
@@ -103,11 +139,21 @@ class Orchestrator:
                     context=full_text,
                 )
 
-                if critique.strip().upper().startswith("APPROVED"):
+                approved = (
+                    self._reviewer.is_approved(critique)
+                    if isinstance(self._reviewer, ReviewerAgent)
+                    else critique.strip().upper().startswith("APPROVED")
+                )
+                if approved:
                     logger.info("Reviewer approved the content.")
                     break
 
-                logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, critique[:100])
+                reason = (
+                    self._reviewer.parse_reason(critique)
+                    if isinstance(self._reviewer, ReviewerAgent)
+                    else critique
+                )
+                logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, reason[:100])
 
                 if attempt < max_retries - 1:
                     logger.info("Returning to DRAFTING for revision...")
@@ -115,7 +161,7 @@ class Orchestrator:
                     for section in self._config.pipeline.sections:
                         task = (
                             f"Revise the chapter about {section.topic}. "
-                            f"Address these issues: {critique[:500]}. "
+                            f"Address these issues: {reason[:500]}. "
                             f"{section.instruction}"
                         )
                         self.context[section.name] = self._writer.process(task)
@@ -129,14 +175,22 @@ class Orchestrator:
             if not qg_result.passed:
                 for issue in qg_result.issues:
                     logger.warning("Quality Gate: %s", issue)
-            else:
-                logger.info("Quality Gate: all checks passed.")
+                raise PipelineError(
+                    f"Quality Gate failed with {len(qg_result.issues)} issue(s). "
+                    + "; ".join(qg_result.issues)
+                )
+            logger.info("Quality Gate: all checks passed.")
 
             # --- RENDERING ---
             self.transition_to(PipelineState.RENDERING)
 
+            output_filename = self._config.pipeline.output_filename
+            output_dir = self._config.pipeline.output_dir
+            os.makedirs(output_dir, exist_ok=True)
+            output_path = os.path.join(output_dir, output_filename)
+
             if self._renderer is not None:
-                output_path = self._renderer(self.context, output_filename="Final_Academic_Paper.docx")
+                output_path = self._renderer(self.context, output_filename=output_path)
             else:
                 output_path = "(no renderer configured)"
                 logger.warning("No renderer configured, skipping DOCX generation.")
@@ -145,6 +199,8 @@ class Orchestrator:
             self.transition_to(PipelineState.DONE)
             logger.info("Pipeline finished. Artifact: %s", output_path)
 
+        except PipelineError:
+            raise
         except Exception:
             logger.exception("Pipeline failed at state %s", self._state.name)
             self._state = PipelineState.FAILED
@@ -153,26 +209,6 @@ class Orchestrator:
             ) from None
 
         return output_path
-
-
-def _build_agent(cfg: AppConfig, retry_cfg: Optional[AppConfig] = None) -> BaseAgent:
-    from src.core.config import AgentConfig as AC
-    from src.core.config import RetryConfig as RetryCfg
-    from src.core.llm import RetryConfig as LLMRetryConfig
-
-    if not isinstance(cfg, AC):
-        raise ValueError("Invalid agent configuration")
-
-    rc = None
-    if retry_cfg is not None and isinstance(retry_cfg, RetryCfg) and retry_cfg.max_retries > 0:
-        rc = LLMRetryConfig(
-            max_retries=retry_cfg.max_retries,
-            base_delay=retry_cfg.base_delay,
-            max_delay=retry_cfg.max_delay,
-        )
-
-    llm = create_provider(provider=cfg.provider, base_url=cfg.base_url, retry_config=rc)
-    return BaseAgent(cfg, llm)
 
 
 def create_orchestrator(
@@ -185,8 +221,12 @@ def create_orchestrator(
     if not writer_cfg:
         raise ValueError("Writer agent configuration is missing")
 
-    writer = _build_agent(writer_cfg, config.retry)
-    reviewer = _build_agent(config.agents["reviewer"], config.retry) if "reviewer" in config.agents else None
+    from src.agents.factory import create_agent
+
+    writer = create_agent("writer", writer_cfg, retry_cfg=config.retry)
+    reviewer = None
+    if "reviewer" in config.agents:
+        reviewer = create_agent("reviewer", config.agents["reviewer"], retry_cfg=config.retry)
 
     return Orchestrator(
         writer=writer,
@@ -194,3 +234,27 @@ def create_orchestrator(
         config=config,
         renderer=renderer,
     )
+
+
+_CONFIG_PATH: str = "config/agents.yaml"
+_ORCHESTRATOR_FACTORY = create_orchestrator
+
+
+def reload_config(signum=None, frame=None) -> None:
+    global _CONFIG_PATH
+    logger.info("Received signal %s, reloading config from %s", signum, _CONFIG_PATH)
+    try:
+        load_config(_CONFIG_PATH)
+        logger.info("Config reloaded successfully.")
+    except Exception:
+        logger.exception("Failed to reload config")
+
+
+def install_sighup_handler(config_path: str = "config/agents.yaml") -> None:
+    global _CONFIG_PATH
+    _CONFIG_PATH = config_path
+    if hasattr(signal, "SIGHUP"):
+        signal.signal(signal.SIGHUP, reload_config)
+        logger.info("SIGHUP handler installed for config reload.")
+    else:
+        logger.info("SIGHUP not available on this platform (Windows). Config reload disabled.")

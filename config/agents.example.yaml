@@ -1,0 +1,89 @@
+# =============================================================================
+# Academic Pipeline Engine — Example Configuration
+# =============================================================================
+# Copy this file to config/agents.yaml and adjust values to your needs.
+
+# ---------------------------------------------------------------------------
+# Agent Definitions
+# ---------------------------------------------------------------------------
+# Each agent has a role, provider, model, temperature, and system prompt.
+# Supported providers: openai, custom_openai, anthropic, mock
+# agent_type: optional override for agent class (default: matches agent name)
+
+agents:
+  writer:
+    role: "Writer"
+    provider: mock              # openai | custom_openai | anthropic | mock
+    model: "gpt-4o"
+    temperature: 0.7            # 0.0 – 2.0
+    # base_url: "http://localhost:11434/v1"  # only for custom_openai
+    # agent_type: "writer"      # optional: writer | reviewer | default | custom
+    system_prompt: |
+      You are an expert academic writer.
+      Your goal is to draft sections of a technical paper based on provided instructions.
+      Use formal language, avoid cliches, and structure your output in Markdown.
+
+  reviewer:
+    role: "Reviewer"
+    provider: mock
+    model: "gpt-4o"
+    temperature: 0.3
+    system_prompt: |
+      You are a strict academic reviewer.
+      Your goal is to check the drafted text for logic errors, informal language, and AI markers.
+      Return exactly one line: APPROVED if the text passes, or REJECTED followed by a brief reason.
+
+# ---------------------------------------------------------------------------
+# Retry Policy
+# ---------------------------------------------------------------------------
+# Applied to all LLM provider calls via the RetryProvider wrapper.
+# Set max_retries: 0 to disable retries.
+
+retry:
+  max_retries: 3
+  base_delay: 1.0
+  max_delay: 30.0
+
+# ---------------------------------------------------------------------------
+# Circuit Breaker
+# ---------------------------------------------------------------------------
+# Wraps each LLM provider. After failure_threshold consecutive failures,
+# the circuit opens and blocks calls for recovery_timeout seconds.
+
+circuit_breaker:
+  enabled: false
+  failure_threshold: 5
+  recovery_timeout: 30.0
+
+# ---------------------------------------------------------------------------
+# Quality Gate
+# ---------------------------------------------------------------------------
+# Automated checks run after REVIEWING and before RENDERING.
+# If any check fails, the pipeline will NOT proceed to rendering.
+
+quality_gate:
+  volume:
+    enabled: true
+    min_chars: 200          # minimum characters per section
+  latex:
+    enabled: true           # validates $...$ and $$...$$ brace balance
+
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
+# Sections define the structure of the generated document.
+# output_filename and output_dir control where the final DOCX is saved.
+
+pipeline:
+  sections:
+    - name: theory
+      topic: "State Machines"
+      instruction: "Structure it with H2 and H3 headers."
+    - name: calculation
+      topic: "Algorithmic Complexity"
+      instruction: "Include LaTeX formulas (e.g. $O(n)$)."
+    - name: conclusion
+      topic: "Efficiency of State Machines"
+      instruction: "Summarize key findings and implications."
+  output_filename: "Final_Academic_Paper.docx"
+  output_dir: "."
