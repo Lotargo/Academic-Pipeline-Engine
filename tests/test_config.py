@@ -17,3 +17,7 @@ def test_load_config():
     assert config.pipeline.sections[0].name == "theory"
     assert config.pipeline.sections[1].name == "calculation"
     assert config.pipeline.sections[2].name == "conclusion"
+
+    assert config.retry.max_retries == 3
+    assert config.retry.base_delay == 1.0
+    assert config.retry.max_delay == 30.0

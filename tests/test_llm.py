@@ -81,3 +81,78 @@ class TestAnthropicProvider:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         with pytest.raises(ImportError, match="anthropic package"):
             AnthropicProviderCls()
+
+
+from src.core.llm import RetryConfig as LLMRetryConfig
+from src.core.llm import RetryProvider as RetryProviderCls
+
+class TestRetryProvider:
+    def test_passes_through_on_success(self):
+        inner = MockProvider()
+        rp = RetryProviderCls(inner, LLMRetryConfig(max_retries=3))
+        result = rp.generate("sys", "hello", "m", 0.0)
+        assert "mock response" in result
+
+    def test_retries_on_failure_then_succeeds(self):
+        class FlakyProvider(LLMProvider):
+            def __init__(self):
+                self.calls = 0
+            def generate(self, system_prompt, user_prompt, model, temperature):
+                self.calls += 1
+                if self.calls < 3:
+                    raise ConnectionError("API timeout")
+                return "success"
+
+        flaky = FlakyProvider()
+        rp = RetryProviderCls(flaky, LLMRetryConfig(max_retries=5, base_delay=0.01))
+        result = rp.generate("sys", "hello", "m", 0.0)
+        assert result == "success"
+        assert flaky.calls == 3
+
+    def test_exhausts_retries_and_raises(self):
+        class AlwaysFails(LLMProvider):
+            def generate(self, system_prompt, user_prompt, model, temperature):
+                raise RuntimeError("persistent failure")
+
+        rp = RetryProviderCls(AlwaysFails(), LLMRetryConfig(max_retries=2, base_delay=0.01))
+
+        with pytest.raises(RuntimeError, match="persistent failure"):
+            rp.generate("sys", "hello", "m", 0.0)
+
+    def test_zero_retries_passes_through(self):
+        class FailingProvider(LLMProvider):
+            def __init__(self):
+                self.calls = 0
+            def generate(self, system_prompt, user_prompt, model, temperature):
+                self.calls += 1
+                raise RuntimeError("fail")
+
+        fail = FailingProvider()
+        rp = RetryProviderCls(fail, LLMRetryConfig(max_retries=0))
+        with pytest.raises(RuntimeError):
+            rp.generate("sys", "hello", "m", 0.0)
+        assert fail.calls == 1
+
+    def test_create_provider_with_retry(self):
+        rc = LLMRetryConfig(max_retries=3, base_delay=0.1)
+        provider = create_provider("mock", retry_config=rc)
+        assert isinstance(provider, RetryProviderCls)
+        assert provider._config.max_retries == 3
+
+    def test_create_provider_skips_retry_when_zero(self):
+        rc = LLMRetryConfig(max_retries=0)
+        provider = create_provider("mock", retry_config=rc)
+        assert not isinstance(provider, RetryProviderCls)
+
+    def test_create_provider_skips_retry_when_none(self):
+        provider = create_provider("mock", retry_config=None)
+        assert not isinstance(provider, RetryProviderCls)
+
+    def test_config_integration(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        rc = LLMRetryConfig(max_retries=5, base_delay=2.0, max_delay=60.0)
+        provider = create_provider("openai", retry_config=rc)
+        assert isinstance(provider, RetryProviderCls)
+        assert provider._config.max_retries == 5
+        assert provider._config.base_delay == 2.0
+        assert provider._config.max_delay == 60.0

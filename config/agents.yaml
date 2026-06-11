@@ -20,6 +20,11 @@ agents:
       Your goal is to check the drafted text for logic errors, informal language, and AI markers.
       Return exactly one line: APPROVED if the text passes, or REJECTED followed by a brief reason.
 
+retry:
+  max_retries: 3
+  base_delay: 1.0
+  max_delay: 30.0
+
 pipeline:
   sections:
     - name: theory

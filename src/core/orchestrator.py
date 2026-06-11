@@ -146,13 +146,23 @@ class Orchestrator:
         return output_path
 
 
-def _build_agent(cfg: Optional[AppConfig]) -> BaseAgent:
-    from src.core.config import AgentConfig
+def _build_agent(cfg: AppConfig, retry_cfg: Optional[AppConfig] = None) -> BaseAgent:
+    from src.core.config import AgentConfig as AC
+    from src.core.config import RetryConfig as RetryCfg
+    from src.core.llm import RetryConfig as LLMRetryConfig
 
-    if not isinstance(cfg, AgentConfig):
+    if not isinstance(cfg, AC):
         raise ValueError("Invalid agent configuration")
 
-    llm = create_provider(provider=cfg.provider, base_url=cfg.base_url)
+    rc = None
+    if retry_cfg is not None and isinstance(retry_cfg, RetryCfg) and retry_cfg.max_retries > 0:
+        rc = LLMRetryConfig(
+            max_retries=retry_cfg.max_retries,
+            base_delay=retry_cfg.base_delay,
+            max_delay=retry_cfg.max_delay,
+        )
+
+    llm = create_provider(provider=cfg.provider, base_url=cfg.base_url, retry_config=rc)
     return BaseAgent(cfg, llm)
 
 
@@ -166,8 +176,8 @@ def create_orchestrator(
     if not writer_cfg:
         raise ValueError("Writer agent configuration is missing")
 
-    writer = _build_agent(writer_cfg)
-    reviewer = _build_agent(config.agents["reviewer"]) if "reviewer" in config.agents else None
+    writer = _build_agent(writer_cfg, config.retry)
+    reviewer = _build_agent(config.agents["reviewer"], config.retry) if "reviewer" in config.agents else None
 
     return Orchestrator(
         writer=writer,

@@ -39,8 +39,10 @@
 - [x] Реализовать `AnthropicProvider` (Claude)
 - [x] Реестр провайдеров `_PROVIDER_REGISTRY` + `register_provider()` + `create_provider()`
 - [x] `provider` и `base_url` поля в `AgentConfig` (выбор из YAML)
-- [ ] Добавить retry с exponential backoff
-- [ ] Добавить timeout и circuit breaker
+- [x] `RetryProvider` — wrapper с exponential backoff вокруг любого провайдера
+- [x] `RetryConfig` в YAML: `max_retries`, `base_delay`, `max_delay`
+- [x] `max_retries: 0` отключает retry (pass-through)
+- [ ] Добавить circuit breaker
 
 ## 5. Dependency Injection
 

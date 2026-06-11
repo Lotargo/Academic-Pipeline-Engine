@@ -19,12 +19,19 @@ class SectionPrompt(BaseModel):
     instruction: str
 
 
+class RetryConfig(BaseModel):
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 30.0
+
+
 class PipelineConfig(BaseModel):
     sections: List[SectionPrompt]
 
 
 class AppConfig(BaseModel):
     agents: Dict[str, AgentConfig]
+    retry: RetryConfig = RetryConfig()
     pipeline: PipelineConfig = PipelineConfig(sections=[
         SectionPrompt(name="theory", topic="State Machines",
                       instruction="Structure it with H2 and H3 headers."),

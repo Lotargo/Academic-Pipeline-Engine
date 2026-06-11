@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import logging
+import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 import os
 from typing import Optional
 
 from openai import OpenAI
+
+logger = logging.getLogger(__name__)
 
 
 class LLMProvider(ABC):
@@ -89,6 +94,40 @@ class MockProvider(LLMProvider):
         )
 
 
+@dataclass
+class RetryConfig:
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 30.0
+
+
+class RetryProvider(LLMProvider):
+    def __init__(self, inner: LLMProvider, config: RetryConfig = RetryConfig()):
+        self._inner = inner
+        self._config = config
+
+    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+        if self._config.max_retries <= 0:
+            return self._inner.generate(system_prompt, user_prompt, model, temperature)
+
+        last_error: Optional[Exception] = None
+
+        for attempt in range(self._config.max_retries):
+            try:
+                return self._inner.generate(system_prompt, user_prompt, model, temperature)
+            except Exception as e:
+                last_error = e
+                if attempt < self._config.max_retries - 1:
+                    delay = min(self._config.base_delay * (2 ** attempt), self._config.max_delay)
+                    logger.warning(
+                        "LLM call failed (attempt %d/%d): %s. Retrying in %.1fs...",
+                        attempt + 1, self._config.max_retries, e, delay,
+                    )
+                    time.sleep(delay)
+
+        raise last_error  # type: ignore[misc]
+
+
 _PROVIDER_REGISTRY: dict[str, type[LLMProvider]] = {
     "mock": MockProvider,
     "openai": OpenAIProvider,
@@ -104,6 +143,7 @@ def register_provider(name: str, provider_cls: type[LLMProvider]) -> None:
 def create_provider(
     provider: str = "mock",
     base_url: Optional[str] = None,
+    retry_config: Optional[RetryConfig] = None,
 ) -> LLMProvider:
     cls = _PROVIDER_REGISTRY.get(provider)
     if cls is None:
@@ -115,6 +155,11 @@ def create_provider(
     if provider == "custom_openai":
         if not base_url:
             raise ValueError("base_url is required for custom_openai provider")
-        return cls(base_url=base_url)
+        instance: LLMProvider = cls(base_url=base_url)
+    else:
+        instance = cls()
 
-    return cls()
+    if retry_config is not None and retry_config.max_retries > 0:
+        instance = RetryProvider(instance, retry_config)
+
+    return instance
