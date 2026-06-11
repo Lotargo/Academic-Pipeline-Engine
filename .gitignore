@@ -69,6 +69,7 @@ ipython_config.py
 # venv
 .env
 .venv/
+uv.lock
 env/
 venv/
 ENV/
