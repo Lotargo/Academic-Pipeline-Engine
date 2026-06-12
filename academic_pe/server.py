@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from academic_pe.api_models import ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
 from academic_pe.core.orchestrator import create_orchestrator_from_config, PipelineState, PipelineCancelled
+from academic_pe.core.template_library import TemplateLibrary
 from academic_pe.tools.export_qa import export_docx_with_qa
 from academic_pe.tools.libreoffice import discover_soffice
 
@@ -97,6 +98,26 @@ def get_config():
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read config: {str(e)}")
+
+
+@app.get("/api/templates")
+def get_templates():
+    try:
+        library = TemplateLibrary.from_yaml("config/document_templates.yaml")
+        return [
+            {
+                "id": template.id,
+                "name": template.name,
+                "description": template.description,
+                "category": template.category,
+                "language_policy": template.language_policy.value,
+                "section_count": len(template.sections),
+            }
+            for template in library.list_templates()
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read document templates: {str(e)}")
+
 
 @app.post("/api/config")
 def update_config(payload: ConfigUpdateRequest):

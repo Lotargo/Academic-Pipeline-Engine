@@ -11,6 +11,14 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { ArrowUp, ArrowDown, Trash2, Plus, Save, RotateCcw, Sliders, Settings2, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
+type DocumentTemplateSummary = {
+  id: string
+  name: string
+  description?: string
+  category?: string
+  section_count?: number
+}
+
 export function ConfigEditor() {
   const [config, setConfig] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -20,11 +28,13 @@ export function ConfigEditor() {
   const [writerModels, setWriterModels] = useState<string[]>([])
   const [reviewerModels, setReviewerModels] = useState<string[]>([])
   const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({})
+  const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplateSummary[]>([])
 
   // Fetch config and secrets status on mount
   useEffect(() => {
     fetchConfig()
     fetchSecretsStatus()
+    fetchDocumentTemplates()
   }, [])
 
   // Auto load models when config is loaded
@@ -48,6 +58,18 @@ export function ConfigEditor() {
       }
     } catch (e) {
       console.error("Error loading secrets status:", e)
+    }
+  }
+
+  const fetchDocumentTemplates = async () => {
+    try {
+      const res = await fetch("/api/templates")
+      if (res.ok) {
+        const data = await res.json()
+        setDocumentTemplates(data)
+      }
+    } catch (e) {
+      console.error("Error loading document templates:", e)
     }
   }
 
@@ -130,6 +152,12 @@ export function ConfigEditor() {
       if (!data.ui) {
         data.ui = { language: "ru" }
       }
+      if (!data.pipeline.template_mode) {
+        data.pipeline.template_mode = "custom"
+      }
+      if (data.pipeline.template_id === undefined) {
+        data.pipeline.template_id = null
+      }
       setConfig(data)
     } catch (e: any) {
       toast.error(e.message || "Error reading settings")
@@ -200,6 +228,16 @@ export function ConfigEditor() {
       ...prev,
       style: {
         ...prev.style,
+        [field]: value,
+      },
+    }))
+  }
+
+  const handlePipelineChange = (field: string, value: any) => {
+    setConfig((prev: any) => ({
+      ...prev,
+      pipeline: {
+        ...prev.pipeline,
         [field]: value,
       },
     }))
@@ -333,22 +371,110 @@ export function ConfigEditor() {
 
         <Accordion type="multiple" defaultValue={["sections", "layout", "agents"]} className="w-full space-y-4">
           
-          {/* Dynamic Sections Manager */}
+          {/* Template Selection and Custom Sections Manager */}
           <AccordionItem value="sections" className="border rounded-xl bg-card overflow-hidden">
             <AccordionTrigger className="px-5 hover:no-underline hover:bg-accent/30">
               <span className="flex items-center gap-2.5 font-semibold text-[15px]">
                 <Sliders className="h-4 w-4 text-teal-600" />
-                Document Chapters & Structure
+                Document Template Selection
               </span>
             </AccordionTrigger>
             <AccordionContent className="px-5 pb-5 pt-1 space-y-4">
               <p className="text-xs text-muted-foreground">
-                Define the outline of the generated paper. Reorder chapters, edit instructions, or add custom sections.
+                Choose how each run receives its document structure. The section editor below defines only the live
+                custom_current template used by Custom mode.
               </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Template Mode</label>
+                  <Select
+                    value={config?.pipeline?.template_mode || "custom"}
+                    onValueChange={(val: string) => {
+                      setConfig((prev: any) => ({
+                        ...prev,
+                        pipeline: {
+                          ...prev.pipeline,
+                          template_mode: val,
+                          template_id: val === "fixed"
+                            ? (prev.pipeline.template_id || documentTemplates[0]?.id || null)
+                            : null,
+                        },
+                      }))
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Custom current sections</SelectItem>
+                      <SelectItem value="fixed">Saved template</SelectItem>
+                      <SelectItem value="auto">Auto planner runtime template</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Saved Template</label>
+                  <Select
+                    value={config?.pipeline?.template_id || ""}
+                    disabled={config?.pipeline?.template_mode !== "fixed" || documentTemplates.length === 0}
+                    onValueChange={(val: string) => handlePipelineChange("template_id", val)}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select a saved template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {documentTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="md:col-span-2 text-[11px] leading-relaxed text-muted-foreground">
+                  {config?.pipeline?.template_mode === "fixed" && config?.pipeline?.template_id ? (
+                    <>
+                      Active saved template:{" "}
+                      <span className="font-medium text-foreground">
+                        {documentTemplates.find((template) => template.id === config.pipeline.template_id)?.name || config.pipeline.template_id}
+                      </span>
+                      . Custom sections remain editable, but they are ignored while Fixed mode is active.
+                    </>
+                  ) : config?.pipeline?.template_mode === "auto" ? (
+                    <>
+                      Auto mode asks the Planner agent to create a temporary runtime template from the user request.
+                      Custom sections are kept for later but are not used in Auto mode.
+                    </>
+                  ) : (
+                    <>
+                      Custom mode uses the sections below as the active runtime template for generation.
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-foreground">custom_current Section Editor</h3>
+                {config?.pipeline?.template_mode !== "custom" && (
+                  <span className="rounded bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                    Inactive for current mode
+                  </span>
+                )}
+              </div>
               
               <div className="space-y-3">
                 {config?.pipeline?.sections?.map((section: any, index: number) => (
-                  <div key={index} className="flex flex-col gap-3 rounded-lg border border-border/80 bg-accent/10 p-4 relative group">
+                  <div
+                    key={index}
+                    className={`flex flex-col gap-3 rounded-lg border border-border/80 p-4 relative group ${
+                      config?.pipeline?.template_mode === "custom"
+                        ? "bg-accent/10"
+                        : "bg-muted/20 opacity-70"
+                    }`}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-500/10 text-xs font-semibold text-teal-600 dark:text-teal-400">
@@ -358,6 +484,7 @@ export function ConfigEditor() {
                           value={section.name}
                           onChange={(e: ChangeEvent<HTMLInputElement>) => updateSection(index, "name", e.target.value)}
                           placeholder="Section Key"
+                          disabled={config?.pipeline?.template_mode !== "custom"}
                           className="h-8 w-44 font-semibold text-xs py-1"
                         />
                       </div>
@@ -367,7 +494,7 @@ export function ConfigEditor() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          disabled={index === 0}
+                          disabled={config?.pipeline?.template_mode !== "custom" || index === 0}
                           onClick={() => moveSection(index, "up")}
                         >
                           <ArrowUp className="h-4 w-4" />
@@ -376,7 +503,7 @@ export function ConfigEditor() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          disabled={index === config.pipeline.sections.length - 1}
+                          disabled={config?.pipeline?.template_mode !== "custom" || index === config.pipeline.sections.length - 1}
                           onClick={() => moveSection(index, "down")}
                         >
                           <ArrowDown className="h-4 w-4" />
@@ -385,6 +512,7 @@ export function ConfigEditor() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          disabled={config?.pipeline?.template_mode !== "custom"}
                           onClick={() => deleteSection(index)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -399,6 +527,7 @@ export function ConfigEditor() {
                           value={section.topic}
                           onChange={(e: ChangeEvent<HTMLInputElement>) => updateSection(index, "topic", e.target.value)}
                           placeholder="e.g. Theoretical Foundations"
+                          disabled={config?.pipeline?.template_mode !== "custom"}
                           className="h-9 text-xs"
                         />
                       </div>
@@ -408,6 +537,7 @@ export function ConfigEditor() {
                           value={section.instruction}
                           onChange={(e: ChangeEvent<HTMLInputElement>) => updateSection(index, "instruction", e.target.value)}
                           placeholder="Guidelines for the Writer Agent"
+                          disabled={config?.pipeline?.template_mode !== "custom"}
                           className="h-9 text-xs"
                         />
                       </div>
@@ -420,10 +550,11 @@ export function ConfigEditor() {
                 variant="outline"
                 size="sm"
                 onClick={addSection}
+                disabled={config?.pipeline?.template_mode !== "custom"}
                 className="w-full border-dashed border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/5 text-teal-600 flex items-center justify-center gap-1 h-9 rounded-lg"
               >
                 <Plus className="h-4 w-4" />
-                Add Document Section
+                Add custom_current Section
               </Button>
             </AccordionContent>
           </AccordionItem>

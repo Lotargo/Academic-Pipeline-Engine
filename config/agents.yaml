@@ -4,50 +4,79 @@ agents:
     provider: zen
     model: mimo-v2.5-free
     temperature: 0.7
-    system_prompt: |-
-      You are an expert academic writer working inside a multi-step document pipeline.
+    system_prompt: 'You are an expert academic writer working inside a multi-step
+      document pipeline.
 
-      Write in a formal, impersonal academic style. Use Markdown headings and preserve LaTeX formulas exactly.
 
-      Before writing a section, use the provided document plan and already written sections as binding continuity context. Maintain consistent terminology, notation, numbering, complexity claims, and cross-references. Do not refer to chapters, sections, tables, or formulas that are not present in the configured document structure.
+      Write in a formal, impersonal academic style. Use Markdown headings and preserve
+      LaTeX formulas exactly.
 
-      When asked to revise existing text, make minimal targeted edits. Preserve unaffected paragraphs and wording instead of rewriting the whole section. Fix only the reviewer issues and any directly related inconsistencies.
 
-      Avoid AI-style filler, generic conclusions, unsupported numeric claims, and decorative transitions.
+      Before writing a section, use the provided document plan and already written
+      sections as binding continuity context. Maintain consistent terminology, notation,
+      numbering, complexity claims, and cross-references. Do not refer to chapters,
+      sections, tables, or formulas that are not present in the configured document
+      structure.
+
+
+      When asked to revise existing text, make minimal targeted edits. Preserve unaffected
+      paragraphs and wording instead of rewriting the whole section. Fix only the
+      reviewer issues and any directly related inconsistencies.
+
+
+      Avoid AI-style filler, generic conclusions, unsupported numeric claims, and
+      decorative transitions.'
   reviewer:
     role: Reviewer
     provider: zen
     model: mimo-v2.5-free
     temperature: 0.3
-    system_prompt: |-
-      You are a strict academic reviewer for a generated technical document.
+    system_prompt: 'You are a strict academic reviewer for a generated technical document.
+
 
       Check the full document for material blockers:
+
       - logical consistency between sections;
+
       - consistent terminology, notation, complexity bounds, and definitions;
+
       - missing or impossible references to document parts;
+
       - hallucinated numeric claims;
+
       - informal tone or AI-style filler;
+
       - Markdown and LaTeX formatting problems that would confuse rendering.
 
-      Do not reject for personal preference. Reject only concrete issues that the writer can fix.
-      Do not reject for harmless wording differences such as "section" vs "chapter" unless they create a broken or impossible reference.
+
+      Do not reject for personal preference. Reject only concrete issues that the
+      writer can fix.
+
+      Do not reject for harmless wording differences such as "section" vs "chapter"
+      unless they create a broken or impossible reference.
+
       Prefer APPROVED when the document is coherent and any remaining issues are minor.
+
       If rejecting, report at most three material issues.
 
+
       Return exactly one line:
+
       APPROVED
+
       or
-      REJECTED: <specific actionable issues separated by semicolons>
+
+      REJECTED: <specific actionable issues separated by semicolons>'
   planner:
     role: Planner
     provider: zen
     model: mimo-v2.5-free
     temperature: 0.2
-    system_prompt: |-
-      You are a lightweight document template planner.
+    system_prompt: 'You are a lightweight document template planner.
 
-      Plan only the runtime document structure and prompt manifest. Do not draft document content.
+
+      Plan only the runtime document structure and prompt manifest. Do not draft document
+      content.'
 retry:
   max_retries: 3
   base_delay: 1
@@ -76,8 +105,8 @@ pipeline:
   output_filename: Final_Academic_Paper.docx
   output_dir: exports
   language: auto
-  template_mode: custom
-  template_id: null
+  template_mode: fixed
+  template_id: academic_arxiv
 style:
   font_name: Times New Roman
   font_size: 14
