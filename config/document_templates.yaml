@@ -1,0 +1,328 @@
+templates:
+  - id: academic_arxiv
+    name: Academic Article (arXiv style)
+    description: Structured research-style article with abstract, methods, analysis, and conclusion.
+    category: academic
+    language_policy: auto
+    version: 1
+    sections:
+      - name: abstract
+        title: Abstract
+        instruction: Summarize the objective, method, and key claim in a compact academic paragraph.
+      - name: introduction
+        title: Introduction
+        instruction: Establish context, motivation, scope, and the central research claim.
+      - name: methods
+        title: Methods
+        instruction: Describe the method, assumptions, notation, and reproducible procedure.
+      - name: analysis
+        title: Analysis
+        instruction: Present the main reasoning, formulas, comparisons, or evidence.
+      - name: conclusion
+        title: Conclusion
+        instruction: Summarize findings, limitations, and implications without unsupported claims.
+    prompt_manifest:
+      planner_role: Academic research template planner
+      writer_role: Academic research writer
+      reviewer_role: Academic peer reviewer
+      writer_task: Produce a coherent research-style article with disciplined terminology and structure.
+      reviewer_task: Validate academic coherence, section fit, terminology consistency, and renderable Markdown/LaTeX.
+      style_contract:
+        tone: formal
+        structure: research article
+        allowed_devices:
+          - Markdown headings
+          - LaTeX formulas
+          - citation placeholders
+        forbidden_devices:
+          - unsupported numeric claims
+          - informal filler
+          - poem or stanza structure
+      review_rubric:
+        required:
+          - coherent research claim
+          - consistent terminology and notation
+          - sections match their declared purpose
+        forbidden:
+          - missing methodology when methods are required
+          - hallucinated quantitative claims
+          - AI-style concluding filler
+      output_constraints:
+        markdown_allowed: true
+        latex_allowed: true
+        headings_allowed: true
+
+  - id: academic_report
+    name: Academic Report
+    description: Student or technical report with theory, calculation or analysis, and conclusion.
+    category: academic
+    language_policy: auto
+    version: 1
+    sections:
+      - name: introduction
+        title: Introduction
+        instruction: State the topic, purpose, and report scope.
+      - name: theory
+        title: Theory
+        instruction: Explain the necessary concepts, definitions, and assumptions.
+      - name: calculation
+        title: Calculation
+        instruction: Provide calculations, formulas, or structured analysis relevant to the topic.
+      - name: conclusion
+        title: Conclusion
+        instruction: Summarize the result and practical implications.
+    prompt_manifest:
+      planner_role: Academic report planner
+      writer_role: Academic report writer
+      reviewer_role: Academic report reviewer
+      writer_task: Produce a formal report whose sections are clear, complete, and mutually consistent.
+      reviewer_task: Check report completeness, consistency, tone, and formatting.
+      style_contract:
+        tone: formal
+        structure: report
+        allowed_devices:
+          - Markdown headings
+          - LaTeX formulas
+          - bullet lists
+        forbidden_devices:
+          - unsupported numeric claims
+          - narrative digressions
+      review_rubric:
+        required:
+          - all report sections are filled
+          - theory supports the calculation or analysis
+          - conclusion follows from previous sections
+        forbidden:
+          - missing configured section content
+          - broken formulas
+          - informal tone
+      output_constraints:
+        markdown_allowed: true
+        latex_allowed: true
+        headings_allowed: true
+
+  - id: essay
+    name: Essay
+    description: Thesis-driven essay with argument development and conclusion.
+    category: writing
+    language_policy: auto
+    version: 1
+    sections:
+      - name: introduction
+        title: Introduction
+        instruction: Introduce the topic and state the central thesis.
+      - name: argument
+        title: Argument
+        instruction: Develop the main argument with coherent reasoning and examples.
+      - name: counterpoint
+        title: Counterpoint
+        instruction: Address a relevant alternative view or limitation.
+      - name: conclusion
+        title: Conclusion
+        instruction: Synthesize the argument without adding unrelated claims.
+    prompt_manifest:
+      planner_role: Essay planner
+      writer_role: Essay writer
+      reviewer_role: Essay reviewer
+      writer_task: Produce a coherent thesis-driven essay with a clear argumentative line.
+      reviewer_task: Validate thesis clarity, argument flow, and relevance of examples.
+      style_contract:
+        tone: explanatory
+        structure: essay
+        allowed_devices:
+          - Markdown headings
+          - examples
+          - rhetorical contrast
+        forbidden_devices:
+          - unsupported numeric claims
+          - academic methodology section
+          - formulas unless requested
+      review_rubric:
+        required:
+          - clear thesis
+          - coherent argument progression
+          - conclusion follows the argument
+        forbidden:
+          - methodology-section critique
+          - demand for formulas
+          - unrelated digressions
+      output_constraints:
+        markdown_allowed: true
+        latex_allowed: false
+        headings_allowed: true
+
+  - id: school_composition
+    name: School Composition
+    description: Simple composition with introduction, main part, and conclusion.
+    category: education
+    language_policy: auto
+    version: 1
+    sections:
+      - name: introduction
+        title: Introduction
+        instruction: Introduce the subject in simple, clear prose.
+      - name: main_part
+        title: Main Part
+        instruction: Develop the subject with accessible explanation and examples.
+      - name: conclusion
+        title: Conclusion
+        instruction: Finish with a concise summary or personal-style reflection if requested.
+    prompt_manifest:
+      planner_role: School composition planner
+      writer_role: School composition writer
+      reviewer_role: School composition reviewer
+      writer_task: Produce a clear composition appropriate for a school-style assignment.
+      reviewer_task: Check clarity, structure, age-appropriate tone, and absence of unsupported facts.
+      style_contract:
+        tone: neutral
+        structure: introduction-body-conclusion
+        allowed_devices:
+          - simple examples
+          - plain transitions
+        forbidden_devices:
+          - technical jargon unless requested
+          - research methodology section
+          - unsupported numeric claims
+      review_rubric:
+        required:
+          - simple coherent structure
+          - clear topic development
+          - conclusion fits the main part
+        forbidden:
+          - academic peer-review criteria
+          - forced formulas
+          - excessive complexity
+      output_constraints:
+        markdown_allowed: true
+        latex_allowed: false
+        headings_allowed: true
+
+  - id: poem
+    name: Poem
+    description: Poem-oriented template using stanzas, imagery, and controlled rhythm.
+    category: creative
+    language_policy: auto
+    version: 1
+    sections:
+      - name: poem
+        title: Poem
+        instruction: Write the poem in stanzas, preserving imagery, rhythm, and the requested mood.
+    prompt_manifest:
+      planner_role: Poem template planner
+      writer_role: Poet
+      reviewer_role: Poetry reviewer
+      writer_task: Produce a poem that follows the requested mood, imagery, and stanza form.
+      reviewer_task: Validate poetic fit, coherence of imagery, and adherence to requested constraints.
+      style_contract:
+        tone: lyrical
+        structure: stanzas
+        allowed_devices:
+          - metaphor
+          - ambiguity
+          - rhythm
+          - imagery
+        forbidden_devices:
+          - academic methodology section
+          - formula requirements
+          - thesis-statement requirements
+      review_rubric:
+        required:
+          - coherent poetic mood
+          - stanza-oriented structure
+          - requested subject is present
+        forbidden:
+          - missing-methodology rejection
+          - demand for conclusion section
+          - demand for formulas or citations
+      output_constraints:
+        markdown_allowed: true
+        latex_allowed: false
+        headings_allowed: false
+
+  - id: freeform_article
+    name: Freeform Article
+    description: General readable article without heavy academic apparatus.
+    category: general
+    language_policy: auto
+    version: 1
+    sections:
+      - name: article
+        title: Article
+        instruction: Write readable prose with coherent flow and only the structure needed by the topic.
+    prompt_manifest:
+      planner_role: Freeform article planner
+      writer_role: Article writer
+      reviewer_role: Article reviewer
+      writer_task: Produce a readable article that fits the user's topic without forcing academic sections.
+      reviewer_task: Check factual consistency, coherence, tone fit, and absence of incompatible structure.
+      style_contract:
+        tone: neutral
+        structure: paragraphs
+        allowed_devices:
+          - Markdown headings when useful
+          - examples
+          - descriptive prose
+        forbidden_devices:
+          - forced academic methodology section
+          - forced formulas
+          - unsupported numeric claims
+      review_rubric:
+        required:
+          - coherent flow
+          - topic relevance
+          - factual caution
+        forbidden:
+          - academic-only review criteria
+          - demand for sectioned report structure
+          - hallucinated specifics
+      output_constraints:
+        markdown_allowed: true
+        latex_allowed: false
+        headings_allowed: true
+
+  - id: technical_note
+    name: Technical Note
+    description: Concise technical explanation with problem, approach, and implications.
+    category: technical
+    language_policy: auto
+    version: 1
+    sections:
+      - name: problem
+        title: Problem
+        instruction: Define the technical problem or question precisely.
+      - name: approach
+        title: Approach
+        instruction: Explain the mechanism, method, or solution in concise technical prose.
+      - name: notes
+        title: Notes
+        instruction: Add constraints, tradeoffs, examples, or implementation notes.
+    prompt_manifest:
+      planner_role: Technical note planner
+      writer_role: Technical writer
+      reviewer_role: Technical reviewer
+      writer_task: Produce a concise technical note with clear concepts and practical constraints.
+      reviewer_task: Check technical clarity, internal consistency, and actionable specificity.
+      style_contract:
+        tone: explanatory
+        structure: technical note
+        allowed_devices:
+          - Markdown headings
+          - bullet lists
+          - code snippets
+          - formulas when requested
+        forbidden_devices:
+          - unsupported benchmark numbers
+          - creative digressions
+      review_rubric:
+        required:
+          - precise problem statement
+          - coherent explanation
+          - constraints or tradeoffs when relevant
+        forbidden:
+          - invented APIs or metrics
+          - academic-only grading criteria
+          - vague filler
+      output_constraints:
+        markdown_allowed: true
+        latex_allowed: true
+        headings_allowed: true

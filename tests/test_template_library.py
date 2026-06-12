@@ -119,3 +119,23 @@ templates:
 
     with pytest.raises(TemplateNotFoundError, match="Document template not found"):
         library.get("missing")
+
+
+def test_builtin_document_templates_are_valid():
+    library = TemplateLibrary.from_yaml("config/document_templates.yaml")
+
+    template_ids = {template.id for template in library.list_templates()}
+
+    assert template_ids == {
+        "academic_arxiv",
+        "academic_report",
+        "essay",
+        "school_composition",
+        "poem",
+        "freeform_article",
+        "technical_note",
+    }
+    for template in library.list_templates():
+        assert template.sections
+        assert template.prompt_manifest.writer_role
+        assert template.prompt_manifest.reviewer_role
