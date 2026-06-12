@@ -7,8 +7,9 @@ import { ConfigEditor } from "./config-editor"
 import { FSMMonitor } from "./fsm-monitor"
 import { DocumentPreview } from "./document-preview"
 import { LiveDocumentCanvas } from "./live-document-canvas"
+import { ConsolePanel } from "./console-panel"
 import { toast } from "sonner"
-import { Sparkles, FileText, ArrowRight, Sun, Moon, XCircle } from "lucide-react"
+import { Sparkles, FileText, ArrowRight, Sun, Moon, XCircle, Terminal } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
@@ -21,6 +22,8 @@ export function Search() {
   const [activeTab, setActiveTab] = useState<string>("workspace")
   const [historyList, setHistoryList] = useState<any[]>([])
   const [selectedPaper, setSelectedPaper] = useState<any>(null)
+  const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
+  const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const notifiedRef = useRef(false)
   
   // Pipeline status state
@@ -144,6 +147,7 @@ export function Search() {
     // Switch to FSM visualization tab immediately; the backend status becomes
     // the source of truth after /api/run accepts the job.
     setActiveTab("fsm")
+    setIsConsoleOpen(true)
     setStatus({
       status: "STARTING",
       state: "INIT",
@@ -251,6 +255,19 @@ export function Search() {
             )}
             
             <button
+              onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+              className={`flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg border transition-all duration-200 cursor-pointer shadow-sm text-xs font-semibold ${
+                isConsoleOpen
+                  ? "bg-teal-500/15 border-teal-500/35 text-teal-700 dark:text-teal-400"
+                  : "border-border bg-card/40 text-muted-foreground hover:text-foreground hover:bg-accent"
+              }`}
+              title="Toggle Console"
+            >
+              <Terminal className="h-4 w-4" />
+              <span>{language === "ru" ? "Консоль" : "Console"}</span>
+            </button>
+
+            <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card/40 text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 cursor-pointer shadow-sm"
               title="Toggle theme"
@@ -305,13 +322,13 @@ export function Search() {
                 </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                  {/* Left Column: FSM Visualizer & Logs */}
-                  <div className="lg:col-span-5 w-full">
+                  {/* Left Column: FSM Visualizer & Feedbacks */}
+                  <div className="lg:col-span-4 w-full">
                     <FSMMonitor status={status} onRetry={() => setActiveTab("workspace")} t={t} />
                   </div>
                   
                   {/* Right Column: Live Document Paper Canvas */}
-                  <div className="lg:col-span-7 w-full">
+                  <div className="lg:col-span-8 w-full">
                     <LiveDocumentCanvas status={status} onStatusUpdate={setStatus} t={t} />
                   </div>
                 </div>
@@ -402,6 +419,16 @@ export function Search() {
             </div>
           )}
         </div>
+
+        {/* Collapsible, Resizable Bottom Console */}
+        <ConsolePanel
+          status={status}
+          isOpen={isConsoleOpen}
+          onClose={() => setIsConsoleOpen(false)}
+          height={consoleHeight}
+          setHeight={setConsoleHeight}
+          t={t}
+        />
       </main>
     </div>
   )
