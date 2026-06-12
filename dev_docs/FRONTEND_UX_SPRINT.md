@@ -25,18 +25,18 @@ Improve the Academic Pipeline Engine frontend from a functional monitoring works
 
 ## Workstream 1: Resizable Sidebar
 
-Status: `[ ] Planned`
+Status: `[x] Done`
 
 Objective: Allow the left sidebar to be manually resized, similar to the bottom console panel.
 
 Tasks:
 
-- [ ] Replace fixed sidebar width with controlled state.
-- [ ] Add a drag handle on the sidebar right edge.
-- [ ] Set minimum, default, and maximum widths.
-- [ ] Persist sidebar width in local storage.
-- [ ] Preserve collapsed mode behavior.
-- [ ] Verify desktop layout at narrow, default, and wide sidebar widths.
+- [x] Replace fixed sidebar width with controlled state.
+- [x] Add a drag handle on the sidebar right edge.
+- [x] Set minimum, default, and maximum widths.
+- [x] Persist sidebar width in local storage.
+- [x] Preserve collapsed mode behavior.
+- [x] Verify desktop layout at narrow, default, and wide sidebar widths.
 
 Definition of done:
 
@@ -264,7 +264,7 @@ Definition of done:
 
 ## Current Backlog Summary
 
-- [ ] Resizable left sidebar.
+- [x] Resizable left sidebar.
 - [ ] Work archive/delete actions.
 - [ ] User profile modal.
 - [ ] Interface language moved to profile modal.

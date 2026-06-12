@@ -211,7 +211,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
       </form>
 
       {/* Suggested Templates */}
-      <div className="animate-in fade-in slide-in-from-bottom-5 duration-600 space-y-2">
+      <div className="animate-in fade-in slide-in-from-bottom-5 duration-600 space-y-3">
         <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 flex-wrap">
           <HelpCircle className="h-3 w-3 shrink-0" />
           <span>{t.search.templates}</span>
@@ -230,13 +230,13 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
             <RotateCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
           </button>
         </h3>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-x-2 gap-y-3">
           {examples.map((example, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => loadSuggestion(example.topic, example.instructions)}
-              className="px-3 py-1.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer text-left"
+              className="px-3 py-2 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs leading-snug text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer text-left"
             >
               {example.topic}
             </button>

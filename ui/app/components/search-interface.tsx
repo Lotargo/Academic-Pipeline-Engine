@@ -228,7 +228,7 @@ export function Search() {
       />
 
       {/* Main Workspace Frame */}
-      <main className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
+      <main className="flex-1 min-w-0 flex flex-col h-full bg-background overflow-hidden relative">
         {/* Top Navbar */}
         <header className="h-14 border-b border-border/80 bg-card/50 flex items-center justify-between px-6 shrink-0 z-30 select-none">
           <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Clock,
@@ -25,6 +25,15 @@ interface SidebarProps {
   t: Messages
 }
 
+const SIDEBAR_WIDTH_KEY = "ape.sidebar.width"
+const COLLAPSED_WIDTH = 64
+const DEFAULT_WIDTH = 260
+const MIN_WIDTH = 220
+const MAX_WIDTH = 420
+const RESIZE_STEP = 16
+
+const clampSidebarWidth = (width: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width))
+
 export function Sidebar({
   activeTab,
   setActiveTab,
@@ -34,6 +43,54 @@ export function Sidebar({
   t
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
+  const [isResizing, setIsResizing] = useState(false)
+  const sidebarRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const storedWidth = window.localStorage.getItem(SIDEBAR_WIDTH_KEY)
+    if (!storedWidth) return
+
+    const parsedWidth = Number(storedWidth)
+    if (Number.isFinite(parsedWidth)) {
+      setSidebarWidth(clampSidebarWidth(parsedWidth))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (collapsed) return
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round(sidebarWidth)))
+  }, [collapsed, sidebarWidth])
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0
+      setSidebarWidth(clampSidebarWidth(event.clientX - sidebarLeft))
+    }
+
+    const stopResizing = () => {
+      setIsResizing(false)
+    }
+
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", stopResizing)
+    window.addEventListener("pointercancel", stopResizing)
+
+    return () => {
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", stopResizing)
+      window.removeEventListener("pointercancel", stopResizing)
+    }
+  }, [isResizing])
 
   const handleNewRun = () => {
     setSelectedPaper(null)
@@ -53,15 +110,58 @@ export function Sidebar({
   const historyKey = (paper: any) =>
     [paper?.filename || "draft", paper?.topic || "", paper?.timestamp || ""].join("|")
 
+  const startResizing = () => {
+    setIsResizing(true)
+  }
+
   return (
     <div
-      className={`relative flex flex-col border-r border-border bg-background py-4 transition-[width] duration-200 ease-out z-50 h-screen shrink-0 select-none overflow-hidden ${
-        collapsed ? "w-16" : "w-[260px]"
+      ref={sidebarRef}
+      className={`relative flex flex-col border-r border-border bg-background py-4 z-50 h-screen shrink-0 select-none overflow-hidden ${
+        isResizing ? "" : "transition-[width] duration-200 ease-out"
       }`}
+      style={{ width: collapsed ? COLLAPSED_WIDTH : sidebarWidth }}
     >
+      {!collapsed && (
+        <div
+          role="separator"
+          aria-label="Resize sidebar"
+          aria-orientation="vertical"
+          tabIndex={0}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            startResizing()
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault()
+            startResizing()
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft") {
+              event.preventDefault()
+              setSidebarWidth((width) => clampSidebarWidth(width - RESIZE_STEP))
+            } else if (event.key === "ArrowRight") {
+              event.preventDefault()
+              setSidebarWidth((width) => clampSidebarWidth(width + RESIZE_STEP))
+            } else if (event.key === "Home") {
+              event.preventDefault()
+              setSidebarWidth(MIN_WIDTH)
+            } else if (event.key === "End") {
+              event.preventDefault()
+              setSidebarWidth(MAX_WIDTH)
+            }
+          }}
+          className="absolute inset-y-0 right-0 z-40 w-2 cursor-col-resize touch-none outline-none transition-colors hover:bg-teal-500/15 focus-visible:bg-teal-500/20"
+        >
+          <span className="absolute inset-y-4 right-0 w-px bg-border" />
+        </div>
+      )}
+
       {/* Collapse Toggle Button */}
       <button
         onClick={() => setCollapsed(!collapsed)}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         className="absolute top-1/2 -right-3 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground shadow-sm hover:scale-105 active:scale-95 cursor-pointer z-50"
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
