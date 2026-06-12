@@ -9,6 +9,11 @@ interface LiveDocumentCanvasProps {
   t: Messages
 }
 
+type CanvasSection = {
+  id: string
+  title: string
+}
+
 export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCanvasProps) {
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -74,24 +79,25 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Standard ordered list of sections
-  const sectionMeta = [
-    { id: "theory", title: "1. Theoretical Foundations" },
-    { id: "calculation", title: "2. Quantitative Analysis & Models" },
-    { id: "conclusion", title: "3. Summary & Outlook" },
-  ]
+  const runtimeSections: CanvasSection[] = Array.isArray(status?.runtime_template?.sections)
+    ? status.runtime_template.sections
+        .filter((section: any) => section?.name)
+        .map((section: any) => ({
+          id: section.name,
+          title: section.title || section.topic || humanizeSectionName(section.name),
+        }))
+    : []
 
-  // Add any extra sections present in context but not in meta
-  const extraSections = Object.keys(context).filter(
-    (k) => !sectionMeta.some((m) => m.id === k)
+  const contextSections: CanvasSection[] = Object.keys(context).map((key) => ({
+    id: key,
+    title: humanizeSectionName(key),
+  }))
+
+  const baseSections = runtimeSections.length > 0 ? runtimeSections : contextSections
+  const extraSections = contextSections.filter(
+    (section) => !baseSections.some((known) => known.id === section.id)
   )
-  const allSections = [
-    ...sectionMeta,
-    ...extraSections.map((k) => ({
-      id: k,
-      title: k.charAt(0).toUpperCase() + k.slice(1),
-    })),
-  ]
+  const allSections = [...baseSections, ...extraSections]
 
   // Determine active section index during drafting
   let activeSectionId = ""
@@ -462,10 +468,17 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
 
         {/* Sections Content Output */}
         <div className="space-y-8 select-text">
-          {allSections.map((section) => {
+          {allSections.length === 0 && (
+            <div className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800/60 p-8 flex flex-col items-center justify-center text-center text-zinc-300 dark:text-zinc-700">
+              <span className="text-xs font-sans italic">{t.document.awaiting}</span>
+            </div>
+          )}
+
+          {allSections.map((section, index) => {
             const hasContent = !!context[section.id]
             const isDrafting = activeSectionId === section.id
             const showLiveDraft = isDrafting && draftViewMode === "live"
+            const sectionTitle = `${index + 1}. ${section.title}`
 
             return (
               <div key={section.id} className="relative group transition-all duration-300">
@@ -473,7 +486,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                 {/* Section Header */}
                 <div className="flex items-center justify-between mb-3 border-b border-zinc-150/50 dark:border-zinc-800/30 pb-1.5">
                   <h2 className="text-sm font-sans font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200">
-                    {section.title}
+                    {sectionTitle}
                   </h2>
                   <div className="text-[10px] font-sans">
                     {hasContent && !isDrafting ? (
@@ -572,4 +585,12 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
       </div>
     </div>
   )
+}
+
+function humanizeSectionName(name: string) {
+  return name
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
 }
