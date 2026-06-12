@@ -25,6 +25,8 @@ export function Search() {
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const notifiedRef = useRef(false)
+  const fsmScrollRef = useRef<HTMLDivElement | null>(null)
+  const lastFsmScrollResetKeyRef = useRef<string>("")
   
   // Pipeline status state
   const [status, setStatus] = useState<any>({
@@ -128,6 +130,27 @@ export function Search() {
       events?.close()
     }
   }, [status.status, language])
+
+  useEffect(() => {
+    if (activeTab !== "fsm" || selectedPaper) return
+
+    requestAnimationFrame(() => {
+      fsmScrollRef.current?.scrollTo({ top: 0 })
+    })
+  }, [activeTab, selectedPaper])
+
+  useEffect(() => {
+    if (activeTab !== "fsm" || selectedPaper) return
+    if (status.status !== "STARTING" && status.status !== "RUNNING") return
+
+    const resetKey = status.run_id || `${status.status}:${status.topic}`
+    if (!resetKey || lastFsmScrollResetKeyRef.current === resetKey) return
+
+    lastFsmScrollResetKeyRef.current = resetKey
+    requestAnimationFrame(() => {
+      fsmScrollRef.current?.scrollTo({ top: 0 })
+    })
+  }, [activeTab, selectedPaper, status.run_id, status.status, status.topic])
 
   const fetchHistory = async () => {
     try {
@@ -310,7 +333,7 @@ export function Search() {
 
           {/* Pipeline Monitor / Log Tab */}
           {!selectedPaper && activeTab === "fsm" && (
-            <div className="h-full w-full overflow-y-auto px-6 py-6 md:px-8">
+            <div ref={fsmScrollRef} className="h-full w-full overflow-y-auto px-6 pt-8 pb-6 md:px-8 md:pt-10">
               <div className="mx-auto max-w-7xl w-full space-y-6">
                 <div className="border-b pb-4">
                   <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground">
