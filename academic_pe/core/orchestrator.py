@@ -11,7 +11,11 @@ from academic_pe.core.config import AppConfig, load_config
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import detect_language, language_instruction
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, render_template
+from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_search_replace_patch
+from academic_pe.core.template_compat import template_section_to_section_prompt
+from academic_pe.core.template_selector import TemplateSelector
+from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
 
 logger = logging.getLogger(__name__)
@@ -69,11 +73,15 @@ class Orchestrator:
         config: AppConfig,
         reviewer: Optional[BaseAgent] = None,
         renderer: Optional[Renderer] = None,
+        runtime_template: Optional[RuntimeTemplate] = None,
+        runtime_prompt_manifest: Optional[RuntimePromptManifest] = None,
     ):
         self._writer = writer
         self._reviewer = reviewer
         self._renderer = renderer
         self._config = config
+        self.runtime_template = runtime_template
+        self.runtime_prompt_manifest = runtime_prompt_manifest
         self._state: PipelineState = PipelineState.INIT
         self.context: Dict[str, str] = {}
         self.user_topic: str = ""
@@ -367,11 +375,29 @@ class Orchestrator:
         return output_path
 
 
-def create_orchestrator(
-    config_path: str = "config/agents.yaml",
+def _apply_runtime_template(
+    config: AppConfig,
+    runtime_template: RuntimeTemplate,
+) -> AppConfig:
+    resolved_config = config.model_copy(deep=True)
+    resolved_config.pipeline.sections = [
+        template_section_to_section_prompt(section)
+        for section in runtime_template.sections
+    ]
+    return resolved_config
+
+
+def create_orchestrator_from_config(
+    config: AppConfig,
     renderer: Optional[Renderer] = None,
+    template_selector: Optional[TemplateSelector] = None,
+    prompt_manifest_resolver: Optional[PromptManifestResolver] = None,
 ) -> Orchestrator:
-    config = load_config(config_path)
+    selector = template_selector or TemplateSelector()
+    runtime_template, runtime_prompt_manifest = selector.select(config)
+    resolved_config = _apply_runtime_template(config, runtime_template)
+    resolver = prompt_manifest_resolver or PromptManifestResolver()
+    resolved_config = resolver.resolve_app_config(resolved_config, runtime_prompt_manifest)
 
     writer_cfg = config.agents.get("writer")
     if not writer_cfg:
@@ -379,17 +405,27 @@ def create_orchestrator(
 
     from academic_pe.agents.factory import create_agent
 
-    writer = create_agent("writer", writer_cfg, retry_cfg=config.retry)
+    writer = create_agent("writer", resolved_config.agents["writer"], retry_cfg=resolved_config.retry)
     reviewer = None
-    if "reviewer" in config.agents:
-        reviewer = create_agent("reviewer", config.agents["reviewer"], retry_cfg=config.retry)
+    if "reviewer" in resolved_config.agents:
+        reviewer = create_agent("reviewer", resolved_config.agents["reviewer"], retry_cfg=resolved_config.retry)
 
     return Orchestrator(
         writer=writer,
         reviewer=reviewer,
-        config=config,
+        config=resolved_config,
         renderer=renderer,
+        runtime_template=runtime_template,
+        runtime_prompt_manifest=runtime_prompt_manifest,
     )
+
+
+def create_orchestrator(
+    config_path: str = "config/agents.yaml",
+    renderer: Optional[Renderer] = None,
+) -> Orchestrator:
+    config = load_config(config_path)
+    return create_orchestrator_from_config(config, renderer=renderer)
 
 
 _CONFIG_PATH: str = "config/agents.yaml"

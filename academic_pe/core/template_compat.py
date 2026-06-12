@@ -33,6 +33,14 @@ def section_prompt_to_template_section(section: SectionPrompt) -> TemplateSectio
     )
 
 
+def template_section_to_section_prompt(section: TemplateSection) -> SectionPrompt:
+    return SectionPrompt(
+        name=section.name,
+        topic=section.topic or section.title,
+        instruction=section.instruction,
+    )
+
+
 def custom_current_from_config(config: AppConfig) -> Tuple[RuntimeTemplate, RuntimePromptManifest]:
     writer_role = config.agents.get("writer").role if config.agents.get("writer") else "Writer"
     reviewer_role = config.agents.get("reviewer").role if config.agents.get("reviewer") else "Reviewer"

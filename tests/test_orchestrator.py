@@ -1,7 +1,10 @@
-from academic_pe.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError
-from academic_pe.core.config import AppConfig, AgentConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig
+from academic_pe.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError, create_orchestrator_from_config
+from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig, SectionPrompt, TemplateMode
 from academic_pe.core.llm import MockProvider
 from academic_pe.agents.base import DefaultAgent
+from academic_pe.core.template_library import TemplateLibrary
+from academic_pe.core.template_selector import TemplateSelector
+from academic_pe.core.templates import DocumentTemplate, PromptManifest, TemplateSection
 from typing import Dict
 
 
@@ -75,6 +78,72 @@ def test_full_pipeline_mock():
     assert "theory" in orch.context
     assert "calculation" in orch.context
     assert "conclusion" in orch.context
+
+
+def test_create_orchestrator_from_config_applies_fixed_template_and_manifest():
+    library = TemplateLibrary([
+        DocumentTemplate(
+            id="technical_note",
+            name="Technical Note",
+            category="technical",
+            sections=[
+                TemplateSection(
+                    name="problem",
+                    title="Problem",
+                    instruction="Define the problem.",
+                )
+            ],
+            prompt_manifest=PromptManifest(
+                writer_role="Technical writer",
+                reviewer_role="Technical reviewer",
+                writer_task="Write a concise technical note.",
+            ),
+        )
+    ])
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(
+                role="Writer",
+                model="mock",
+                temperature=0.0,
+                system_prompt="Base writer prompt.",
+            )
+        },
+        pipeline=PipelineConfig(
+            sections=[
+                SectionPrompt(name="theory", topic="Theory", instruction="Explain."),
+            ],
+            template_mode=TemplateMode.fixed,
+            template_id="technical_note",
+        ),
+        quality_gate=QualityGateConfig(
+            volume=VolumeGateConfig(enabled=False),
+            latex=LatexGateConfig(enabled=False),
+        ),
+    )
+
+    orch = create_orchestrator_from_config(
+        config,
+        template_selector=TemplateSelector(library=library),
+    )
+
+    assert [section.name for section in orch._config.pipeline.sections] == ["problem"]
+    assert orch.runtime_template.source_template_id == "technical_note"
+    assert "Role for this document template: Technical writer" in orch._writer.config.system_prompt
+    assert "Write a concise technical note." in orch._writer.config.system_prompt
+
+
+def test_create_orchestrator_from_config_keeps_custom_sections():
+    config = _make_config()
+
+    orch = create_orchestrator_from_config(config)
+
+    assert [section.name for section in orch._config.pipeline.sections] == [
+        "theory",
+        "calculation",
+        "conclusion",
+    ]
+    assert orch.runtime_template.source_template_id == "custom_current"
 
 
 def test_auto_language_uses_user_prompt_language_for_drafting():

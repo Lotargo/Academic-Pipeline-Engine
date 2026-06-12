@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from academic_pe.api_models import ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
-from academic_pe.core.orchestrator import create_orchestrator, PipelineState, PipelineCancelled
+from academic_pe.core.orchestrator import create_orchestrator_from_config, PipelineState, PipelineCancelled
 from academic_pe.tools.export_qa import export_docx_with_qa
 from academic_pe.tools.libreoffice import discover_soffice
 
@@ -44,6 +44,8 @@ current_run = {
     "active_section": None,
     "template_mode": None,
     "template_id": None,
+    "runtime_template": None,
+    "runtime_prompt_manifest": None,
 }
 
 # Thread lock for safety
@@ -177,8 +179,9 @@ def run_pipeline_thread(
             current_run["template_mode"] = config.pipeline.template_mode.value
             current_run["template_id"] = config.pipeline.template_id
         
-        # Apply prompt overrides if topic is provided
-        if topic:
+        # Apply legacy section-topic overrides only for the current custom structure.
+        # Fixed templates must remain structurally bound to the selected template.
+        if topic and config.pipeline.template_mode == TemplateMode.custom:
             with run_lock:
                 current_run["topic"] = topic
             for sec in config.pipeline.sections:
@@ -196,14 +199,23 @@ def run_pipeline_thread(
 
         # Initialize orchestrator. Draft generation no longer renders DOCX;
         # export happens only through /api/export/docx.
-        orch = create_orchestrator(config_path="config/agents.yaml")
+        orch = create_orchestrator_from_config(config)
+        with run_lock:
+            current_run["runtime_template"] = (
+                orch.runtime_template.model_dump(mode="json")
+                if orch.runtime_template is not None
+                else None
+            )
+            current_run["runtime_prompt_manifest"] = (
+                orch.runtime_prompt_manifest.model_dump(mode="json")
+                if orch.runtime_prompt_manifest is not None
+                else None
+            )
         
         # Store orchestrator for cancellation
         with _orchestrator_lock:
             _current_orchestrator = orch
         
-        # Synchronize config references to apply topic changes
-        orch._config = config
         orch.user_topic = topic or ""
         orch.user_instructions = instructions or ""
         
@@ -271,6 +283,16 @@ def run_pipeline_thread(
             "instructions": instructions,
             "template_mode": config.pipeline.template_mode.value,
             "template_id": config.pipeline.template_id,
+            "runtime_template": (
+                orch.runtime_template.model_dump(mode="json")
+                if orch.runtime_template is not None
+                else None
+            ),
+            "runtime_prompt_manifest": (
+                orch.runtime_prompt_manifest.model_dump(mode="json")
+                if orch.runtime_prompt_manifest is not None
+                else None
+            ),
             "timestamp": current_run["timestamp"],
             "status": "COMPLETED",
             "docx_filename": os.path.basename(output_path) if output_path else None,
@@ -325,6 +347,8 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
             payload.template_mode.value if payload.template_mode is not None else None
         )
         current_run["template_id"] = payload.template_id
+        current_run["runtime_template"] = None
+        current_run["runtime_prompt_manifest"] = None
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -404,6 +428,8 @@ def export_docx(payload: ExportRequest):
         "instructions": None,
         "template_mode": current_run.get("template_mode") or config.pipeline.template_mode.value,
         "template_id": current_run.get("template_id") or config.pipeline.template_id,
+        "runtime_template": current_run.get("runtime_template"),
+        "runtime_prompt_manifest": current_run.get("runtime_prompt_manifest"),
         "timestamp": timestamp,
         "status": "COMPLETED",
         "docx_filename": result.filename,
@@ -456,6 +482,8 @@ def get_history():
                         "export_report": data.get("export_report"),
                         "template_mode": data.get("template_mode"),
                         "template_id": data.get("template_id"),
+                        "runtime_template": data.get("runtime_template"),
+                        "runtime_prompt_manifest": data.get("runtime_prompt_manifest"),
                     })
             except Exception as e:
                 logging.getLogger(__name__).warning("Failed to load metadata file %s: %s", f, e)
