@@ -61,7 +61,7 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
             return (
               <Fragment key={state}>
                 {/* Node Row */}
-                <div className="flex items-start gap-4 w-full relative group">
+                <div className="flex items-center gap-4 w-full relative group">
                   {/* Status Circle on Left */}
                   <div
                     className={`flex items-center justify-center rounded-full border-2 w-10 h-10 shrink-0 transition-all duration-300 z-10 ${
@@ -82,7 +82,7 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
 
                   {/* Step Card on Right */}
                   <div
-                    className={`flex-1 flex items-center justify-between p-4 rounded-xl border transition-all duration-300 ${
+                    className={`flex-1 h-[84px] flex items-center justify-between gap-3 p-4 rounded-xl border transition-all duration-300 ${
                       nodeStatus === "completed"
                         ? "border-sky-500/15 bg-sky-500/5 dark:bg-sky-950/10 text-sky-950 dark:text-sky-100 shadow-xs hover:border-sky-500/25"
                         : nodeStatus === "active"
@@ -92,12 +92,12 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
                         : "border-border/40 bg-muted/5 text-muted-foreground/50 hover:border-border/60"
                     }`}
                   >
-                    <div className="flex flex-col text-left space-y-0.5">
+                    <div className="flex min-w-0 flex-col text-left space-y-0.5">
                       <span className="text-[9px] uppercase font-mono font-bold tracking-wider opacity-60">
                         {t.fsm.step} {index + 1}
                       </span>
                       <span className="text-xs font-bold tracking-tight text-foreground">{state}</span>
-                      <span className="text-[11px] leading-relaxed text-muted-foreground font-sans max-w-[320px]">
+                      <span className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground font-sans max-w-[320px]">
                         {stateDesc}
                       </span>
                     </div>
