@@ -647,30 +647,6 @@ export function ConfigEditor() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Interface Language</label>
-                  <Select
-                    value={config?.ui?.language || "ru"}
-                    onValueChange={(val: string) => {
-                      setConfig((prev: any) => ({
-                        ...prev,
-                        ui: {
-                          ...(prev.ui || {}),
-                          language: val,
-                        },
-                      }))
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ru">Russian</SelectItem>
-                      <SelectItem value="en">English</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Font Family</label>
                   <Select
                     value={config?.style?.font_name}

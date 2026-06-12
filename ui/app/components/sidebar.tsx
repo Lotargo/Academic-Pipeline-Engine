@@ -14,7 +14,9 @@ import {
   ChevronRight
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { Messages } from "@/lib/i18n"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ProfileModal } from "./profile-modal"
+import type { Messages, UiLanguage } from "@/lib/i18n"
 
 interface SidebarProps {
   activeTab: string
@@ -23,6 +25,14 @@ interface SidebarProps {
   selectedPaper: any
   setSelectedPaper: (paper: any) => void
   t: Messages
+  language: UiLanguage
+  onLanguageChange: (language: UiLanguage) => Promise<void> | void
+  theme?: string
+  onThemeChange: (theme: string) => void
+  nickname: string
+  onNicknameChange: (nickname: string) => void
+  avatarUrl: string | null
+  onAvatarChange: (avatarUrl: string | null) => void
 }
 
 const SIDEBAR_WIDTH_KEY = "ape.sidebar.width"
@@ -40,7 +50,15 @@ export function Sidebar({
   historyList,
   selectedPaper,
   setSelectedPaper,
-  t
+  t,
+  language,
+  onLanguageChange,
+  theme,
+  onThemeChange,
+  nickname,
+  onNicknameChange,
+  avatarUrl,
+  onAvatarChange
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
@@ -113,6 +131,10 @@ export function Sidebar({
   const startResizing = () => {
     setIsResizing(true)
   }
+
+  const displayName = nickname.trim() || t.nav.user
+  const initials = displayName.slice(0, 2).toUpperCase()
+  const profileCaption = language === "ru" ? "Локальный профиль" : "Local profile"
 
   return (
     <div
@@ -247,7 +269,7 @@ export function Sidebar({
       )}
 
       {/* Dynamic History List */}
-      <ScrollArea className="flex-1 px-2">
+      <ScrollArea className="min-h-0 flex-1 px-2">
         <div className="space-y-0.5 pb-4">
           {historyList.map((paper, index) => {
             const isSelected = selectedPaper === paper
@@ -284,16 +306,38 @@ export function Sidebar({
       </ScrollArea>
 
       {/* Footer / User Profile */}
-      <div className={`mt-auto border-t border-border pt-4 px-3 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden bg-teal-600/10 ring-2 ring-teal-500/20 text-teal-600 font-bold text-xs uppercase">
-          PE
-        </div>
-        {!collapsed && (
-          <div className="flex flex-col overflow-hidden leading-tight">
-            <span className="text-[11px] font-bold text-foreground">{t.nav.user}</span>
-            <span className="text-[9px] text-muted-foreground truncate">pe-engine@lotargo.org</span>
-          </div>
-        )}
+      <div className="mt-auto shrink-0 border-t border-border px-3 pt-3 pb-3">
+        <ProfileModal
+          language={language}
+          onLanguageChange={onLanguageChange}
+          theme={theme}
+          onThemeChange={onThemeChange}
+          nickname={nickname}
+          onNicknameChange={onNicknameChange}
+          avatarUrl={avatarUrl}
+          onAvatarChange={onAvatarChange}
+        >
+          <button
+            type="button"
+            className={`flex w-full items-center rounded-lg border border-border/70 bg-card/50 shadow-sm transition-all hover:border-teal-500/30 hover:bg-accent cursor-pointer ${
+              collapsed ? "justify-center p-1.5" : "min-h-11 gap-3 px-2.5 py-2"
+            }`}
+            title={displayName}
+          >
+            <Avatar className="size-8 ring-2 ring-teal-500/20">
+              {avatarUrl && <AvatarImage src={avatarUrl} alt={displayName} />}
+              <AvatarFallback className="bg-teal-600/10 text-teal-600 dark:text-teal-400 font-bold text-xs uppercase">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            {!collapsed && (
+              <div className="flex min-w-0 flex-col overflow-hidden text-left leading-tight">
+                <span className="truncate text-[11px] font-bold text-foreground">{displayName}</span>
+                <span className="truncate text-[9px] text-muted-foreground">{profileCaption}</span>
+              </div>
+            )}
+          </button>
+        </ProfileModal>
       </div>
     </div>
   )

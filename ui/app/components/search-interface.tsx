@@ -9,7 +9,7 @@ import { DocumentPreview } from "./document-preview"
 import { LiveDocumentCanvas } from "./live-document-canvas"
 import { ConsolePanel } from "./console-panel"
 import { toast } from "sonner"
-import { Sparkles, FileText, ArrowRight, Sun, Moon, XCircle, Terminal } from "lucide-react"
+import { Sparkles, FileText, ArrowRight, XCircle, Terminal } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
@@ -19,6 +19,8 @@ export function Search() {
   const { theme, setTheme } = useTheme()
   const [language, setLanguage] = useState<UiLanguage>("en")
   const t: Messages = messages[language]
+  const [nickname, setNickname] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string>("workspace")
   const [historyList, setHistoryList] = useState<any[]>([])
   const [selectedPaper, setSelectedPaper] = useState<any>(null)
@@ -68,11 +70,43 @@ export function Search() {
     }
   }
 
+  const handleLanguageChange = async (nextLanguage: UiLanguage) => {
+    setLanguage(nextLanguage)
+    try {
+      const res = await fetch("/api/config")
+      if (!res.ok) throw new Error("Failed to read current config")
+      const currentConfig = await res.json()
+      const nextConfig = {
+        ...currentConfig,
+        ui: {
+          ...(currentConfig.ui || {}),
+          language: nextLanguage,
+        },
+      }
+      const saveRes = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: nextConfig }),
+      })
+      if (!saveRes.ok) {
+        const err = await saveRes.json()
+        throw new Error(err.detail || "Failed to save language")
+      }
+      window.dispatchEvent(new CustomEvent("ape-config-saved"))
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save language")
+      fetchLanguage()
+      throw e
+    }
+  }
+
   // Poll intervals
   useEffect(() => {
     fetchHistory()
     fetchStatus()
     fetchLanguage()
+    setNickname(window.localStorage.getItem("ape.profile.nickname") || "")
+    setAvatarUrl(window.localStorage.getItem("ape.profile.avatar"))
     window.addEventListener("ape-config-saved", fetchLanguage)
     return () => window.removeEventListener("ape-config-saved", fetchLanguage)
   }, [])
@@ -225,6 +259,14 @@ export function Search() {
         selectedPaper={selectedPaper}
         setSelectedPaper={setSelectedPaper}
         t={t}
+        language={language}
+        onLanguageChange={handleLanguageChange}
+        theme={theme}
+        onThemeChange={setTheme}
+        nickname={nickname}
+        onNicknameChange={setNickname}
+        avatarUrl={avatarUrl}
+        onAvatarChange={setAvatarUrl}
       />
 
       {/* Main Workspace Frame */}
@@ -290,14 +332,6 @@ export function Search() {
               <span>{language === "ru" ? "Консоль" : "Console"}</span>
             </button>
 
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card/40 text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 cursor-pointer shadow-sm"
-              title="Toggle theme"
-            >
-              <Sun className="h-4.5 w-4.5 dark:hidden" />
-              <Moon className="h-4.5 w-4.5 hidden dark:block" />
-            </button>
           </div>
         </header>
 

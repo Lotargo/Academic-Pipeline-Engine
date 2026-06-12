@@ -69,21 +69,21 @@ Definition of done:
 
 ## Workstream 3: User Profile Modal
 
-Status: `[ ] Planned`
+Status: `[x] Done`
 
 Objective: Make the bottom-left user area clickable and move personal/interface settings into a profile modal.
 
 Tasks:
 
-- [ ] Turn the user footer button into an interactive trigger.
-- [ ] Create a profile modal component.
-- [ ] Move interface language selection into the modal.
-- [ ] Move theme selection into the modal.
-- [ ] Add editable nickname.
-- [ ] Store nickname locally and/or in app config.
-- [ ] Add avatar upload support for png, jpg, ico, and svg.
-- [ ] Validate avatar file type and size.
-- [ ] Render avatar in the sidebar footer.
+- [x] Turn the user footer button into an interactive trigger.
+- [x] Create a profile modal component.
+- [x] Move interface language selection into the modal.
+- [x] Move theme selection into the modal.
+- [x] Add editable nickname.
+- [x] Store nickname locally and/or in app config.
+- [x] Add avatar upload support for png, jpg, ico, and svg.
+- [x] Validate avatar file type and size.
+- [x] Render avatar in the sidebar footer.
 
 Definition of done:
 
@@ -266,13 +266,13 @@ Definition of done:
 
 - [x] Resizable left sidebar.
 - [ ] Work archive/delete actions.
-- [ ] User profile modal.
-- [ ] Interface language moved to profile modal.
-- [ ] User nickname.
+- [x] User profile modal.
+- [x] Interface language moved to profile modal.
+- [x] User nickname.
 - [ ] Nickname stored in document metadata.
-- [ ] Theme moved to profile modal.
+- [x] Theme moved to profile modal.
 - [ ] Archived works modal with bulk unarchive.
-- [ ] Avatar upload.
+- [x] Avatar upload.
 - [ ] Modern pipeline icons.
 - [ ] SSE statuses inside step cards.
 - [ ] Better DOCX export placement.
