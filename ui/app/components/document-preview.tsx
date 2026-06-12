@@ -153,7 +153,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
           mathText = mathText.slice(0, -2)
         }
         elements.push(
-          <div key={`math-${key}`} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
+          <div key={`math-${key}`} className="my-4 rounded-md border border-ape-primary/25 bg-ape-primary-soft/45 px-4 py-4 text-center font-mono text-sm text-ape-primary-text">
             {formatMath(mathText)}
           </div>
         )
@@ -411,14 +411,14 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
       }
       if (part.startsWith("\\(") && part.endsWith("\\)")) {
         return (
-          <code key={index} className="px-1.5 py-0.5 rounded bg-accent/30 font-mono text-xs text-sky-700 dark:text-sky-300 select-all">
+          <code key={index} className="px-1.5 py-0.5 rounded bg-accent/30 font-mono text-xs text-ape-primary-text select-all">
             {formatMath(part.slice(2, -2))}
           </code>
         )
       }
       if (part.startsWith("$") && part.endsWith("$")) {
         return (
-          <code key={index} className="px-1.5 py-0.5 rounded bg-accent/30 font-mono text-xs text-teal-600 dark:text-teal-400 select-all">
+          <code key={index} className="px-1.5 py-0.5 rounded bg-accent/30 font-mono text-xs text-ape-primary-text select-all">
             {formatMath(part.slice(1, -1))}
           </code>
         )
@@ -453,7 +453,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
                 onClick={() => setActiveTab(section.id)}
                 className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 capitalize ${
                   activeTab === section.id
-                    ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
+                    ? "border-ape-primary bg-ape-primary-soft text-ape-primary-text font-semibold"
                     : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
               >
@@ -479,7 +479,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">{t.document.format}:</span>
-              <span className="font-semibold flex items-center gap-1 text-teal-600 dark:text-teal-400">
+              <span className="font-semibold flex items-center gap-1 text-ape-primary-text">
                 <FileText className="h-3 w-3" />
                 Microsoft Word
               </span>
@@ -492,7 +492,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
       <div className="lg:col-span-3 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-border bg-card shadow-sm">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-600 dark:text-teal-400">
+            <div className="h-8 w-8 rounded-lg bg-ape-primary-soft flex items-center justify-center text-ape-primary-text">
               <Eye className="h-4.5 w-4.5" />
             </div>
             <div>
@@ -521,12 +521,12 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
             </Button>
             
             {exportedFilename ? (
-              <Button size="sm" onClick={handleDownload} className="bg-teal-600 hover:bg-teal-700 text-white text-xs h-9 gap-1.5 shadow-sm">
+              <Button size="sm" onClick={handleDownload} className="bg-ape-primary hover:bg-ape-primary/90 text-primary-foreground text-xs h-9 gap-1.5 shadow-sm">
                 <FileDown className="h-3.5 w-3.5" />
                 {t.document.downloadDocx}
               </Button>
             ) : (
-              <Button size="sm" onClick={handleExport} disabled={exporting} className="bg-teal-600 hover:bg-teal-700 text-white text-xs h-9 gap-1.5 shadow-sm">
+              <Button size="sm" onClick={handleExport} disabled={exporting} className="bg-ape-primary hover:bg-ape-primary/90 text-primary-foreground text-xs h-9 gap-1.5 shadow-sm">
                 {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
                 {t.document.exportDocx}
               </Button>

@@ -173,9 +173,9 @@ export function ProfileModal({
           <section className="space-y-3">
             <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{t.identity}</h3>
             <div className="flex items-center gap-4">
-              <Avatar className="size-14 ring-2 ring-teal-500/20">
+              <Avatar className="size-14 ring-2 ring-ape-primary/20">
                 {avatarUrl && <AvatarImage src={avatarUrl} alt={displayName} />}
-                <AvatarFallback className="bg-teal-600/10 text-teal-600 dark:text-teal-400 text-sm font-bold">
+                <AvatarFallback className="bg-ape-primary-soft text-ape-primary-text text-sm font-bold">
                   {initials}
                 </AvatarFallback>
               </Avatar>

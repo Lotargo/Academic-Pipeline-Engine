@@ -141,28 +141,28 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
       }
       if (part.startsWith("$$") && part.endsWith("$$")) {
         return (
-          <span key={index} className="block my-3 py-3 px-4 rounded-md bg-sky-50/70 dark:bg-sky-950/20 font-mono text-center text-sm border border-sky-200/70 dark:border-sky-800/50 select-all text-sky-800 dark:text-sky-200">
+          <span key={index} className="block my-3 py-3 px-4 rounded-md bg-ape-primary-soft/45 font-mono text-center text-sm border border-ape-primary/25 select-all text-ape-primary-text">
             {formatMath(part.slice(2, -2))}
           </span>
         )
       }
       if (part.startsWith("\\[") && part.endsWith("\\]")) {
         return (
-          <span key={index} className="block my-3 py-3 px-4 rounded-md bg-sky-50/70 dark:bg-sky-950/20 font-mono text-center text-sm border border-sky-200/70 dark:border-sky-800/50 select-all text-sky-800 dark:text-sky-200">
+          <span key={index} className="block my-3 py-3 px-4 rounded-md bg-ape-primary-soft/45 font-mono text-center text-sm border border-ape-primary/25 select-all text-ape-primary-text">
             {formatMath(part.slice(2, -2))}
           </span>
         )
       }
       if (part.startsWith("\\(") && part.endsWith("\\)")) {
         return (
-          <code key={index} className="px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/30 font-mono text-sm text-sky-800 dark:text-sky-200 select-all">
+          <code key={index} className="px-1.5 py-0.5 rounded bg-ape-primary-soft/45 font-mono text-sm text-ape-primary-text select-all">
             {formatMath(part.slice(2, -2))}
           </code>
         )
       }
       if (part.startsWith("$") && part.endsWith("$")) {
         return (
-          <code key={index} className="px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/30 font-mono text-sm text-sky-800 dark:text-sky-200 select-all">
+          <code key={index} className="px-1.5 py-0.5 rounded bg-ape-primary-soft/45 font-mono text-sm text-ape-primary-text select-all">
             {formatMath(part.slice(1, -1))}
           </code>
         )
@@ -202,7 +202,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
           mathText = mathText.slice(0, -2)
         }
         elements.push(
-          <div key={`math-${key}`} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
+          <div key={`math-${key}`} className="my-4 rounded-md border border-ape-primary/25 bg-ape-primary-soft/45 px-4 py-4 text-center font-mono text-sm text-ape-primary-text">
             {formatMath(mathText)}
           </div>
         )
@@ -451,7 +451,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                   onClick={() => setDraftViewMode("live")}
                   className={`h-6 px-2 rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer border-0 ${
                     draftViewMode === "live"
-                      ? "bg-teal-500/15 text-teal-600 dark:text-teal-300"
+                      ? "bg-ape-primary-soft text-ape-primary-text"
                       : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                   }`}
                   title="Show live generated text"
@@ -528,13 +528,13 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
           <div className="text-[11px] font-sans text-zinc-400 dark:text-zinc-500 tracking-wide uppercase italic">
             {t.document.subtitle}
           </div>
-          <div className="w-20 h-0.5 bg-teal-500/30 mx-auto rounded-full mt-4" />
+          <div className="w-20 h-0.5 bg-ape-primary/35 mx-auto rounded-full mt-4" />
         </div>
 
         {/* Document Plan / Outline Card */}
         {context.document_plan && (
-          <div className="mb-8 rounded-xl border border-teal-500/20 bg-teal-500/[0.02] dark:bg-teal-500/[0.01] p-5 shadow-xs transition-all duration-300">
-            <div className="flex items-center justify-between border-b border-teal-500/10 pb-2 mb-3">
+          <div className="mb-8 rounded-xl border border-ape-primary/20 bg-ape-primary-soft/20 p-5 shadow-xs transition-all duration-300">
+            <div className="flex items-center justify-between border-b border-ape-primary/10 pb-2 mb-3">
               <h3 className="text-[13px] font-sans font-bold uppercase tracking-wider text-ape-primary-text flex items-center gap-2 select-none">
                 <FileText className="h-4 w-4 text-ape-primary" />
                 {t.document.documentPlanTitle}
@@ -559,7 +559,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
             </div>
 
             {showPlan && (
-              <div className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-300 font-sans border-l-2 border-teal-500/30 pl-4 py-0.5 select-text overflow-x-auto">
+              <div className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-300 font-sans border-l-2 border-ape-primary/30 pl-4 py-0.5 select-text overflow-x-auto">
                 {renderContent(context.document_plan)}
               </div>
             )}
@@ -595,7 +595,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                           onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "preview" }))}
                           className={`h-6 px-2 rounded text-[10px] font-bold cursor-pointer border-0 transition-all ${
                             (sectionViewModes[section.id] || "preview") === "preview"
-                              ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
+                              ? "bg-ape-primary-soft text-ape-primary-text"
                               : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                           }`}
                         >
@@ -605,7 +605,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                           onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "editor" }))}
                           className={`h-6 px-2 rounded text-[10px] font-bold cursor-pointer border-0 transition-all ${
                             sectionViewModes[section.id] === "editor"
-                              ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
+                              ? "bg-ape-primary-soft text-ape-primary-text"
                               : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                           }`}
                         >
@@ -615,7 +615,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                           onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "diff" }))}
                           className={`h-6 px-2 rounded text-[10px] font-bold cursor-pointer border-0 transition-all ${
                             sectionViewModes[section.id] === "diff"
-                              ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
+                              ? "bg-ape-primary-soft text-ape-primary-text"
                               : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                           }`}
                         >
@@ -673,7 +673,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                           <div className="flex justify-end pt-2 border-t border-zinc-100 dark:border-zinc-800 mt-2 px-2">
                             <button
                               onClick={() => handleSaveSection(section.id)}
-                              className="px-3 py-1 rounded bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs select-none transition-all cursor-pointer border-0"
+                              className="px-3 py-1 rounded bg-ape-primary hover:bg-ape-primary/90 text-primary-foreground font-bold text-xs select-none transition-all cursor-pointer border-0"
                             >
                               Save Changes
                             </button>
@@ -706,12 +706,12 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                       {context[section.id] ? (
                         renderContent(context[section.id])
                       ) : (
-                        <div className="rounded-xl border border-dashed border-teal-300/70 dark:border-teal-900/60 bg-teal-50/30 dark:bg-teal-950/10 p-6 text-center">
-                          <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2 text-teal-500" />
+                        <div className="rounded-xl border border-dashed border-ape-primary/35 bg-ape-primary-soft/20 p-6 text-center">
+                          <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2 text-ape-primary" />
                           <p className="text-xs font-sans text-zinc-500 dark:text-zinc-400 italic">Waiting for the first streamed tokens...</p>
                         </div>
                       )}
-                      <div className="flex items-center justify-between border-t border-teal-500/10 pt-2 mt-2">
+                      <div className="flex items-center justify-between border-t border-ape-primary/10 pt-2 mt-2">
                         <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-500">
                           <Loader2 className="h-3 w-3 animate-spin" />
                           <span>Live draft view</span>

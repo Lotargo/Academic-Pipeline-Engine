@@ -350,7 +350,7 @@ export function ConfigEditor() {
     return (
       <div className="flex h-full w-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-ape-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">Loading configurations...</p>
         </div>
       </div>
@@ -365,7 +365,7 @@ export function ConfigEditor() {
         <p className="text-sm text-muted-foreground max-w-sm">
           Please make sure the backend server is running and accessible.
         </p>
-        <Button onClick={fetchConfig} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+        <Button onClick={fetchConfig} className="bg-ape-primary hover:bg-ape-primary/90 text-primary-foreground gap-2">
           <RotateCcw className="h-4 w-4" />
           Try Again
         </Button>
@@ -379,7 +379,7 @@ export function ConfigEditor() {
         <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Settings2 className="h-6 w-6 text-teal-600 dark:text-teal-400" />
+              <Settings2 className="h-6 w-6 text-ape-primary-text" />
               Academic PE Settings
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -391,7 +391,7 @@ export function ConfigEditor() {
               <RotateCcw className="h-3.5 w-3.5" />
               Reset
             </Button>
-            <Button size="sm" onClick={saveConfig} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white gap-1">
+            <Button size="sm" onClick={saveConfig} disabled={saving} className="bg-ape-primary hover:bg-ape-primary/90 text-primary-foreground gap-1">
               <Save className="h-3.5 w-3.5" />
               {saving ? "Saving..." : "Save Settings"}
             </Button>
@@ -404,7 +404,7 @@ export function ConfigEditor() {
           <AccordionItem value="sections" className="border rounded-xl bg-card overflow-hidden">
             <AccordionTrigger className="px-5 hover:no-underline hover:bg-accent/30">
               <span className="flex items-center gap-2.5 font-semibold text-[15px]">
-                <Sliders className="h-4 w-4 text-teal-600" />
+                <Sliders className="h-4 w-4 text-ape-primary-text" />
                 Document Template Selection
               </span>
             </AccordionTrigger>
@@ -506,7 +506,7 @@ export function ConfigEditor() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-500/10 text-xs font-semibold text-teal-600 dark:text-teal-400">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ape-primary-soft text-xs font-semibold text-ape-primary-text">
                           {index + 1}
                         </span>
                         <Input
@@ -580,7 +580,7 @@ export function ConfigEditor() {
                 size="sm"
                 onClick={addSection}
                 disabled={config?.pipeline?.template_mode !== "custom"}
-                className="w-full border-dashed border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/5 text-teal-600 flex items-center justify-center gap-1 h-9 rounded-lg"
+                className="w-full border-dashed border-ape-primary/30 hover:border-ape-primary/50 hover:bg-ape-primary-soft text-ape-primary-text flex items-center justify-center gap-1 h-9 rounded-lg"
               >
                 <Plus className="h-4 w-4" />
                 Add custom_current Section
@@ -592,7 +592,7 @@ export function ConfigEditor() {
           <AccordionItem value="layout" className="border rounded-xl bg-card overflow-hidden">
             <AccordionTrigger className="px-5 hover:no-underline hover:bg-accent/30">
               <span className="flex items-center gap-2.5 font-semibold text-[15px]">
-                <Sliders className="h-4 w-4 text-teal-600" />
+                <Sliders className="h-4 w-4 text-ape-primary-text" />
                 Document Layout & Typography
               </span>
             </AccordionTrigger>
@@ -731,7 +731,7 @@ export function ConfigEditor() {
           <AccordionItem value="agents" className="border rounded-xl bg-card overflow-hidden">
             <AccordionTrigger className="px-5 hover:no-underline hover:bg-accent/30">
               <span className="flex items-center gap-2.5 font-semibold text-[15px]">
-                <Settings2 className="h-4 w-4 text-teal-600" />
+                <Settings2 className="h-4 w-4 text-ape-primary-text" />
                 AI Agent Pipeline & Prompt Configurations
               </span>
             </AccordionTrigger>
@@ -781,7 +781,7 @@ export function ConfigEditor() {
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center justify-between border-b pb-2">
                     <h3 className="font-semibold text-sm text-foreground">Writer Agent</h3>
-                    <span className="rounded bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
+                    <span className="rounded bg-ape-primary-soft px-2 py-0.5 text-[10px] font-semibold text-ape-primary-text">
                       Active
                     </span>
                   </div>
@@ -873,7 +873,7 @@ export function ConfigEditor() {
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
                       {loadingModels["writer"] && (
-                        <span className="text-[9px] text-teal-600 animate-pulse">Fetching...</span>
+                        <span className="text-[9px] text-ape-primary-text animate-pulse">Fetching...</span>
                       )}
                     </div>
                     <Input
@@ -905,7 +905,7 @@ export function ConfigEditor() {
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center justify-between border-b pb-2">
                     <h3 className="font-semibold text-sm text-foreground">Reviewer Agent</h3>
-                    <span className="rounded bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
+                    <span className="rounded bg-ape-primary-soft px-2 py-0.5 text-[10px] font-semibold text-ape-primary-text">
                       Strict
                     </span>
                   </div>
@@ -997,7 +997,7 @@ export function ConfigEditor() {
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
                       {loadingModels["reviewer"] && (
-                        <span className="text-[9px] text-teal-600 animate-pulse">Fetching...</span>
+                        <span className="text-[9px] text-ape-primary-text animate-pulse">Fetching...</span>
                       )}
                     </div>
                     <Input
@@ -1029,7 +1029,7 @@ export function ConfigEditor() {
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center justify-between border-b pb-2">
                     <h3 className="font-semibold text-sm text-foreground">Planner Agent</h3>
-                    <span className="rounded bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
+                    <span className="rounded bg-ape-primary-soft px-2 py-0.5 text-[10px] font-semibold text-ape-primary-text">
                       Planner
                     </span>
                   </div>
@@ -1121,7 +1121,7 @@ export function ConfigEditor() {
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
                       {loadingModels["planner"] && (
-                        <span className="text-[9px] text-teal-600 animate-pulse">Fetching...</span>
+                        <span className="text-[9px] text-ape-primary-text animate-pulse">Fetching...</span>
                       )}
                     </div>
                     <Input
@@ -1153,7 +1153,7 @@ export function ConfigEditor() {
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center justify-between border-b pb-2">
                     <h3 className="font-semibold text-sm text-foreground">Example Generator Agent</h3>
-                    <span className="rounded bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
+                    <span className="rounded bg-ape-primary-soft px-2 py-0.5 text-[10px] font-semibold text-ape-primary-text">
                       Dynamic
                     </span>
                   </div>
@@ -1245,7 +1245,7 @@ export function ConfigEditor() {
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
                       {loadingModels["example_generator"] && (
-                        <span className="text-[9px] text-teal-600 animate-pulse">Fetching...</span>
+                        <span className="text-[9px] text-ape-primary-text animate-pulse">Fetching...</span>
                       )}
                     </div>
                     <Input
