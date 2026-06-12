@@ -520,3 +520,98 @@ def test_self_verification_workflow():
     # The final context of sections should be corrected
     assert "theory" in orch.context
     assert orch.context["theory"] == "Corrected section text without chinese characters."
+
+
+def test_parse_rejection_reasons():
+    from academic_pe.core.orchestrator import parse_rejection_reasons
+    from academic_pe.core.config import SectionPrompt
+
+    sections = [
+        SectionPrompt(name="theory", topic="State Machines", instruction=""),
+        SectionPrompt(name="calculation", topic="Algorithmic Complexity", instruction=""),
+    ]
+
+    reason_text = """REJECTED
+    - [theory]: line 10: spelling error in machine definition
+    - Algorithmic Complexity: line 15: complexity claims do not match
+    - [general]: the overall formatting should be improved
+    """
+
+    res = parse_rejection_reasons(reason_text, sections)
+    
+    # "theory" should have its specific reason and the general reason
+    assert "spelling error in machine definition" in res["theory"]
+    assert "the overall formatting should be improved" in res["theory"]
+    
+    # "calculation" should have its specific reason and the general reason (matched by topic)
+    assert "complexity claims do not match" in res["calculation"]
+    assert "the overall formatting should be improved" in res["calculation"]
+
+
+def test_document_memory_includes_subsequent_sections():
+    config = _make_config()
+    # Modify config to have two sections
+    config.pipeline.sections = [
+        SectionPrompt(name="theory", topic="State Machines", instruction=""),
+        SectionPrompt(name="calculation", topic="Algorithmic Complexity", instruction=""),
+    ]
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, config=config)
+    orch.context = {
+        "theory": "First section text.",
+        "calculation": "Second section text.",
+    }
+
+    # memory for "theory" (first section)
+    mem_theory = orch._document_memory(current_section_name="theory")
+    assert "[Already Written Sections (After This Section)]" in mem_theory
+    assert "## Algorithmic Complexity\nSecond section text." in mem_theory
+
+    # memory for "calculation" (second section)
+    mem_calc = orch._document_memory(current_section_name="calculation")
+    assert "[Already Written Sections (Before This Section)]" in mem_calc
+    assert "## State Machines\nFirst section text." in mem_calc
+
+
+def test_reviewer_receives_line_numbers_and_section_headers():
+    from academic_pe.agents.writer import WriterAgent, ReviewerAgent
+    
+    # Mock LLM provider to capture system_prompt and user_prompt
+    class ReviewCaptureMock(MockProvider):
+        def __init__(self):
+            self.review_context = None
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            if "[Text to Review]" in system_prompt:
+                self.review_context = system_prompt
+                return "APPROVED"
+            return "Section content."
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(
+                role="Writer", model="mock", temperature=0.0,
+                system_prompt="Writer prompt.",
+            ),
+            "reviewer": AgentConfig(
+                role="Reviewer", model="mock", temperature=0.0,
+                system_prompt="Reviewer prompt.",
+            ),
+        },
+        quality_gate=QualityGateConfig(
+            volume=VolumeGateConfig(enabled=False),
+            latex=LatexGateConfig(enabled=False),
+        ),
+    )
+    
+    llm = ReviewCaptureMock()
+    writer = WriterAgent(config.agents["writer"], llm)
+    reviewer = ReviewerAgent(config.agents["reviewer"], llm)
+    
+    orch = Orchestrator(writer=writer, reviewer=reviewer, config=config)
+    orch.run_pipeline(render_artifact=False)
+    
+    assert llm.review_context is not None
+    assert "=== Section: theory ===" in llm.review_context
+    assert "1: Section content." in llm.review_context

@@ -2,7 +2,7 @@ agents:
   writer:
     role: Writer
     provider: zen
-    model: mimo-v2.5-free
+    model: deepseek-v4-flash-free
     temperature: 0.7
     system_prompt: 'You are an expert academic writer working inside a multi-step
       document pipeline.
@@ -29,7 +29,7 @@ agents:
   reviewer:
     role: Reviewer
     provider: zen
-    model: mimo-v2.5-free
+    model: deepseek-v4-flash-free
     temperature: 0.3
     system_prompt: 'You are a strict academic reviewer for a generated technical document.
 
@@ -58,23 +58,24 @@ agents:
 
 
       Reject if there are any unresolved issues from previous attempts, or if the
-      text contains foreign/incorrect symbols (such as Chinese characters in Russian text).
+      text contains foreign/incorrect symbols (such as Chinese characters in Russian
+      text).
 
 
-      Prefer APPROVED when the document is coherent, free of foreign/mixed language characters,
-      and any remaining issues are minor.
+      Prefer APPROVED when the document is coherent, free of foreign/mixed language
+      characters, and any remaining issues are minor.
 
 
-      If rejecting, report at most three material issues.
+      If rejecting, list the specific actionable issues grouped by section name. Use
+      the exact section names in square brackets (e.g. [theory]) and specify the line
+      numbers if possible.
 
 
-      Return exactly one line:
+      Return APPROVED on a single line if the document is fine. Otherwise, return
+      REJECTED followed by the list of issues:
 
-      APPROVED
-
-      or
-
-      REJECTED: <specific actionable issues separated by semicolons>'
+      REJECTED - [section_name]: line <number>: <issue description> - [general]: <global
+      issue description>'
   planner:
     role: Planner
     provider: zen

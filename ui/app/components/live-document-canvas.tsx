@@ -1,7 +1,12 @@
 import { useState } from "react"
-import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, FileDown, Eye, PanelTop, Moon } from "lucide-react"
+import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, FileDown, Eye, PanelTop, Moon, Code2, GitCompare } from "lucide-react"
 import { toast } from "sonner"
 import type { Messages } from "@/lib/i18n"
+import { useTheme } from "next-themes"
+import dynamic from "next/dynamic"
+
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false })
+const MonacoDiffEditor = dynamic(() => import("@monaco-editor/react").then((mod) => mod.DiffEditor), { ssr: false })
 
 interface LiveDocumentCanvasProps {
   status: any
@@ -15,14 +20,54 @@ type CanvasSection = {
 }
 
 export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCanvasProps) {
+  const { theme } = useTheme()
+  const editorTheme = theme === "dark" ? "vs-dark" : "light"
+  
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [draftViewMode, setDraftViewMode] = useState<"live" | "banner">("live")
   const [dimDrafting, setDimDrafting] = useState(false)
+  const [sectionViewModes, setSectionViewModes] = useState<Record<string, "preview" | "editor" | "diff">>({})
+  const [editedContent, setEditedContent] = useState<Record<string, string>>({})
+
   const context = status?.context || {}
   const activeState = status?.state || "INIT"
   const isRunning = status?.status === "RUNNING"
   const isCompleted = status?.status === "COMPLETED" || activeState === "DONE"
+
+  const handleSaveSection = async (sectionId: string) => {
+    const newText = editedContent[sectionId]
+    if (newText === undefined) return
+    
+    const updatedContext = { ...context, [sectionId]: newText }
+    
+    if (onStatusUpdate && status) {
+      onStatusUpdate({
+        ...status,
+        context: updatedContext
+      })
+    }
+    
+    try {
+      const res = await fetch("/api/context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedContext)
+      })
+      if (res.ok) {
+        toast.success("Section updated successfully")
+        setEditedContent(prev => {
+          const next = { ...prev }
+          delete next[sectionId]
+          return next
+        })
+      } else {
+        throw new Error("Failed to save to server")
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save changes")
+    }
+  }
 
   const handleDownload = () => {
     const docxFilename = status?.docx_filename
@@ -36,7 +81,10 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
       const res = await fetch("/api/export/docx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          context: context,
+          topic: status?.topic || "Untitled"
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -484,33 +532,121 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
               <div key={section.id} className="relative group transition-all duration-300">
                 
                 {/* Section Header */}
-                <div className="flex items-center justify-between mb-3 border-b border-zinc-150/50 dark:border-zinc-800/30 pb-1.5">
+                <div className="flex items-center justify-between mb-3 border-b border-zinc-150/50 dark:border-zinc-800/30 pb-1.5 flex-wrap gap-2">
                   <h2 className="text-sm font-sans font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200">
                     {sectionTitle}
                   </h2>
-                  <div className="text-[10px] font-sans">
-                    {hasContent && !isDrafting ? (
-                      <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
-                      </span>
-                    ) : isDrafting ? (
-                      <span className="text-amber-500 dark:text-amber-400 font-bold flex items-center gap-1 animate-pulse">
-                        <Loader2 className="h-3 w-3 animate-spin" /> {t.document.drafting}
-                      </span>
-                    ) : hasContent ? (
-                      <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
-                      </span>
-                    ) : (
-                      <span className="text-zinc-400 dark:text-zinc-500">{t.document.pending}</span>
+                  <div className="flex items-center gap-3">
+                    {hasContent && !isDrafting && (
+                      <div className="flex items-center gap-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/80 p-0.5 font-sans">
+                        <button
+                          onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "preview" }))}
+                          className={`h-5 px-1.5 rounded text-[9px] font-bold cursor-pointer border-0 transition-all ${
+                            (sectionViewModes[section.id] || "preview") === "preview"
+                              ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
+                              : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                          }`}
+                        >
+                          Preview
+                        </button>
+                        <button
+                          onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "editor" }))}
+                          className={`h-5 px-1.5 rounded text-[9px] font-bold cursor-pointer border-0 transition-all ${
+                            sectionViewModes[section.id] === "editor"
+                              ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
+                              : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                          }`}
+                        >
+                          Editor
+                        </button>
+                        <button
+                          onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "diff" }))}
+                          className={`h-5 px-1.5 rounded text-[9px] font-bold cursor-pointer border-0 transition-all ${
+                            sectionViewModes[section.id] === "diff"
+                              ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
+                              : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                          }`}
+                        >
+                          Diff
+                        </button>
+                      </div>
                     )}
+
+                    <div className="text-[10px] font-sans">
+                      {hasContent && !isDrafting ? (
+                        <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
+                        </span>
+                      ) : isDrafting ? (
+                        <span className="text-amber-500 dark:text-amber-400 font-bold flex items-center gap-1 animate-pulse">
+                          <Loader2 className="h-3 w-3 animate-spin" /> {t.document.drafting}
+                        </span>
+                      ) : hasContent ? (
+                        <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
+                        </span>
+                      ) : (
+                        <span className="text-zinc-400 dark:text-zinc-500">{t.document.pending}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Section Content / Loading Card / Placeholder */}
                 {hasContent && !isDrafting ? (
                   <div className="animate-in fade-in duration-500">
-                    {renderContent(context[section.id])}
+                    {(sectionViewModes[section.id] || "preview") === "preview" && (
+                      renderContent(context[section.id])
+                    )}
+                    {sectionViewModes[section.id] === "editor" && (
+                      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-950 p-2 animate-in fade-in duration-300 font-sans">
+                        <MonacoEditor
+                          height="350px"
+                          language="markdown"
+                          theme={editorTheme}
+                          value={editedContent[section.id] !== undefined ? editedContent[section.id] : (context[section.id] || "")}
+                          onChange={(val) => {
+                            setEditedContent(prev => ({ ...prev, [section.id]: val || "" }))
+                          }}
+                          options={{
+                            minimap: { enabled: false },
+                            lineNumbers: "on",
+                            wordWrap: "on",
+                            automaticLayout: true,
+                            scrollBeyondLastLine: false,
+                            fontSize: 13,
+                          }}
+                        />
+                        {editedContent[section.id] !== undefined && editedContent[section.id] !== context[section.id] && (
+                          <div className="flex justify-end pt-2 border-t border-zinc-100 dark:border-zinc-800 mt-2 px-2">
+                            <button
+                              onClick={() => handleSaveSection(section.id)}
+                              className="px-3 py-1 rounded bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs select-none transition-all cursor-pointer border-0"
+                            >
+                              Save Changes
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {sectionViewModes[section.id] === "diff" && (
+                      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-950 p-2 animate-in fade-in duration-300 font-sans">
+                        <MonacoDiffEditor
+                          height="350px"
+                          language="markdown"
+                          theme={editorTheme}
+                          original={status?.original_context?.[section.id] || ""}
+                          modified={context[section.id] || ""}
+                          options={{
+                            renderSideBySide: true,
+                            minimap: { enabled: false },
+                            readOnly: true,
+                            automaticLayout: true,
+                            wordWrap: "on",
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : isDrafting ? (
                   showLiveDraft ? (

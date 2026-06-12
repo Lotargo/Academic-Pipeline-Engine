@@ -468,6 +468,29 @@ def _render_markdown_block(
             _render_chart(doc, stripped, section, font_name, font_size)
             continue
 
+        # Check for standard markdown image: ![alt text](image_path)
+        img_match = re.match(r"^!\[(.*?)\]\((.*?)\)$", stripped)
+        if img_match:
+            flush_current_block()
+            alt_text = img_match.group(1)
+            img_path = img_match.group(2)
+            if os.path.exists(img_path):
+                paragraph = doc.add_paragraph()
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = paragraph.add_run()
+                run.add_picture(img_path, width=Cm(14))
+                if alt_text:
+                    caption = doc.add_paragraph()
+                    caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run_caption = caption.add_run(f"Figure: {alt_text}")
+                    set_font_style(run_caption, font_name=font_name, font_size=max(font_size - 2, 9), italic=True)
+            else:
+                logger.warning("Image path not found: %s", img_path)
+                paragraph = doc.add_paragraph()
+                run = paragraph.add_run(f"[Image Not Found: {img_path}]")
+                set_font_style(run, font_name=font_name, font_size=font_size, italic=True)
+            continue
+
         if stripped.startswith("|"):
             if current_block_type != "table":
                 flush_current_block()

@@ -12,6 +12,7 @@ class RunRequest(BaseModel):
     instructions: Optional[str] = None
     template_mode: Optional[TemplateMode] = None
     template_id: Optional[str] = None
+    academic_mode: Optional[bool] = None
 
 
 class ConfigUpdateRequest(BaseModel):

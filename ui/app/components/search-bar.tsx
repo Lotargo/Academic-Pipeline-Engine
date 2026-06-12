@@ -6,7 +6,7 @@ import { Search, Sparkles, BookOpen, ChevronRight, HelpCircle } from "lucide-rea
 import type { Messages } from "@/lib/i18n"
 
 interface SearchBarProps {
-  onSearch?: (topic: string, instructions: string) => void
+  onSearch?: (topic: string, instructions: string, academicMode: boolean) => void
   disabled?: boolean
   t: Messages
 }
@@ -15,11 +15,12 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
   const [topic, setTopic] = useState("")
   const [instructions, setInstructions] = useState("")
   const [isFocused, setIsFocused] = useState(false)
+  const [academicMode, setAcademicMode] = useState(false)
 
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!topic.trim()) return
-    onSearch?.(topic.trim(), instructions.trim())
+    onSearch?.(topic.trim(), instructions.trim(), academicMode)
   }
 
   const loadSuggestion = (sTopic: string, sInst: string) => {
@@ -65,11 +66,48 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
             />
           </div>
 
+          {/* Sandbox Status Banner */}
+          {academicMode && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-300 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/5 border border-amber-500/10 text-[9px] font-sans font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider select-none">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
+              </span>
+              <span>{t.search.sandboxEnabled}</span>
+            </div>
+          )}
+
           {/* Action Footer */}
-          <div className="flex items-center justify-between pt-2 border-t border-border/40">
+          <div className="flex items-center justify-between pt-2 border-t border-border/40 gap-4 flex-wrap">
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
               <Sparkles className="h-3 w-3 text-teal-500 animate-pulse" />
               <span>{t.search.footer}</span>
+            </div>
+            
+            {/* Mode Switcher */}
+            <div className="flex items-center gap-1 bg-muted/60 dark:bg-zinc-900/50 p-1 rounded-xl border border-border/50 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setAcademicMode(false)}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
+                  !academicMode
+                    ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/15"
+                    : "text-muted-foreground hover:text-foreground bg-transparent"
+                }`}
+              >
+                {t.search.modeStandard}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAcademicMode(true)}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
+                  academicMode
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/15"
+                    : "text-muted-foreground hover:text-foreground bg-transparent"
+                }`}
+              >
+                {t.search.modeAcademic}
+              </button>
             </div>
             
             <Button

@@ -27,4 +27,4 @@ def test_review_template_accepts_focus_and_limits_issues():
     )
 
     assert "Review focus from the previous attempt: Fix inconsistent notation." in prompt
-    assert "at most three" in prompt
+    assert "group the issues by the section" in prompt

@@ -138,7 +138,7 @@ export function Search() {
     }
   }
 
-  const handleStartGeneration = async (topic: string, instructions: string) => {
+  const handleStartGeneration = async (topic: string, instructions: string, academicMode: boolean) => {
     notifiedRef.current = false
     
     // Switch to FSM visualization tab immediately; the backend status becomes
@@ -149,6 +149,7 @@ export function Search() {
       state: "INIT",
       logs: ["Triggering pipeline..."],
       context: {},
+      original_context: {},
       reviewer_feedback: [],
       docx_filename: null,
       export_report: null,
@@ -161,7 +162,7 @@ export function Search() {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, instructions })
+        body: JSON.stringify({ topic, instructions, academic_mode: academicMode })
       })
       if (!res.ok) {
         const err = await res.json()

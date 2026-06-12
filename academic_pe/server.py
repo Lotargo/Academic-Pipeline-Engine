@@ -36,6 +36,7 @@ current_run = {
     "state": "INIT",
     "logs": [],
     "context": {},
+    "original_context": {},
     "reviewer_feedback": [],
     "docx_filename": None,
     "export_report": None,
@@ -47,6 +48,7 @@ current_run = {
     "template_id": None,
     "runtime_template": None,
     "runtime_prompt_manifest": None,
+    "academic_mode": False,
 }
 
 # Thread lock for safety
@@ -182,6 +184,7 @@ def run_pipeline_thread(
     instructions: Optional[str],
     template_mode: Optional[TemplateMode] = None,
     template_id: Optional[str] = None,
+    academic_mode: Optional[bool] = None,
 ):
     global current_run, _current_orchestrator
     
@@ -196,9 +199,12 @@ def run_pipeline_thread(
             config.pipeline.template_mode = template_mode
         if template_id is not None:
             config.pipeline.template_id = template_id
+        if academic_mode is not None:
+            config.pipeline.academic_mode = academic_mode
         with run_lock:
             current_run["template_mode"] = config.pipeline.template_mode.value
             current_run["template_id"] = config.pipeline.template_id
+            current_run["academic_mode"] = config.pipeline.academic_mode
         
         # Apply legacy section-topic overrides only for the current custom structure.
         # Fixed templates must remain structurally bound to the selected template.
@@ -259,6 +265,8 @@ def run_pipeline_thread(
             with run_lock:
                 current_run["state"] = new_state.name
                 current_run["logs"].append(f"[FSM] Entering state: {new_state.name}")
+                if new_state.name == "REVIEWING" and not current_run.get("original_context"):
+                    current_run["original_context"] = dict(current_run.get("context") or {})
             
         def on_exit_hook(old_state, new_state):
             with run_lock:
@@ -319,6 +327,8 @@ def run_pipeline_thread(
             "status": "COMPLETED",
             "docx_filename": os.path.basename(output_path) if output_path else None,
             "context": orch.context,
+            "original_context": current_run.get("original_context", {}),
+            "academic_mode": config.pipeline.academic_mode,
             "logs": current_run["logs"],
             "reviewer_feedback": current_run["reviewer_feedback"]
         }
@@ -358,6 +368,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["state"] = "INIT"
         current_run["logs"] = [f"Pipeline run triggered at {datetime.now().isoformat()}"]
         current_run["context"] = {}
+        current_run["original_context"] = {}
         current_run["reviewer_feedback"] = []
         current_run["docx_filename"] = None
         current_run["export_report"] = None
@@ -371,6 +382,9 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["template_id"] = payload.template_id
         current_run["runtime_template"] = None
         current_run["runtime_prompt_manifest"] = None
+        current_run["academic_mode"] = (
+            payload.academic_mode if payload.academic_mode is not None else False
+        )
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -378,6 +392,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         payload.instructions,
         payload.template_mode,
         payload.template_id,
+        payload.academic_mode,
     )
     return {"status": "started", "message": "Pipeline execution started in the background"}
 
@@ -456,6 +471,8 @@ def export_docx(payload: ExportRequest):
         "status": "COMPLETED",
         "docx_filename": result.filename,
         "context": context,
+        "original_context": current_run.get("original_context", {}),
+        "academic_mode": current_run.get("academic_mode") or config.pipeline.academic_mode,
         "logs": current_run.get("logs", []),
         "reviewer_feedback": current_run.get("reviewer_feedback", []),
         "export_report": result.to_dict(),
@@ -499,6 +516,8 @@ def get_history():
                         "timestamp": data.get("timestamp", ""),
                         "status": data.get("status", "COMPLETED"),
                         "context": data.get("context", {}),
+                        "original_context": data.get("original_context", {}),
+                        "academic_mode": data.get("academic_mode", False),
                         "logs": data.get("logs", []),
                         "reviewer_feedback": data.get("reviewer_feedback", []),
                         "export_report": data.get("export_report"),
@@ -614,3 +633,10 @@ def get_provider_models(provider: str, base_url: Optional[str] = None):
             return ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro", "deepseek-coder"]
             
     return []
+
+@app.post("/api/context")
+def update_context(payload: Dict[str, str]):
+    global current_run
+    with run_lock:
+        current_run["context"] = payload
+    return {"status": "success"}

@@ -69,8 +69,8 @@ Reviewer issues to address: {{ reviewer_reason }}
 
 {{ language_instruction }}
 
-You will receive the existing section with line numbers in context (e.g., "1: text\\n2: text\\n..."). Do not rewrite the full section.
-If this section does not need changes, return exactly:
+You will receive the existing section with line numbers in context (e.g., "1: text\n2: text\n..."). Do not rewrite the full section.
+If this section does not need changes (or if the reviewer issues do not apply to this section), return exactly:
 NO_CHANGES
 
 If changes are needed, return one or more REPLACE blocks specifying the range of lines to replace (1-based, inclusive):
@@ -79,6 +79,7 @@ new content for this range of lines (do not include line numbers here)
 >>>>>>>
 
 Rules:
+- If the reviewer issues do not mention or affect this section, you MUST return exactly: NO_CHANGES
 - Line range <start_line>-<end_line> is inclusive. For example, to replace line 15 only, use `15-15`.
 - Do not include the line numbers (e.g., "15: ") inside the replacement content. Just output the clean text.
 - Replace only the smallest line range needed to fix the issue.
@@ -93,11 +94,32 @@ DEFAULT_REVIEW_TEMPLATE = """Check the provided text for material academic quali
 Expected document language: {{ language }}.
 {% if review_focus %}Review focus from the previous attempt: {{ review_focus }}{% endif %}
 
+The text is provided with line numbers (e.g., "1: text") and section headers (e.g., "=== Section: section_name ===") for your convenience so you can refer to precise lines and sections. Do not complain about or try to fix the line numbers or section headers themselves, as they are added by the environment.
+
 If the text passes, return exactly: APPROVED
+
 Reject only for concrete issues that materially harm correctness, coherence, or renderability.
 Do not reject for minor preference, harmless wording, or label differences such as "section" vs "chapter" unless they create an actual broken reference.
-If a review focus is provided, first verify whether those issues are fixed. You MUST carefully verify whether all those issues are completely fixed. If any of those issues are still present (even partially, such as remaining foreign characters or partially corrected terms), you MUST reject again. Add new issues only when they are severe regressions or major contradictions.
-If the text fails, return exactly one line starting with REJECTED: followed by at most three specific actionable issues separated by semicolons.
+
+If a review focus is provided, first verify whether those issues are fixed. You MUST carefully verify whether all those issues are completely fixed. If any of those issues are still present (even partially), you MUST reject again. Add new issues only when they are severe regressions or major contradictions.
+
+If the text fails, start your response with the line "REJECTED" (without quotes) and then list the specific actionable issues.
+You MUST group the issues by the section they occur in using the tag `[section_name]` (from the list below).
+For each issue, specify the line number(s) if possible.
+
+{% if sections is defined and sections -%}
+Valid section names you MUST use in square brackets:
+{% for section in sections -%}
+- [{{ section.name }}] (Topic: {{ section.topic }})
+{% endfor %}
+{%- endif %}
+- [general] (for general issues affecting the whole document or multiple sections)
+
+Use the following format for rejections:
+REJECTED
+- [section_name]: line <number>: <issue description>
+- [section_name]: line <number>: <issue description>
+- [general]: <global issue description>
 """
 
 

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import signal
 import threading
 from enum import Enum, auto
 from typing import Callable, Dict, List, Optional, Protocol
 
-from academic_pe.core.config import AppConfig, TemplateMode, load_config
+from academic_pe.core.config import AppConfig, TemplateMode, load_config, SectionPrompt
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import detect_language, language_instruction
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
@@ -64,6 +65,77 @@ class Renderer(Protocol):
 
 HookFn = Callable[[PipelineState, PipelineState], None]
 SectionDeltaFn = Callable[[str, str, str], None]
+
+
+def parse_rejection_reasons(reason: str, sections: List[SectionPrompt]) -> Dict[str, str]:
+    reasons_by_section: Dict[str, List[str]] = {s.name: [] for s in sections}
+    general_reasons = []
+
+    def normalize(s: str) -> str:
+        return re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+
+    section_by_normalized_name = {normalize(s.name): s.name for s in sections}
+    section_by_normalized_topic = {normalize(s.topic): s.name for s in sections}
+
+    lines = reason.strip().splitlines()
+    for line in lines:
+        line_str = line.strip()
+        if not line_str:
+            continue
+        if line_str.startswith(('-', '*', '+')):
+            line_str = line_str.lstrip('-*+').strip()
+
+        matched_section_name = None
+        bracket_match = re.match(r"^\[([^\]]+)\]\s*[:\-]?\s*(.*)$", line_str)
+        if bracket_match:
+            sec_candidate = bracket_match.group(1).strip()
+            content = bracket_match.group(2).strip()
+            norm_candidate = normalize(sec_candidate)
+            if norm_candidate in section_by_normalized_name:
+                matched_section_name = section_by_normalized_name[norm_candidate]
+                line_str = content
+            elif norm_candidate in section_by_normalized_topic:
+                matched_section_name = section_by_normalized_topic[norm_candidate]
+                line_str = content
+            elif norm_candidate in ("general", "all"):
+                general_reasons.append(content)
+                continue
+        else:
+            # Check if line starts with "<section_candidate>:" or similar
+            # e.g., "Theory: line 14: ..." or "State Machines: line 14: ..."
+            for s in sections:
+                name_prefix = s.name + ":"
+                if line_str.lower().startswith(name_prefix.lower()):
+                    matched_section_name = s.name
+                    line_str = line_str[len(name_prefix):].strip()
+                    break
+                topic_prefix = s.topic + ":"
+                if line_str.lower().startswith(topic_prefix.lower()):
+                    matched_section_name = s.name
+                    line_str = line_str[len(topic_prefix):].strip()
+                    break
+
+        if matched_section_name:
+            reasons_by_section[matched_section_name].append(line_str)
+        else:
+            general_reasons.append(line_str)
+
+    # Compile the final reason string for each section
+    final_reasons: Dict[str, str] = {}
+    for s in sections:
+        section_specific = reasons_by_section[s.name]
+        combined = []
+        if general_reasons:
+            combined.append("General issues:\n" + "\n".join(f"- {r}" for r in general_reasons))
+        if section_specific:
+            combined.append(f"Issues specific to section '{s.name}':\n" + "\n".join(f"- {r}" for r in section_specific))
+        
+        if combined:
+            final_reasons[s.name] = "\n\n".join(combined)
+        else:
+            final_reasons[s.name] = "No specific issues identified for this section (verify coherence and document integration)."
+
+    return final_reasons
 
 
 class Orchestrator:
@@ -150,16 +222,26 @@ class Orchestrator:
         if self._draft_plan:
             parts.append("[Document Plan]\n" + self._draft_plan)
 
-        completed_sections = []
+        previous_sections = []
+        subsequent_sections = []
+        is_subsequent = False
+
         for section in self._config.pipeline.sections:
             if section.name == current_section_name:
-                break
+                is_subsequent = True
+                continue
             content = self.context.get(section.name)
             if content:
-                completed_sections.append(f"## {section.topic}\n{content}")
+                if is_subsequent:
+                    subsequent_sections.append(f"## {section.topic}\n{content}")
+                else:
+                    previous_sections.append(f"## {section.topic}\n{content}")
 
-        if completed_sections:
-            parts.append("[Already Written Sections]\n" + "\n\n".join(completed_sections))
+        if previous_sections:
+            parts.append("[Already Written Sections (Before This Section)]\n" + "\n\n".join(previous_sections))
+
+        if subsequent_sections:
+            parts.append("[Already Written Sections (After This Section)]\n" + "\n\n".join(subsequent_sections))
 
         if current_section_name and self.context.get(current_section_name):
             content = self.context[current_section_name]
@@ -280,15 +362,21 @@ class Orchestrator:
                     logger.info("No reviewer configured, skipping review.")
                     break
 
-                full_text = "\n\n".join(
-                    self.context.get(s.name, "") for s in self._config.pipeline.sections
-                )
+                full_text_parts = []
+                for s in self._config.pipeline.sections:
+                    sec_content = self.context.get(s.name, "")
+                    numbered_content = add_line_numbers(sec_content)
+                    full_text_parts.append(
+                        f"=== Section: {s.name} ===\n{numbered_content}"
+                    )
+                full_text = "\n\n".join(full_text_parts)
                 critique = self._reviewer.process(
                     render_template(
                         DEFAULT_REVIEW_TEMPLATE,
                         {
                             "language": target_language,
                             "review_focus": review_focus,
+                            "sections": self._config.pipeline.sections,
                         },
                     ),
                     context=full_text,
@@ -316,13 +404,19 @@ class Orchestrator:
                 if attempt < max_retries - 1:
                     logger.info("Returning to DRAFTING for revision...")
                     self.transition_to(PipelineState.DRAFTING)
+                    
+                    reasons_by_section = parse_rejection_reasons(
+                        reason, self._config.pipeline.sections
+                    )
+
                     for section in self._config.pipeline.sections:
                         self._check_cancelled()
+                        sec_reason = reasons_by_section.get(section.name, reason)
                         task = render_template(
                             DEFAULT_PATCH_REVISION_TEMPLATE,
                             {
                                 "section": section,
-                                "reviewer_reason": reason,
+                                "reviewer_reason": sec_reason,
                                 "language": target_language,
                                 "language_instruction": language_instruction(target_language),
                                 "user_topic": self.user_topic,
@@ -353,14 +447,14 @@ class Orchestrator:
                                 DEFAULT_REVISION_TEMPLATE,
                                 {
                                     "section": section,
-                                    "reviewer_reason": reason,
+                                    "reviewer_reason": sec_reason,
                                     "language": target_language,
                                     "language_instruction": language_instruction(target_language),
                                     "user_topic": self.user_topic,
                                     "user_instructions": self.user_instructions,
                                 },
                             )
-                            for attempt in range(max_sandbox_retries):
+                            for fallback_attempt in range(max_sandbox_retries):
                                 self._check_cancelled()
                                 current_fallback_task = fallback_task
                                 if error_feedback:
@@ -384,11 +478,11 @@ class Orchestrator:
                                             logger.warning(
                                                 "Fallback sandbox execution failed for section %s (attempt %d/%d): %s",
                                                 section.name,
-                                                attempt + 1,
+                                                fallback_attempt + 1,
                                                 max_sandbox_retries,
                                                 e_exc,
                                             )
-                                            if attempt == max_sandbox_retries - 1:
+                                            if fallback_attempt == max_sandbox_retries - 1:
                                                 raise PipelineError(f"Failed to generate valid executable code in section {section.name} fallback after {max_sandbox_retries} attempts. Error: {e_exc}") from e_exc
                                             error_feedback = f"The code block you wrote:\n```python-run\n{e_exc.code}\n```\nfailed with error:\n{e_exc}"
                                         else:
@@ -404,15 +498,19 @@ class Orchestrator:
                     # --- Self-Verification Step ---
                     if self.first_attempt_reason:
                         logger.info("Starting writer self-verification against first reviewer feedback...")
+                        verify_reasons_by_section = parse_rejection_reasons(
+                            self.first_attempt_reason, self._config.pipeline.sections
+                        )
                         for section in self._config.pipeline.sections:
                             self._check_cancelled()
+                            sec_verify_reason = verify_reasons_by_section.get(section.name, self.first_attempt_reason)
                             verified = False
                             for verify_attempt in range(2):
                                 verify_task = render_template(
                                     DEFAULT_VERIFY_TEMPLATE,
                                     {
                                         "section": section,
-                                        "first_attempt_reason": self.first_attempt_reason,
+                                        "first_attempt_reason": sec_verify_reason,
                                         "language": target_language,
                                         "language_instruction": language_instruction(target_language),
                                         "user_topic": self.user_topic,

@@ -79,12 +79,12 @@ graph TD
 - [x] Разработка логики перехвата ошибок исполнения (`sys.stderr`, `traceback`) и передачи их обратно агенту для самоисправления.
 
 ### Этап 3: Интеграция Frontend & Monaco Editor
-- [ ] Интеграция Monaco Editor (например, `@monaco-editor/react`) в [live-document-canvas.tsx](file:///f:/projects/Academic-Pipeline-Engine/ui/app/components/live-document-canvas.tsx).
-- [ ] Создание интерфейса визуального сравнения изменений (Diff View).
-- [ ] Добавление переключателя режимов (Standard / Academic) на панели [search-bar.tsx](file:///f:/projects/Academic-Pipeline-Engine/ui/app/components/search-bar.tsx).
-- [ ] Передача выбранного режима в API-запрос запуска пайплайна.
+- [x] Интеграция Monaco Editor (например, `@monaco-editor/react`) в [live-document-canvas.tsx](file:///f:/projects/Academic-Pipeline-Engine/ui/app/components/live-document-canvas.tsx).
+- [x] Создание интерфейса визуального сравнения изменений (Diff View).
+- [x] Добавление переключателя режимов (Standard / Academic) на панели [search-bar.tsx](file:///f:/projects/Academic-Pipeline-Engine/ui/app/components/search-bar.tsx).
+- [x] Передача выбранного режима в API-запрос запуска пайплайна.
 
 ### Этап 4: Тестирование и валидация
 - [x] Написание тестов на точечный патчинг по строкам.
 - [x] Написание тестов на выполнение кода в песочнице и перехват исключений.
-- [ ] Сквозные тесты пайплайна с построением графика через `matplotlib` и проверкой его наличия в экспортированном DOCX/PDF.
+- [x] Сквозные тесты пайплайна с построением графика через `matplotlib` и проверкой его наличия в экспортированном DOCX/PDF.

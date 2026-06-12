@@ -126,5 +126,5 @@ class ReviewerAgent(BaseAgent):
     def parse_reason(self, feedback: str) -> str:
         if self.is_approved(feedback):
             return ""
-        match = re.match(r"REJECTED[:\s]+(.+)", feedback, re.IGNORECASE)
+        match = re.match(r"REJECTED[:\s]*(.*)", feedback, re.IGNORECASE | re.DOTALL)
         return match.group(1).strip() if match else feedback
