@@ -12,7 +12,7 @@ from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import detect_language, language_instruction
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
-from academic_pe.core.section_patch import SectionPatchError, apply_search_replace_patch
+from academic_pe.core.section_patch import SectionPatchError, apply_line_replace_patch, add_line_numbers
 from academic_pe.core.template_compat import template_section_to_section_prompt
 from academic_pe.core.template_selector import TemplateSelector
 from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate
@@ -145,7 +145,7 @@ class Orchestrator:
         self.context[section_name] = content
         self._emit_section_delta(section_name, content, content)
 
-    def _document_memory(self, current_section_name: str = "") -> str:
+    def _document_memory(self, current_section_name: str = "", with_line_numbers: bool = False) -> str:
         parts: List[str] = []
         if self._draft_plan:
             parts.append("[Document Plan]\n" + self._draft_plan)
@@ -162,7 +162,10 @@ class Orchestrator:
             parts.append("[Already Written Sections]\n" + "\n\n".join(completed_sections))
 
         if current_section_name and self.context.get(current_section_name):
-            parts.append("[Current Section Before Revision]\n" + self.context[current_section_name])
+            content = self.context[current_section_name]
+            if with_line_numbers:
+                content = add_line_numbers(content)
+            parts.append("[Current Section Before Revision]\n" + content)
 
         return "\n\n".join(parts)
 
@@ -293,11 +296,11 @@ class Orchestrator:
                         current_content = self.context.get(section.name, "")
                         patch_text = self._writer.process(
                             task,
-                            context=self._document_memory(section.name),
+                            context=self._document_memory(section.name, with_line_numbers=True),
                             document_sections=self.context,
                         )
                         try:
-                            revised_content = apply_search_replace_patch(current_content, patch_text)
+                            revised_content = apply_line_replace_patch(current_content, patch_text)
                         except SectionPatchError as exc:
                             logger.warning(
                                 "Patch revision failed for section %s: %s. Falling back to full-section revision.",

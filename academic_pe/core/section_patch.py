@@ -10,53 +10,93 @@ class SectionPatchError(ValueError):
 
 
 @dataclass(frozen=True)
-class SearchReplaceBlock:
-    search: str
-    replace: str
+class LineReplaceBlock:
+    start_line: int
+    end_line: int
+    content: str
 
 
 _BLOCK_RE = re.compile(
-    r"<<<<<<< SEARCH\s*\n(?P<search>.*?)\n=======\s*\n(?P<replace>.*?)\n>>>>>>> REPLACE",
+    r"<<<<<<< REPLACE (?P<start>\d+)-(?P<end>\d+)\s*\n(?P<content>.*?)\n>>>>>>>[ \t]*(?:REPLACE)?",
     re.DOTALL,
 )
 
 
-def parse_search_replace_blocks(raw: str) -> List[SearchReplaceBlock]:
+def add_line_numbers(text: str) -> str:
+    if not text:
+        return ""
+    lines = text.split('\n')
+    return "\n".join(f"{i+1}: {line}" for i, line in enumerate(lines))
+
+
+def parse_line_replace_blocks(raw: str) -> List[LineReplaceBlock]:
     text = raw.strip()
     if text == "NO_CHANGES":
         return []
 
-    blocks = [
-        SearchReplaceBlock(
-            search=match.group("search").strip("\n"),
-            replace=match.group("replace").strip("\n"),
-        )
-        for match in _BLOCK_RE.finditer(raw)
-    ]
+    blocks = []
+    for match in _BLOCK_RE.finditer(raw):
+        start = int(match.group("start"))
+        end = int(match.group("end"))
+        content = match.group("content")
+        blocks.append(LineReplaceBlock(start_line=start, end_line=end, content=content))
+
     if not blocks:
-        raise SectionPatchError("No SEARCH/REPLACE blocks found.")
+        raise SectionPatchError("No REPLACE blocks found.")
 
     consumed = _BLOCK_RE.sub("", raw).strip()
     if consumed:
-        raise SectionPatchError("Patch response contains text outside SEARCH/REPLACE blocks.")
+        raise SectionPatchError("Patch response contains text outside REPLACE blocks.")
 
+    # Validate ranges and overlaps
     for block in blocks:
-        if not block.search:
-            raise SectionPatchError("SEARCH block cannot be empty.")
+        if block.start_line < 1:
+            raise SectionPatchError(f"Invalid line number {block.start_line}: line numbers must be >= 1.")
+        if block.start_line > block.end_line:
+            raise SectionPatchError(
+                f"Invalid range {block.start_line}-{block.end_line}: start must be <= end."
+            )
+
+    sorted_blocks = sorted(blocks, key=lambda b: b.start_line)
+    for i in range(1, len(sorted_blocks)):
+        prev = sorted_blocks[i - 1]
+        curr = sorted_blocks[i]
+        if curr.start_line <= prev.end_line:
+            raise SectionPatchError(
+                f"Overlapping REPLACE blocks: block {prev.start_line}-{prev.end_line} "
+                f"overlaps with {curr.start_line}-{curr.end_line}."
+            )
 
     return blocks
 
 
-def apply_search_replace_patch(original: str, patch_text: str) -> str:
-    blocks = parse_search_replace_blocks(patch_text)
-    updated = original
+def replace_lines(original: str, start_line: int, end_line: int, replacement: str) -> str:
+    lines = original.split('\n')
+    num_lines = len(lines)
 
-    for block in blocks:
-        matches = updated.count(block.search)
-        if matches == 0:
-            raise SectionPatchError("SEARCH block did not match the section text.")
-        if matches > 1:
-            raise SectionPatchError("SEARCH block matched multiple locations.")
-        updated = updated.replace(block.search, block.replace, 1)
+    if start_line < 1 or end_line > num_lines:
+        raise SectionPatchError(
+            f"Line range {start_line}-{end_line} is out of bounds (1-{num_lines})."
+        )
+    if start_line > end_line:
+        raise SectionPatchError(
+            f"Invalid range {start_line}-{end_line}: start must be <= end."
+        )
+
+    # Replace the slice
+    lines[start_line - 1 : end_line] = replacement.split('\n')
+    return '\n'.join(lines)
+
+
+def apply_line_replace_patch(original: str, patch_text: str) -> str:
+    blocks = parse_line_replace_blocks(patch_text)
+    if not blocks:
+        return original
+
+    # To apply multiple edits without line shifting issues, sort by start_line descending
+    sorted_descending = sorted(blocks, key=lambda b: b.start_line, reverse=True)
+    updated = original
+    for block in sorted_descending:
+        updated = replace_lines(updated, block.start_line, block.end_line, block.content)
 
     return updated

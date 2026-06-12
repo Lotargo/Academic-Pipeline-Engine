@@ -69,21 +69,19 @@ Reviewer issues to address: {{ reviewer_reason }}
 
 {{ language_instruction }}
 
-You will receive the existing section in context. Do not rewrite the full section.
+You will receive the existing section with line numbers in context (e.g., "1: text\\n2: text\\n..."). Do not rewrite the full section.
 If this section does not need changes, return exactly:
 NO_CHANGES
 
-If changes are needed, return one or more exact SEARCH/REPLACE blocks:
-<<<<<<< SEARCH
-exact existing text to replace
-=======
-replacement text
->>>>>>> REPLACE
+If changes are needed, return one or more REPLACE blocks specifying the range of lines to replace (1-based, inclusive):
+<<<<<<< REPLACE <start_line>-<end_line>
+new content for this range of lines (do not include line numbers here)
+>>>>>>>
 
 Rules:
-- SEARCH text must be copied exactly from the current section.
-- Each SEARCH block must match exactly one location.
-- Replace only the smallest text span needed to fix the issue.
+- Line range <start_line>-<end_line> is inclusive. For example, to replace line 15 only, use `15-15`.
+- Do not include the line numbers (e.g., "15: ") inside the replacement content. Just output the clean text.
+- Replace only the smallest line range needed to fix the issue.
 - Preserve unaffected paragraphs, Markdown headings, LaTeX formulas, and wording.
 - Do not add explanations outside the blocks.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
