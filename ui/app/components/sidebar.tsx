@@ -9,7 +9,6 @@ import {
   Play,
   FileText,
   Workflow,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
@@ -19,6 +18,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ProfileModal } from "./profile-modal"
+import { AcademicLogo } from "./academic-logo"
 import type { Messages, UiLanguage } from "@/lib/i18n"
 import {
   DropdownMenu,
@@ -173,7 +173,7 @@ export function Sidebar({
   return (
     <div
       ref={sidebarRef}
-      className={`relative flex flex-col border-r border-border bg-background py-4 z-50 h-screen shrink-0 select-none overflow-hidden ${
+      className={`relative flex flex-col border-r border-border bg-background z-50 h-screen shrink-0 select-none overflow-hidden ${
         isResizing ? "" : "transition-[width] duration-200 ease-out"
       }`}
       style={{ width: collapsed ? COLLAPSED_WIDTH : sidebarWidth }}
@@ -207,7 +207,7 @@ export function Sidebar({
               setSidebarWidth(MAX_WIDTH)
             }
           }}
-          className="absolute inset-y-0 right-0 z-40 w-2 cursor-col-resize touch-none outline-none transition-colors hover:bg-teal-500/15 focus-visible:bg-teal-500/20"
+          className="absolute inset-y-0 right-0 z-40 w-2 cursor-col-resize touch-none outline-none transition-colors hover:bg-ape-primary/15 focus-visible:bg-ape-primary/20"
         >
           <span className="absolute inset-y-4 right-0 w-px bg-border" />
         </div>
@@ -224,16 +224,8 @@ export function Sidebar({
       </button>
 
       {/* Header Logo */}
-      <div className={`flex items-center px-4 mb-5 ${collapsed ? "justify-center" : "gap-2"}`}>
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-600/10 text-teal-600 dark:text-teal-400">
-          <Sparkles className="h-5 w-5 animate-pulse" />
-        </div>
-        {!collapsed && (
-          <div className="flex flex-col">
-            <span className="text-[13px] font-black tracking-tight text-foreground uppercase">Academic PE</span>
-            <span className="text-[9px] font-medium text-muted-foreground uppercase leading-none">Pipeline Engine</span>
-          </div>
-        )}
+      <div className={`px-3 pt-4 mb-5 ${collapsed ? "flex justify-center" : ""}`}>
+        <AcademicLogo compact={collapsed} className={collapsed ? "h-12 w-12 shrink-0" : "h-[76px] w-full"} />
       </div>
 
       {/* New Generation Button */}
@@ -241,7 +233,7 @@ export function Sidebar({
         <Button
           onClick={handleNewRun}
           variant="outline"
-          className={`w-full justify-start gap-2 text-xs font-bold border-teal-500/20 hover:border-teal-500/40 hover:bg-teal-500/5 text-teal-600 dark:text-teal-400 h-9 rounded-lg transition-all ${
+          className={`w-full justify-start gap-2 ape-control-text font-bold border-ape-primary/20 hover:border-ape-primary/40 hover:bg-ape-primary-soft text-ape-primary-text h-9 rounded-lg transition-all ${
             collapsed ? "px-2 justify-center" : "px-3"
           }`}
         >
@@ -254,9 +246,9 @@ export function Sidebar({
       <nav className="flex flex-col gap-1 px-2 mb-4">
         <button
           onClick={() => handleNavigate("workspace")}
-          className={`flex items-center gap-3 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+          className={`flex items-center gap-3 px-3 py-2 ape-control-text font-bold rounded-lg border transition-all cursor-pointer ${
             activeTab === "workspace" && !selectedPaper
-              ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
+              ? "ape-status-primary font-semibold"
               : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
           } ${collapsed ? "justify-center px-0" : ""}`}
           title="Workspace Dashboard"
@@ -267,9 +259,9 @@ export function Sidebar({
 
         <button
           onClick={() => handleNavigate("fsm")}
-          className={`flex items-center gap-3 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+          className={`flex items-center gap-3 px-3 py-2 ape-control-text font-bold rounded-lg border transition-all cursor-pointer ${
             activeTab === "fsm" && !selectedPaper
-              ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
+              ? "ape-status-primary font-semibold"
               : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
           } ${collapsed ? "justify-center px-0" : ""}`}
           title="FSM Flow Monitor"
@@ -280,9 +272,9 @@ export function Sidebar({
 
         <button
           onClick={() => handleNavigate("config")}
-          className={`flex items-center gap-3 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+          className={`flex items-center gap-3 px-3 py-2 ape-control-text font-bold rounded-lg border transition-all cursor-pointer ${
             activeTab === "config" && !selectedPaper
-              ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
+              ? "ape-status-primary font-semibold"
               : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
           } ${collapsed ? "justify-center px-0" : ""}`}
           title="Engine Configuration"
@@ -295,7 +287,7 @@ export function Sidebar({
       {/* History section divider */}
       {!collapsed && (
         <div className="px-4 py-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <span className="ape-label flex items-center gap-1.5">
             <Clock className="h-3 w-3" />
             {t.nav.recent}
           </span>
@@ -310,9 +302,9 @@ export function Sidebar({
             return (
               <div
                 key={`${historyKey(paper)}|${index}`}
-                className={`group w-full text-left text-xs leading-tight rounded-lg border transition-all relative flex items-center gap-1 ${
+                className={`group w-full text-left ape-control-text rounded-lg border transition-all relative flex items-center gap-1 ${
                   isSelected
-                    ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
+                    ? "ape-status-primary font-semibold"
                     : "border-transparent text-foreground hover:bg-accent"
                 }`}
               >
@@ -323,14 +315,14 @@ export function Sidebar({
                   }`}
                   title={paper.topic}
                 >
-                  <FileText className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-teal-500" />
+                  <FileText className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-ape-primary" />
                   {!collapsed ? (
                     <div className="flex min-w-0 flex-col truncate pr-1">
-                      <span className="font-semibold truncate text-[11px]">{paper.topic}</span>
-                      <span className="text-[9px] text-muted-foreground">{paper.timestamp}</span>
+                      <span className="truncate text-[12px] font-semibold leading-snug">{paper.topic}</span>
+                      <span className="ape-micro">{paper.timestamp}</span>
                     </div>
                   ) : (
-                    <div className="w-1.5 h-1.5 rounded-full bg-teal-500 absolute bottom-1 right-1" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-ape-primary absolute bottom-1 right-1" />
                   )}
                 </button>
                 {!collapsed && (
@@ -400,7 +392,7 @@ export function Sidebar({
       </ScrollArea>
 
       {/* Footer / User Profile */}
-      <div className="mt-auto shrink-0 border-t border-border px-3 pt-3 pb-3">
+      <div className="mt-auto flex h-[88px] shrink-0 items-center justify-center border-t border-border px-3">
         <ProfileModal
           language={language}
           onLanguageChange={onLanguageChange}
@@ -414,21 +406,21 @@ export function Sidebar({
         >
           <button
             type="button"
-            className={`flex w-full items-center rounded-lg border border-border/70 bg-card/50 shadow-sm transition-all hover:border-teal-500/30 hover:bg-accent cursor-pointer ${
+            className={`flex w-full items-center rounded-lg border border-border/70 bg-card/50 shadow-sm transition-all hover:border-ape-primary/30 hover:bg-accent cursor-pointer ${
               collapsed ? "justify-center p-1.5" : "min-h-11 gap-3 px-2.5 py-2"
             }`}
             title={displayName}
           >
-            <Avatar className="size-8 ring-2 ring-teal-500/20">
+            <Avatar className="size-8 ring-2 ring-ape-primary/20">
               {avatarUrl && <AvatarImage src={avatarUrl} alt={displayName} />}
-              <AvatarFallback className="bg-teal-600/10 text-teal-600 dark:text-teal-400 font-bold text-xs uppercase">
+              <AvatarFallback className="bg-ape-primary-soft text-ape-primary-text font-bold text-xs uppercase">
                 {initials}
               </AvatarFallback>
             </Avatar>
             {!collapsed && (
               <div className="flex min-w-0 flex-col overflow-hidden text-left leading-tight">
-                <span className="truncate text-[11px] font-bold text-foreground">{displayName}</span>
-                <span className="truncate text-[9px] text-muted-foreground">{profileCaption}</span>
+                <span className="truncate text-[12px] font-bold text-foreground">{displayName}</span>
+                <span className="ape-micro truncate">{profileCaption}</span>
               </div>
             )}
           </button>

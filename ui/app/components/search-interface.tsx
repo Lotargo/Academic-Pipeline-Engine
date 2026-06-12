@@ -386,13 +386,13 @@ export function Search() {
       {/* Main Workspace Frame */}
       <main className="flex-1 min-w-0 flex flex-col h-full bg-background overflow-hidden relative">
         {/* Top Navbar */}
-        <header className="h-14 border-b border-border/80 bg-card/50 flex items-center justify-between px-6 shrink-0 z-30 select-none">
+        <header className="h-14 border-b border-border/80 bg-card/60 flex items-center justify-between px-6 shrink-0 z-30 select-none backdrop-blur">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-muted-foreground capitalize">
+            <span className="ape-control-text font-bold text-muted-foreground capitalize">
               {selectedPaper ? t.nav.archiveViewer : activeTab}
             </span>
             <span className="text-muted-foreground/30 text-xs">/</span>
-            <span className="text-xs font-black text-foreground truncate max-w-[200px] md:max-w-md">
+            <span className="text-[13px] font-black text-foreground truncate max-w-[200px] md:max-w-md">
               {selectedPaper
                 ? selectedPaper.topic
                 : status.status === "RUNNING" || status.status === "STARTING"
@@ -407,7 +407,7 @@ export function Search() {
                 size="sm"
                 onClick={status?.docx_filename ? handleDownloadCurrentDocx : handleExportCurrentDocx}
                 disabled={exportingDocx}
-                className="h-8 gap-1.5 bg-teal-600 px-3 text-[10px] font-bold uppercase text-white hover:bg-teal-700"
+                className="h-8 gap-1.5 bg-ape-primary px-3 text-[11px] font-bold uppercase text-white hover:bg-ape-primary/90"
               >
                 {exportingDocx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
                 {status?.docx_filename ? t.document.downloadDocx : t.document.exportDocx}
@@ -416,8 +416,8 @@ export function Search() {
 
             {(status.status === "RUNNING" || status.status === "STARTING") && (
               <>
-                <div className="flex items-center gap-2 rounded-full bg-teal-500/10 px-3 py-1 text-[10px] font-bold text-teal-600 dark:text-teal-400 animate-pulse border border-teal-500/20">
-                  <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+                <div className="flex items-center gap-2 rounded-full ape-status-primary px-3 py-1 text-[11px] font-bold animate-pulse border">
+                  <span className="h-1.5 w-1.5 rounded-full bg-ape-primary" />
                   <span>{t.nav.pipelineDrafting}</span>
                 </div>
                 {status.status === "RUNNING" && (
@@ -436,7 +436,7 @@ export function Search() {
                         toast.error(e.message || "Failed to cancel")
                       }
                     }}
-                    className="h-7 px-3 text-[10px] font-bold uppercase border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 gap-1.5"
+                    className="h-7 px-3 text-[11px] font-bold uppercase border-ape-danger/30 text-ape-danger-text hover:bg-ape-danger-soft hover:border-ape-danger/50 gap-1.5"
                   >
                     <XCircle className="h-3 w-3" />
                     Cancel
@@ -449,7 +449,7 @@ export function Search() {
               onClick={() => setIsConsoleOpen(!isConsoleOpen)}
               className={`flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg border transition-all duration-200 cursor-pointer shadow-sm text-xs font-semibold ${
                 isConsoleOpen
-                  ? "bg-teal-500/15 border-teal-500/35 text-teal-700 dark:text-teal-400"
+                  ? "bg-ape-primary-soft border-ape-primary/35 text-ape-primary-text"
                   : "border-border bg-card/40 text-muted-foreground hover:text-foreground hover:bg-accent"
               }`}
               title="Toggle Console"
@@ -528,7 +528,7 @@ export function Search() {
                 
                 {/* Visual Intro */}
                 <div className="text-center space-y-3">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-600/10 text-teal-600 dark:text-teal-400 shadow-[0_4px_20px_rgba(13,148,136,0.1)]">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-ape-primary-soft text-ape-primary-text shadow-sm">
                     <Sparkles className="h-7 w-7 animate-pulse" />
                   </div>
                   <div className="space-y-1">
@@ -550,17 +550,17 @@ export function Search() {
 
                 {/* Active compilation summary card */}
                 {(status.status === "RUNNING" || status.status === "STARTING") && (
-                  <div className="p-4 rounded-xl border border-teal-500/20 bg-teal-500/5 animate-pulse text-xs flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400">
+                  <div className="p-4 rounded-xl ape-status-primary animate-pulse text-xs flex items-center justify-between border">
+                    <div className="flex items-center gap-2 text-ape-primary-text">
                       <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500" />
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ape-primary opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-ape-primary" />
                       </span>
                       <span className="font-semibold">{t.workspace.current}: "{status.topic}"</span>
                     </div>
                     <button
                       onClick={() => setActiveTab("fsm")}
-                      className="text-teal-600 dark:text-teal-400 hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
+                      className="text-ape-primary-text hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
                     >
                       {t.workspace.viewLogs} <ArrowRight className="h-3 w-3" />
                     </button>
@@ -568,8 +568,8 @@ export function Search() {
                 )}
                 
                 {status.status === "COMPLETED" && (
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs flex items-center justify-between">
-                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                  <div className="rounded-xl ape-status-success p-4 text-xs flex items-center justify-between border">
+                    <span className="text-ape-success-text font-semibold">
                       ✓ {t.workspace.generated}: "{status.topic}"
                     </span>
                     <button
@@ -577,7 +577,7 @@ export function Search() {
                         setSelectedPaper(null)
                         setActiveTab("fsm")
                       }}
-                      className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
+                      className="text-ape-success-text hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
                     >
                       {t.workspace.viewDocument} <ArrowRight className="h-3 w-3" />
                     </button>
@@ -585,8 +585,8 @@ export function Search() {
                 )}
 
                 {status.status === "CANCELLED" && (
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs flex items-center justify-between">
-                    <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                  <div className="rounded-xl ape-status-warning p-4 text-xs flex items-center justify-between border">
+                    <span className="text-ape-warning-text font-semibold">
                       ⚠ Pipeline was cancelled
                     </span>
                     <button
@@ -594,7 +594,7 @@ export function Search() {
                         setSelectedPaper(null)
                         setActiveTab("workspace")
                       }}
-                      className="text-amber-600 dark:text-amber-400 hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
+                      className="text-ape-warning-text hover:underline font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0"
                     >
                       Start New Run <ArrowRight className="h-3 w-3" />
                     </button>

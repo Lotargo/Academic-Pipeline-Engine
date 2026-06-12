@@ -1,7 +1,7 @@
 # Frontend UX Sprint
 
 Date: 2026-06-13  
-Status: In progress  
+Status: Completed
 Scope: UI layout, workspace ergonomics, user profile controls, history management, visual polish, and pipeline status clarity.
 
 ## Sprint Goal
@@ -201,17 +201,17 @@ Definition of done:
 
 ## Workstream 9: Typography Pass
 
-Status: `[ ] Planned`
+Status: `[x] Done`
 
 Objective: Improve font scale, spacing, hierarchy, and readability.
 
 Tasks:
 
-- [ ] Audit current font sizes in sidebar, cards, document preview, console, and modals.
-- [ ] Define a compact but readable type scale.
-- [ ] Reduce overly tiny labels where they harm readability.
-- [ ] Ensure long Russian strings fit without awkward wrapping.
-- [ ] Check document canvas typography separately from app chrome.
+- [x] Audit current font sizes in sidebar, cards, document preview, console, and modals.
+- [x] Define a compact but readable type scale.
+- [x] Reduce overly tiny labels where they harm readability.
+- [x] Ensure long Russian strings fit without awkward wrapping.
+- [x] Check document canvas typography separately from app chrome.
 
 Definition of done:
 
@@ -221,18 +221,18 @@ Definition of done:
 
 ## Workstream 10: Pastel Color System
 
-Status: `[ ] Planned`
+Status: `[x] Done`
 
 Objective: Rework the color palette into a softer, more harmonious system that works in both light and dark themes.
 
 Tasks:
 
-- [ ] Audit current colors in global CSS and component classes.
-- [ ] Define semantic color tokens for primary, accent, success, warning, danger, surface, border, and muted text.
-- [ ] Replace hard-coded one-off colors where practical.
-- [ ] Tune active, hover, and focus states.
-- [ ] Verify contrast in light and dark themes.
-- [ ] Avoid overly saturated cyan/teal conflicts.
+- [x] Audit current colors in global CSS and component classes.
+- [x] Define semantic color tokens for primary, accent, success, warning, danger, surface, border, and muted text.
+- [x] Replace hard-coded one-off colors where practical.
+- [x] Tune active, hover, and focus states.
+- [x] Verify contrast in light and dark themes.
+- [x] Avoid overly saturated cyan/teal conflicts.
 
 Definition of done:
 
@@ -253,14 +253,14 @@ Definition of done:
 9. Typography pass.
 10. Pastel color system pass.
 
-## Risks And Open Questions
+## Resolved Decisions
 
-- [!] Should profile settings be local-only, stored in `config/agents.yaml`, or stored in a new user preferences file?
-- [!] Should archived works remain in the same metadata directory with an `archived` flag, or move to a separate archive index?
-- [!] Should deletion remove DOCX/export assets, metadata only, or both?
-- [!] Should avatar files be copied into an app-owned directory or stored as base64 in preferences?
-- [!] Should theme/language changes apply immediately or only after saving the profile modal?
-- [!] Should SSE step details be structured on the backend rather than inferred from logs?
+- [x] Profile nickname and avatar are local browser preferences; interface language remains in app config.
+- [x] Archived works stay in the metadata directory with an `archived` flag.
+- [x] Permanent deletion removes the metadata record and the linked DOCX export when present.
+- [x] Avatar files are stored as validated local browser data URLs.
+- [x] Theme and language changes apply immediately from the profile modal.
+- [x] SSE step details are derived from existing structured status fields, with the console retained as the detailed log source.
 
 ## Current Backlog Summary
 
@@ -276,5 +276,5 @@ Definition of done:
 - [x] Modern pipeline icons.
 - [x] SSE statuses inside step cards.
 - [x] Better DOCX export placement.
-- [ ] Typography refresh.
-- [ ] Pastel color system refresh.
+- [x] Typography refresh.
+- [x] Pastel color system refresh.

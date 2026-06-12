@@ -16,11 +16,14 @@ interface FSMMonitorProps {
 export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
   const statesList: FSMState[] = ["INIT", "PLANNING", "DRAFTING", "REVIEWING", "RENDERING", "DONE"]
   const activeState = status?.state || "INIT"
+  const runStatus = status?.status || "IDLE"
+  const hasPipelineActivity = runStatus !== "IDLE"
   const isFailed = status?.status === "FAILED" || activeState === "FAILED"
   const isCancelled = status?.status === "CANCELLED" || activeState === "CANCELLED"
 
   // Get status color for each node
   const getNodeStatus = (state: FSMState) => {
+    if (!hasPipelineActivity) return "idle"
     if (status?.status === "COMPLETED") return "completed"
     if (isFailed && activeState === state) return "failed"
     if (activeState === state) return "active"
@@ -47,6 +50,7 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
     }
 
     if (nodeStatus === "idle") {
+      if (!hasPipelineActivity) return state === "INIT" ? "Waiting for a generation request." : "Pipeline has not started."
       return state === "DONE" ? "Waiting for draft approval." : "Waiting for previous step."
     }
 
@@ -86,18 +90,18 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
 
   const getStatusIcon = (nodeStatus: string) => {
     if (nodeStatus === "completed") {
-      return <CheckCircle2 className="h-5 w-5 text-sky-500 dark:text-sky-400" />
+      return <CheckCircle2 className="h-5 w-5 text-ape-info-text" />
     }
     if (nodeStatus === "active") {
       return (
         <span className="relative flex h-6 w-6 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
-          <span className="absolute h-1.5 w-1.5 rounded-full bg-cyan-500" />
+          <Loader2 className="h-5 w-5 animate-spin text-ape-primary" />
+          <span className="absolute h-1.5 w-1.5 rounded-full bg-ape-primary" />
         </span>
       )
     }
     if (nodeStatus === "failed") {
-      return <AlertCircle className="h-5 w-5 text-rose-500" />
+      return <AlertCircle className="h-5 w-5 text-ape-danger-text" />
     }
     return <Circle className="h-4 w-4 text-muted-foreground/35" />
   }
@@ -107,7 +111,7 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
       {/* Visual Pipeline Flow */}
       <div className="rounded-2xl border border-border/80 bg-card/65 backdrop-blur-sm p-6 shadow-sm transition-all duration-300 hover:shadow-md lg:min-h-full">
         <h2 className="text-sm font-semibold mb-6 flex items-center gap-2 text-foreground/90">
-          <Layers className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+          <Layers className="h-4 w-4 text-ape-info-text" />
           {t.fsm.title}
         </h2>
 
@@ -134,11 +138,11 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
                   <div
                     className={`flex items-center justify-center rounded-full border w-10 h-10 shrink-0 transition-all duration-300 z-10 ${
                       nodeStatus === "completed"
-                        ? "border-sky-500/35 bg-sky-500/10 text-sky-600 dark:text-sky-400 shadow-sm"
+                        ? "border-ape-info/35 bg-ape-info-soft text-ape-info-text shadow-sm"
                       : nodeStatus === "active"
-                        ? "border-cyan-500/45 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-[0_0_18px_rgba(6,182,212,0.18)] scale-105"
+                        ? "border-ape-primary/45 bg-ape-primary-soft text-ape-primary-text shadow-sm scale-105"
                       : nodeStatus === "failed"
-                        ? "border-rose-500/45 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        ? "border-ape-danger/45 bg-ape-danger-soft text-ape-danger-text"
                         : "border-border/60 bg-muted/20 text-muted-foreground/40"
                     }`}
                   >
@@ -149,30 +153,30 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
                   <div
                     className={`flex-1 min-h-[92px] flex items-center justify-between gap-3 p-4 rounded-xl border transition-all duration-300 ${
                       nodeStatus === "completed"
-                        ? "border-sky-500/15 bg-sky-500/5 dark:bg-sky-950/10 text-sky-950 dark:text-sky-100 shadow-xs hover:border-sky-500/25"
+                        ? "border-ape-info/20 bg-ape-info-soft/60 text-foreground shadow-xs hover:border-ape-info/30"
                         : nodeStatus === "active"
-                        ? "border-cyan-500/35 bg-cyan-500/5 dark:bg-cyan-950/15 text-cyan-950 dark:text-cyan-100 shadow-[0_4px_12px_rgba(6,182,212,0.05)] hover:border-cyan-500/50"
+                        ? "border-ape-primary/35 bg-ape-primary-soft text-foreground shadow-sm hover:border-ape-primary/50"
                         : nodeStatus === "failed"
-                        ? "border-rose-500/20 bg-rose-500/5 dark:bg-rose-950/10 text-rose-950 dark:text-rose-100"
+                        ? "border-ape-danger/25 bg-ape-danger-soft text-foreground"
                         : "border-border/40 bg-muted/5 text-muted-foreground/50 hover:border-border/60"
                     }`}
                   >
                     <div className="flex min-w-0 flex-col text-left space-y-0.5">
-                      <span className="text-[9px] uppercase font-mono font-bold tracking-wider opacity-60">
+                      <span className="text-[10px] uppercase font-mono font-bold tracking-wider opacity-65">
                         {t.fsm.step} {index + 1}
                       </span>
-                      <span className="text-xs font-bold tracking-tight text-foreground">{state}</span>
-                      <span className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground font-sans max-w-[320px]">
+                      <span className="text-[13px] font-bold tracking-tight text-foreground">{state}</span>
+                      <span className="line-clamp-2 text-[12px] leading-relaxed text-muted-foreground font-sans max-w-[320px]">
                         {stateDesc}
                       </span>
                       <span
-                        className={`line-clamp-1 text-[10px] leading-relaxed font-sans ${
+                        className={`line-clamp-1 text-[11px] leading-relaxed font-sans ${
                           nodeStatus === "active"
-                            ? "text-cyan-700 dark:text-cyan-300"
+                            ? "text-ape-primary-text"
                             : nodeStatus === "completed"
-                            ? "text-sky-700 dark:text-sky-300"
+                            ? "text-ape-info-text"
                             : nodeStatus === "failed"
-                            ? "text-rose-700 dark:text-rose-300"
+                            ? "text-ape-danger-text"
                             : "text-muted-foreground/60"
                         }`}
                       >
@@ -180,10 +184,10 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
                       </span>
                     </div>
                     
-                    <div className="text-[9px] font-mono tracking-tight shrink-0 self-start mt-1">
-                      {nodeStatus === "completed" && <span className="text-sky-600 dark:text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded font-bold uppercase">{t.fsm.done}</span>}
-                      {nodeStatus === "active" && <span className="text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded font-bold uppercase animate-pulse">{t.fsm.running}</span>}
-                      {nodeStatus === "failed" && <span className="text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded font-bold uppercase">{t.fsm.failed}</span>}
+                    <div className="text-[10px] font-mono tracking-tight shrink-0 self-start mt-1">
+                      {nodeStatus === "completed" && <span className="bg-ape-info-soft text-ape-info-text px-2 py-0.5 rounded font-bold uppercase">{t.fsm.done}</span>}
+                      {nodeStatus === "active" && <span className="bg-ape-primary-soft text-ape-primary-text px-2 py-0.5 rounded font-bold uppercase animate-pulse">{t.fsm.running}</span>}
+                      {nodeStatus === "failed" && <span className="bg-ape-danger-soft text-ape-danger-text px-2 py-0.5 rounded font-bold uppercase">{t.fsm.failed}</span>}
                       {nodeStatus === "idle" && <span className="text-muted-foreground/60 bg-muted/20 px-2 py-0.5 rounded font-medium uppercase">{t.fsm.awaiting}</span>}
                     </div>
                   </div>
@@ -193,10 +197,10 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
                 {index < statesList.length - 1 && (
                   <div className="w-[2px] h-6 bg-border dark:bg-zinc-800 ml-4.5 -my-2 relative z-0">
                     {nodeStatus === "completed" && (
-                      <div className="absolute inset-0 bg-sky-500 transition-all duration-1000" />
+                      <div className="absolute inset-0 bg-ape-info transition-all duration-1000" />
                     )}
                     {nodeStatus === "active" && (
-                      <div className="absolute inset-0 bg-gradient-to-b from-cyan-500 to-border dark:to-zinc-800" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-ape-primary to-border dark:to-zinc-800" />
                     )}
                   </div>
                 )}
@@ -209,23 +213,23 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
             <div className="absolute inset-0 bg-background/80 dark:bg-background/90 z-20 flex flex-col items-center justify-center p-6 rounded-2xl animate-in fade-in duration-300 border border-border/40 backdrop-blur-xs">
               {isCancelled ? (
                 <>
-                  <XCircle className="h-12 w-12 text-amber-500 mb-2" />
-                  <h3 className="text-base font-bold text-amber-500">Pipeline Cancelled</h3>
+                  <XCircle className="h-12 w-12 text-ape-warning-text mb-2" />
+                  <h3 className="text-base font-bold text-ape-warning-text">Pipeline Cancelled</h3>
                   <p className="text-xs text-muted-foreground text-center max-w-md mt-1 mb-4">
                     Pipeline execution was cancelled by user request.
                   </p>
                 </>
               ) : (
                 <>
-                  <AlertCircle className="h-12 w-12 text-red-500 mb-2 animate-bounce" />
-                  <h3 className="text-base font-bold text-red-500">Pipeline Execution Failed</h3>
+                  <AlertCircle className="h-12 w-12 text-ape-danger-text mb-2 animate-bounce" />
+                  <h3 className="text-base font-bold text-ape-danger-text">Pipeline Execution Failed</h3>
                   <p className="text-xs text-muted-foreground text-center max-w-md mt-1 mb-4">
                     {status?.error || "An unexpected error occurred during execution. Please check the logs below."}
                   </p>
                 </>
               )}
               {onRetry && (
-                <Button size="sm" onClick={onRetry} className="bg-teal-600 hover:bg-teal-700 text-white gap-1.5 cursor-pointer">
+                <Button size="sm" onClick={onRetry} className="bg-ape-primary hover:bg-ape-primary/90 text-white gap-1.5 cursor-pointer">
                   <RefreshCw className="h-3.5 w-3.5" />
                   Configure & Restart Run
                 </Button>
@@ -239,7 +243,7 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
       {status?.reviewer_feedback?.length > 0 && (
         <div className="rounded-2xl border border-border bg-card/65 backdrop-blur-sm p-6 space-y-4 shadow-sm transition-all duration-300 hover:shadow-md">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <MessageSquare className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+            <MessageSquare className="h-3.5 w-3.5 text-ape-primary-text" />
             {t.fsm.feedback}
           </h3>
           <div className="space-y-3">
@@ -250,16 +254,16 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
                   key={idx}
                   className={`p-4 rounded-xl border text-xs leading-relaxed transition-all duration-200 ${
                     approved
-                      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-900 dark:text-emerald-300 hover:border-emerald-500/35"
-                      : "border-amber-500/25 bg-amber-500/5 text-amber-900 dark:text-amber-300 hover:border-amber-500/40"
+                      ? "ape-status-success hover:border-ape-success/35"
+                      : "ape-status-warning hover:border-ape-warning/40"
                   }`}
                 >
                   <div className="font-semibold mb-2 flex items-center justify-between">
                     <span className="font-mono text-[10px] uppercase opacity-75">Feedback Attempt #{idx + 1}</span>
-                    <span className={`text-[9px] uppercase font-black px-2 py-0.5 rounded-full ${
+                    <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${
                       approved 
-                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" 
-                        : "bg-amber-500/15 text-amber-600 dark:text-amber-400 animate-pulse"
+                        ? "bg-ape-success-soft text-ape-success-text"
+                        : "bg-ape-warning-soft text-ape-warning-text animate-pulse"
                     }`}>
                       {approved ? "APPROVED" : "CORRECTION REQUIRED"}
                     </span>

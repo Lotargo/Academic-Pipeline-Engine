@@ -204,7 +204,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
       } else if (currentBlockType === "paragraph") {
         const joinedText = accumulatedLines.join(" ")
         elements.push(
-          <p key={`p-${key}`} className="indent-6 text-justify mb-4 leading-relaxed">{parseInlineStyles(joinedText)}</p>
+          <p key={`p-${key}`} className="ape-document-font indent-6 text-justify mb-4 leading-relaxed">{parseInlineStyles(joinedText)}</p>
         )
       }
       
@@ -326,7 +326,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
       if (stripped.startsWith("### ")) {
         flushBlock(idx)
         elements.push(
-          <h3 key={`h3-${idx}`} className="text-base md:text-lg font-semibold font-sans tracking-normal pt-2 text-foreground">
+          <h3 key={`h3-${idx}`} className="ape-document-font text-base md:text-lg font-semibold tracking-normal pt-2 text-foreground">
             {stripped.slice(4)}
           </h3>
         )
@@ -335,7 +335,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
       if (stripped.startsWith("## ")) {
         flushBlock(idx)
         elements.push(
-          <h2 key={`h2-${idx}`} className="text-lg md:text-xl font-bold font-sans tracking-tight pt-3 text-foreground">
+          <h2 key={`h2-${idx}`} className="ape-document-font text-lg md:text-xl font-bold tracking-normal pt-3 text-foreground">
             {stripped.slice(3)}
           </h2>
         )
@@ -344,7 +344,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
       if (stripped.startsWith("# ")) {
         flushBlock(idx)
         elements.push(
-          <h1 key={`h1-${idx}`} className="text-xl md:text-2xl font-bold font-sans tracking-tight border-b pb-2 pt-4 text-foreground">
+          <h1 key={`h1-${idx}`} className="ape-document-font text-xl md:text-2xl font-bold tracking-normal border-b pb-2 pt-4 text-foreground">
             {stripped.slice(2)}
           </h1>
         )
@@ -378,7 +378,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
     
     flushBlock("final")
     return (
-      <div className="space-y-4 font-serif text-[15px] leading-relaxed text-foreground antialiased select-text">
+      <div className="ape-document-font space-y-4 text-[15px] leading-relaxed text-foreground antialiased select-text">
         {elements}
       </div>
     )
@@ -536,7 +536,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
 
         {/* Paper Text Display */}
         <div className="rounded-2xl border border-border bg-card p-6 md:p-8 min-h-[300px] shadow-sm relative">
-          <div className="absolute top-4 right-4 bg-muted/40 text-[9px] uppercase tracking-wider font-mono text-muted-foreground px-2 py-1 rounded">
+          <div className="absolute top-4 right-4 bg-muted/40 text-[10px] uppercase font-mono text-muted-foreground px-2 py-1 rounded">
             {t.document.preview}
           </div>
           {activeTab && context[activeTab] ? (

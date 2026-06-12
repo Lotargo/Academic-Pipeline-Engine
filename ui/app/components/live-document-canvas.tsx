@@ -255,7 +255,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
       } else if (currentBlockType === "paragraph") {
         const joinedText = accumulatedLines.join(" ")
         elements.push(
-          <p key={`p-${key}`} className="indent-6 text-justify text-slate-700 dark:text-slate-300 mb-4 leading-8 text-[16px]">
+          <p key={`p-${key}`} className="ape-document-font indent-6 text-justify text-slate-700 dark:text-slate-300 mb-4 leading-8 text-[16px]">
             {parseInlineStyles(joinedText)}
           </p>
         )
@@ -379,7 +379,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
       if (stripped.startsWith("### ")) {
         flushBlock(idx)
         elements.push(
-          <h4 key={`h4-${idx}`} className="text-base font-semibold font-sans tracking-normal pt-2 mb-2 text-slate-800 dark:text-slate-100">
+          <h4 key={`h4-${idx}`} className="ape-document-font text-base font-semibold tracking-normal pt-2 mb-2 text-slate-800 dark:text-slate-100">
             {stripped.slice(4)}
           </h4>
         )
@@ -388,7 +388,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
       if (stripped.startsWith("## ")) {
         flushBlock(idx)
         elements.push(
-          <h3 key={`h3-${idx}`} className="text-lg font-bold font-sans tracking-tight pt-3 mb-2 text-slate-800 dark:text-slate-50">
+          <h3 key={`h3-${idx}`} className="ape-document-font text-lg font-bold tracking-normal pt-3 mb-2 text-slate-800 dark:text-slate-50">
             {stripped.slice(3)}
           </h3>
         )
@@ -397,7 +397,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
       if (stripped.startsWith("# ")) {
         flushBlock(idx)
         elements.push(
-          <h2 key={`h2-${idx}`} className="text-xl font-bold font-sans tracking-tight border-b border-slate-200 dark:border-slate-800 pb-2 pt-4 mb-3 text-slate-900 dark:text-slate-50">
+          <h2 key={`h2-${idx}`} className="ape-document-font text-xl font-bold tracking-normal border-b border-slate-200 dark:border-slate-800 pb-2 pt-4 mb-3 text-slate-900 dark:text-slate-50">
             {stripped.slice(2)}
           </h2>
         )
@@ -436,10 +436,10 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
   return (
     <div className="w-full h-full flex flex-col space-y-4">
       {/* Document Sheet Container */}
-      <div className={`relative flex-1 bg-[#fbfaf7] dark:bg-[#191b20] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800/80 rounded-xl shadow-sm p-6 md:p-10 font-serif min-h-[650px] lg:h-full lg:max-h-none overflow-y-auto max-h-[80vh] scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 transition-colors duration-200 ${dimDrafting && isRunning ? "brightness-75" : ""}`}>
+      <div className={`ape-document-font relative flex-1 bg-[#fbfaf7] dark:bg-[#191b20] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800/80 rounded-xl shadow-sm p-6 md:p-10 min-h-[650px] lg:h-full lg:max-h-none overflow-y-auto max-h-[80vh] scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 transition-colors duration-200 ${dimDrafting && isRunning ? "brightness-75" : ""}`}>
         
         {/* Paper Header / Running Metadata */}
-        <div className="sticky top-0 z-20 -mx-6 md:-mx-10 mb-6 flex items-center justify-between border-b border-zinc-200/60 dark:border-zinc-800/60 bg-[#fbfaf7]/95 dark:bg-[#191b20]/95 px-6 md:px-10 py-4 text-[10px] font-mono tracking-widest text-zinc-400 dark:text-zinc-500 uppercase backdrop-blur supports-[backdrop-filter]:bg-[#fbfaf7]/80 dark:supports-[backdrop-filter]:bg-[#191b20]/80">
+        <div className="sticky top-0 z-20 -mx-6 md:-mx-10 mb-6 flex items-center justify-between border-b border-zinc-200/60 dark:border-zinc-800/60 bg-[#fbfaf7]/95 dark:bg-[#191b20]/95 px-6 md:px-10 py-4 text-[11px] font-mono tracking-wider text-zinc-500 dark:text-zinc-400 uppercase backdrop-blur supports-[backdrop-filter]:bg-[#fbfaf7]/80 dark:supports-[backdrop-filter]:bg-[#191b20]/80">
           <div className="flex items-center gap-1.5">
             <FileText className="h-3 w-3" />
             <span>{t.document.compiler}</span>
@@ -449,7 +449,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
               <div className="flex items-center gap-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/80 p-1 lowercase tracking-normal font-sans">
                 <button
                   onClick={() => setDraftViewMode("live")}
-                  className={`h-6 px-2 rounded text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border-0 ${
+                  className={`h-6 px-2 rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer border-0 ${
                     draftViewMode === "live"
                       ? "bg-teal-500/15 text-teal-600 dark:text-teal-300"
                       : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
@@ -461,7 +461,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                 </button>
                 <button
                   onClick={() => setDraftViewMode("banner")}
-                  className={`h-6 px-2 rounded text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border-0 ${
+                  className={`h-6 px-2 rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer border-0 ${
                     draftViewMode === "banner"
                       ? "bg-amber-500/15 text-amber-600 dark:text-amber-300"
                       : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
@@ -490,14 +490,14 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
                 </span>
-                <span className="text-amber-600 dark:text-amber-300 font-bold">{t.document.compilingDraft} ({activeState})</span>
+                <span className="text-ape-warning-text font-bold">{t.document.compilingDraft} ({activeState})</span>
               </>
             )}
             {isCompleted && (
-              <div className="flex items-center gap-1.5 lowercase tracking-normal font-sans">
+                  <div className="flex items-center gap-1.5 lowercase tracking-normal font-sans">
                 <button
                   onClick={copyToClipboard}
-                  className="px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1 text-[10px] font-bold text-zinc-600 dark:text-zinc-400 cursor-pointer border-0"
+                  className="px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-400 cursor-pointer border-0"
                 >
                   {copied ? (
                     <>
@@ -522,7 +522,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
 
         {/* Paper Title Block */}
         <div className="text-center space-y-3 mb-10">
-          <h1 className="text-2xl md:text-3xl font-extrabold font-sans tracking-tight text-zinc-900 dark:text-zinc-50 leading-tight">
+          <h1 className="ape-document-font text-2xl md:text-3xl font-bold tracking-normal text-zinc-900 dark:text-zinc-50 leading-tight">
             {status?.topic || "Technical Research Paper Draft"}
           </h1>
           <div className="text-[11px] font-sans text-zinc-400 dark:text-zinc-500 tracking-wide uppercase italic">
@@ -535,14 +535,14 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         {context.document_plan && (
           <div className="mb-8 rounded-xl border border-teal-500/20 bg-teal-500/[0.02] dark:bg-teal-500/[0.01] p-5 shadow-xs transition-all duration-300">
             <div className="flex items-center justify-between border-b border-teal-500/10 pb-2 mb-3">
-              <h3 className="text-xs font-sans font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400 flex items-center gap-2 select-none">
-                <FileText className="h-4 w-4 text-teal-500" />
+              <h3 className="text-[13px] font-sans font-bold uppercase tracking-wider text-ape-primary-text flex items-center gap-2 select-none">
+                <FileText className="h-4 w-4 text-ape-primary" />
                 {t.document.documentPlanTitle}
               </h3>
               <button
                 type="button"
                 onClick={() => setShowPlan(!showPlan)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded bg-teal-500/10 hover:bg-teal-500/15 text-teal-700 dark:text-teal-400 text-[10px] font-bold uppercase tracking-wider select-none cursor-pointer border-0 transition-colors"
+                className="flex items-center gap-1 px-2 py-0.5 rounded bg-ape-primary-soft hover:bg-ape-primary-soft/80 text-ape-primary-text text-[11px] font-bold uppercase tracking-wider select-none cursor-pointer border-0 transition-colors"
               >
                 {showPlan ? (
                   <>
@@ -585,7 +585,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                 
                 {/* Section Header */}
                 <div className="flex items-center justify-between mb-3 border-b border-zinc-150/50 dark:border-zinc-800/30 pb-1.5 flex-wrap gap-2">
-                  <h2 className="text-sm font-sans font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200">
+                  <h2 className="ape-document-font text-[17px] font-bold text-zinc-800 dark:text-zinc-200">
                     {sectionTitle}
                   </h2>
                   <div className="flex items-center gap-3">
@@ -593,7 +593,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                       <div className="flex items-center gap-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/80 p-0.5 font-sans">
                         <button
                           onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "preview" }))}
-                          className={`h-5 px-1.5 rounded text-[9px] font-bold cursor-pointer border-0 transition-all ${
+                          className={`h-6 px-2 rounded text-[10px] font-bold cursor-pointer border-0 transition-all ${
                             (sectionViewModes[section.id] || "preview") === "preview"
                               ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
                               : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
@@ -603,7 +603,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                         </button>
                         <button
                           onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "editor" }))}
-                          className={`h-5 px-1.5 rounded text-[9px] font-bold cursor-pointer border-0 transition-all ${
+                          className={`h-6 px-2 rounded text-[10px] font-bold cursor-pointer border-0 transition-all ${
                             sectionViewModes[section.id] === "editor"
                               ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
                               : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
@@ -613,7 +613,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                         </button>
                         <button
                           onClick={() => setSectionViewModes(prev => ({ ...prev, [section.id]: "diff" }))}
-                          className={`h-5 px-1.5 rounded text-[9px] font-bold cursor-pointer border-0 transition-all ${
+                          className={`h-6 px-2 rounded text-[10px] font-bold cursor-pointer border-0 transition-all ${
                             sectionViewModes[section.id] === "diff"
                               ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
                               : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
@@ -624,7 +624,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                       </div>
                     )}
 
-                    <div className="text-[10px] font-sans">
+                    <div className="text-[11px] font-sans">
                       {hasContent && !isDrafting ? (
                         <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
@@ -759,9 +759,9 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         {isCompleted && (
           <div className="mt-16 border-t border-zinc-200/50 dark:border-zinc-800/50 pt-8 flex justify-end animate-in zoom-in duration-500">
             <div className="relative border-4 border-dashed border-emerald-500/80 rounded-xl px-5 py-2.5 font-sans font-black tracking-widest text-emerald-500/80 text-[10px] uppercase select-none rotate-[-4deg] flex flex-col items-center justify-center bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.05)]">
-              <span className="text-[9px] font-normal tracking-wide">Academic PE Engine</span>
+              <span className="text-[10px] font-normal tracking-wide">Academic PE Engine</span>
               <span className="text-base tracking-widest my-0.5">APPROVED</span>
-              <span className="font-mono text-[8px] font-bold opacity-80">
+              <span className="font-mono text-[10px] font-bold opacity-80">
                 COMPILED: {new Date().toISOString().slice(0, 10)}
               </span>
               {/* Subtle visual grunge lines for stamp effect */}

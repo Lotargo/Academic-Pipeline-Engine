@@ -93,14 +93,14 @@ export function ConsolePanel({ status, isOpen, onClose, height, setHeight, t }: 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full bg-zinc-50/95 dark:bg-[#0c0c0e]/95 border-t border-zinc-200 dark:border-zinc-800 shadow-lg flex flex-col z-40 shrink-0 transition-shadow duration-300 ${
+      className={`relative w-full bg-ape-surface-raised/95 border-t border-border shadow-lg flex flex-col z-40 shrink-0 transition-shadow duration-300 ${
         isResizing ? "select-none" : ""
       }`}
       style={{ height: `${height}px` }}
     >
       {/* Resizing Handle & Header */}
       <div
-        className="h-10 border-b border-zinc-200 dark:border-zinc-800/80 px-4 md:px-6 flex items-center justify-between cursor-row-resize relative select-none shrink-0 group/handle hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30 transition-colors"
+        className="h-10 border-b border-border/80 px-4 md:px-6 flex items-center justify-between cursor-row-resize relative select-none shrink-0 group/handle hover:bg-accent/50 transition-colors"
         onMouseDown={handleMouseDown}
       >
         {/* Resize Grip Visual */}
@@ -110,8 +110,8 @@ export function ConsolePanel({ status, isOpen, onClose, height, setHeight, t }: 
 
         {/* Panel Title */}
         <div className="flex items-center gap-2">
-          <Terminal className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-          <span className="text-xs font-mono font-bold tracking-tight text-zinc-700 dark:text-zinc-300">
+          <Terminal className="h-4 w-4 text-ape-primary-text" />
+          <span className="text-[13px] font-mono font-bold tracking-tight text-foreground">
             {t.fsm.console}
           </span>
           
@@ -120,16 +120,16 @@ export function ConsolePanel({ status, isOpen, onClose, height, setHeight, t }: 
             <span className="relative flex h-2 w-2">
               <span
                 className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  isRunning ? "bg-teal-400" : "bg-zinc-400 dark:bg-zinc-600"
+                  isRunning ? "bg-ape-primary" : "bg-muted-foreground"
                 }`}
               />
               <span
                 className={`relative inline-flex rounded-full h-2 w-2 ${
-                  isRunning ? "bg-teal-500" : "bg-zinc-500"
+                  isRunning ? "bg-ape-primary" : "bg-muted-foreground"
                 }`}
               />
             </span>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase">
+            <span className="text-[11px] font-mono text-muted-foreground uppercase">
               {isRunning ? t.fsm.online : t.fsm.paused}
             </span>
           </div>
@@ -143,7 +143,7 @@ export function ConsolePanel({ status, isOpen, onClose, height, setHeight, t }: 
               variant="outline"
               onClick={handleCancel}
               disabled={cancelling}
-              className="h-7 px-3 text-[10px] font-bold uppercase border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/40 gap-1.5 cursor-pointer"
+              className="h-7 px-3 text-[11px] font-bold uppercase border-ape-danger/20 text-ape-danger-text hover:bg-ape-danger-soft hover:border-ape-danger/40 gap-1.5 cursor-pointer"
             >
               <XCircle className="h-3 w-3" />
               {cancelling ? "Cancelling..." : "Cancel"}
@@ -153,15 +153,15 @@ export function ConsolePanel({ status, isOpen, onClose, height, setHeight, t }: 
           <button
             onClick={handleCopyLogs}
             disabled={logs.length === 0}
-            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors disabled:opacity-40 cursor-pointer border-0"
+            className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 cursor-pointer border-0"
             title="Copy Logs"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-ape-success-text" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors cursor-pointer border-0"
+            className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer border-0"
             title="Hide Console"
           >
             <ChevronDown className="h-4 w-4" />
@@ -170,14 +170,14 @@ export function ConsolePanel({ status, isOpen, onClose, height, setHeight, t }: 
       </div>
 
       {/* Log Output Area */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 font-mono text-[11px] md:text-xs space-y-1 bg-white/50 dark:bg-black/20">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 font-mono text-[12px] space-y-1 bg-background/35 dark:bg-black/15">
         <div className="max-w-7xl mx-auto space-y-1.5">
           {logs.map((log: string, idx: number) => {
-            let color = "text-zinc-600 dark:text-zinc-350"
-            if (log.includes("ERROR") || log.includes("[Error]")) color = "text-rose-600 dark:text-red-400 font-semibold"
-            else if (log.includes("WARNING") || log.includes("[FSM] Exiting")) color = "text-amber-600 dark:text-amber-400 font-medium"
-            else if (log.includes("[FSM] Entering") || log.includes("approved")) color = "text-emerald-600 dark:text-emerald-400 font-semibold"
-            else if (log.includes("[Reviewer Feedback]")) color = "text-teal-600 dark:text-teal-400 font-medium"
+            let color = "text-muted-foreground"
+            if (log.includes("ERROR") || log.includes("[Error]")) color = "text-ape-danger-text font-semibold"
+            else if (log.includes("WARNING") || log.includes("[FSM] Exiting")) color = "text-ape-warning-text font-medium"
+            else if (log.includes("[FSM] Entering") || log.includes("approved")) color = "text-ape-success-text font-semibold"
+            else if (log.includes("[Reviewer Feedback]")) color = "text-ape-primary-text font-medium"
 
             return (
               <div key={idx} className={`${color} leading-relaxed break-all font-mono whitespace-pre-wrap`}>
@@ -186,7 +186,7 @@ export function ConsolePanel({ status, isOpen, onClose, height, setHeight, t }: 
             )
           })}
           {logs.length === 0 && (
-            <div className="text-zinc-400 dark:text-zinc-650 italic">
+            <div className="text-muted-foreground italic">
               No logs registered. Start the pipeline process to see execution logs here.
             </div>
           )}

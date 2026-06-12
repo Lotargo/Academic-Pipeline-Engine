@@ -119,14 +119,14 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
     <div className="space-y-5 w-full">
       <form
         onSubmit={handleGenerate}
-        className={`animate-in fade-in slide-in-from-bottom-4 duration-500 rounded-2xl border-2 bg-card p-4 shadow-sm transition-all hover:shadow-md ${
-          isFocused ? "border-teal-500/50 ring-1 ring-teal-500/20" : "border-teal-500/20 hover:border-teal-500/30"
+        className={`animate-in fade-in slide-in-from-bottom-4 duration-500 rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md ${
+          isFocused ? "border-ape-primary/50 ring-1 ring-ape-primary/20" : "border-ape-primary/20 hover:border-ape-primary/30"
         }`}
       >
         <div className="space-y-3">
           {/* Primary Topic Input */}
           <div className="flex items-center gap-2 border-b border-border/60 pb-2">
-            <BookOpen className="h-5 w-5 text-teal-600/70 dark:text-teal-400/70 shrink-0" />
+            <BookOpen className="h-5 w-5 text-ape-primary-text shrink-0" />
             <input
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
@@ -134,7 +134,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               onBlur={() => setIsFocused(false)}
               disabled={disabled}
               placeholder={t.search.topicPlaceholder}
-              className="w-full border-0 bg-transparent text-[14px] md:text-[15px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none py-1.5"
+              className="w-full border-0 bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none py-1.5"
               required
             />
           </div>
@@ -150,16 +150,16 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               disabled={disabled}
               placeholder={t.search.instructionsPlaceholder}
               rows={2}
-              className="w-full border-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none resize-none leading-relaxed py-1 transition-[height] duration-200 ease-out overflow-hidden"
+              className="w-full border-0 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/55 focus:outline-none resize-none leading-relaxed py-1 transition-[height] duration-200 ease-out overflow-hidden"
             />
           </div>
 
           {/* Sandbox Status Banner */}
           {academicMode && (
-            <div className="animate-in fade-in slide-in-from-top-1 duration-300 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/5 border border-amber-500/10 text-[9px] font-sans font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider select-none">
+            <div className="animate-in fade-in slide-in-from-top-1 duration-300 flex items-center gap-1.5 px-3 py-1.5 rounded-lg ape-status-warning border text-[10px] font-sans font-bold uppercase tracking-wider select-none">
               <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ape-warning opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-ape-warning" />
               </span>
               <span>{t.search.sandboxEnabled}</span>
             </div>
@@ -167,19 +167,19 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
 
           {/* Action Footer */}
           <div className="flex items-center justify-between pt-2 border-t border-border/40 gap-4 flex-wrap">
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <Sparkles className="h-3 w-3 text-teal-500 animate-pulse" />
+            <div className="flex items-center gap-1.5 ape-micro">
+              <Sparkles className="h-3 w-3 text-ape-primary animate-pulse" />
               <span>{t.search.footer}</span>
             </div>
             
             {/* Mode Switcher */}
-            <div className="flex items-center gap-1 bg-muted/60 dark:bg-zinc-900/50 p-1 rounded-xl border border-border/50 text-[10px] font-bold">
+            <div className="flex items-center gap-1 bg-muted/60 dark:bg-ape-surface-subtle p-1 rounded-xl border border-border/50 text-[11px] font-bold">
               <button
                 type="button"
                 onClick={() => setAcademicMode(false)}
                 className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
                   !academicMode
-                    ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/15"
+                    ? "ape-status-primary border"
                     : "text-muted-foreground hover:text-foreground bg-transparent"
                 }`}
               >
@@ -190,7 +190,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
                 onClick={() => setAcademicMode(true)}
                 className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
                   academicMode
-                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/15"
+                    ? "ape-status-warning border"
                     : "text-muted-foreground hover:text-foreground bg-transparent"
                 }`}
               >
@@ -201,7 +201,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
             <Button
               type="submit"
               disabled={disabled || !topic.trim()}
-              className="h-8.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs gap-1.5 select-none transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:scale-100"
+              className="h-9 px-4 rounded-xl bg-ape-primary hover:bg-ape-primary/90 text-white font-bold text-xs gap-1.5 select-none transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:scale-100"
             >
               <span>{t.search.compile}</span>
               <ChevronRight className="h-4.5 w-4.5" />
@@ -212,11 +212,11 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
 
       {/* Suggested Templates */}
       <div className="animate-in fade-in slide-in-from-bottom-5 duration-600 space-y-3">
-        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 flex-wrap">
+        <h3 className="ape-label flex items-center gap-1.5 flex-wrap">
           <HelpCircle className="h-3 w-3 shrink-0" />
           <span>{t.search.templates}</span>
           {ttl > 0 && (
-            <span className="px-1.5 py-0.5 text-[8px] bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-full font-mono font-bold uppercase tracking-wider animate-pulse border border-teal-500/15">
+            <span className="px-1.5 py-0.5 text-[9px] bg-ape-primary-soft text-ape-primary-text rounded-full font-mono font-bold uppercase tracking-wider animate-pulse border border-ape-primary/15">
               Refresh in {Math.floor(ttl / 60)}:{(ttl % 60).toString().padStart(2, '0')}
             </span>
           )}
@@ -224,7 +224,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
             type="button"
             onClick={handleManualRefresh}
             disabled={refreshing}
-            className="ml-auto md:ml-2 p-1 text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 rounded transition-all cursor-pointer border-0 bg-transparent flex items-center justify-center disabled:opacity-50"
+            className="ml-auto md:ml-2 p-1 text-ape-primary-text hover:bg-ape-primary-soft rounded transition-all cursor-pointer border-0 bg-transparent flex items-center justify-center disabled:opacity-50"
             title="Generate new templates now"
           >
             <RotateCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
@@ -236,7 +236,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               key={idx}
               type="button"
               onClick={() => loadSuggestion(example.topic, example.instructions)}
-              className="px-3 py-2 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs leading-snug text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer text-left"
+              className="px-3 py-2 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-[13px] leading-snug text-foreground font-semibold hover:border-ape-primary/30 transition-all cursor-pointer text-left"
             >
               {example.topic}
             </button>
