@@ -4,7 +4,7 @@ from academic_pe.core.llm import MockProvider
 from academic_pe.agents.base import DefaultAgent
 from academic_pe.core.template_library import TemplateLibrary
 from academic_pe.core.template_selector import TemplateSelector
-from academic_pe.core.templates import DocumentTemplate, PromptManifest, TemplateSection
+from academic_pe.core.templates import DocumentTemplate, PromptManifest, RuntimePromptManifest, RuntimeTemplate, RuntimeTemplateSource, TemplateSection
 from typing import Dict
 
 
@@ -144,6 +144,67 @@ def test_create_orchestrator_from_config_keeps_custom_sections():
         "conclusion",
     ]
     assert orch.runtime_template.source_template_id == "custom_current"
+
+
+def test_create_orchestrator_from_config_applies_auto_planner_output():
+    class FakePlanner:
+        def plan(self, topic: str, instructions: str = ""):
+            template = DocumentTemplate(
+                id="runtime_poem",
+                name="Runtime Poem",
+                category="creative",
+                sections=[
+                    TemplateSection(
+                        name="poem",
+                        title="Poem",
+                        instruction="Write stanza-oriented poetry.",
+                    )
+                ],
+                prompt_manifest=PromptManifest(
+                    writer_role="Poet",
+                    reviewer_role="Poetry reviewer",
+                    writer_task=f"Write about {topic}.",
+                ),
+            )
+            runtime_template = RuntimeTemplate.from_document_template(template)
+            runtime_template.source = RuntimeTemplateSource.auto
+            runtime_template.source_template_id = None
+            runtime_manifest = RuntimePromptManifest.from_document_template(template)
+            runtime_manifest.source = RuntimeTemplateSource.auto
+            runtime_manifest.source_template_id = None
+            return runtime_template, runtime_manifest
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(
+                role="Writer",
+                model="mock",
+                temperature=0.0,
+                system_prompt="Base writer prompt.",
+            )
+        },
+        pipeline=PipelineConfig(
+            sections=[
+                SectionPrompt(name="theory", topic="Theory", instruction="Explain."),
+            ],
+            template_mode=TemplateMode.auto,
+        ),
+        quality_gate=QualityGateConfig(
+            volume=VolumeGateConfig(enabled=False),
+            latex=LatexGateConfig(enabled=False),
+        ),
+    )
+
+    orch = create_orchestrator_from_config(
+        config,
+        template_selector=TemplateSelector(planner=FakePlanner()),
+        user_topic="daisies",
+    )
+
+    assert [section.name for section in orch._config.pipeline.sections] == ["poem"]
+    assert orch.runtime_template.source == RuntimeTemplateSource.auto
+    assert "Role for this document template: Poet" in orch._writer.config.system_prompt
+    assert "Write about daisies." in orch._writer.config.system_prompt
 
 
 def test_auto_language_uses_user_prompt_language_for_drafting():

@@ -290,7 +290,7 @@ Recommended order before adding external services:
 5. Add `template_mode` and `template_id` to config/API run payload. **Done: 2026-06-12.** Added `TemplateMode` and pipeline fields in `academic_pe/core/config.py`, request models in `academic_pe/api_models.py`, server metadata passthrough in `academic_pe/server.py`, and regenerated `config/frontend_schema.json`.
 6. Add `TemplateSelector`. **Done: 2026-06-12.** Implemented in `academic_pe/core/template_selector.py` with isolated tests in `tests/test_template_selector.py` and integrated through `create_orchestrator_from_config()`.
 7. Add `PromptManifestResolver` to compose base agent prompts with template-specific manifest instructions. **Done: 2026-06-12.** Implemented in `academic_pe/core/prompt_manifest_resolver.py` with tests in `tests/test_prompt_manifest_resolver.py` and integrated before agent creation.
-8. Add `PlannerAgent` for `auto` mode.
+8. Add `PlannerAgent` for `auto` mode. **Done: 2026-06-12.** Implemented in `academic_pe/core/planner_agent.py`, integrated through `TemplateSelector(planner=...)`, and wired into `create_orchestrator_from_config()` when `pipeline.template_mode=auto` and an `agents.planner` config is present.
 9. Store the selected runtime template and runtime prompt manifest in run metadata. **Done: 2026-06-12.** `Orchestrator` now keeps runtime snapshots, and `academic_pe/server.py` writes them to current status, draft metadata, export metadata, and history responses.
 10. Update UI settings so "Document Chapters & Structure" is clearly a template editor, not the global pipeline truth.
 

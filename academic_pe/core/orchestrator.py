@@ -7,7 +7,7 @@ import threading
 from enum import Enum, auto
 from typing import Callable, Dict, List, Optional, Protocol
 
-from academic_pe.core.config import AppConfig, load_config
+from academic_pe.core.config import AppConfig, TemplateMode, load_config
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import detect_language, language_instruction
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, render_template
@@ -392,9 +392,17 @@ def create_orchestrator_from_config(
     renderer: Optional[Renderer] = None,
     template_selector: Optional[TemplateSelector] = None,
     prompt_manifest_resolver: Optional[PromptManifestResolver] = None,
+    user_topic: str = "",
+    user_instructions: str = "",
 ) -> Orchestrator:
-    selector = template_selector or TemplateSelector()
-    runtime_template, runtime_prompt_manifest = selector.select(config)
+    from academic_pe.agents.factory import create_agent
+
+    selector = template_selector or _create_template_selector(config)
+    runtime_template, runtime_prompt_manifest = selector.select(
+        config,
+        topic=user_topic,
+        instructions=user_instructions,
+    )
     resolved_config = _apply_runtime_template(config, runtime_template)
     resolver = prompt_manifest_resolver or PromptManifestResolver()
     resolved_config = resolver.resolve_app_config(resolved_config, runtime_prompt_manifest)
@@ -403,14 +411,12 @@ def create_orchestrator_from_config(
     if not writer_cfg:
         raise ValueError("Writer agent configuration is missing")
 
-    from academic_pe.agents.factory import create_agent
-
     writer = create_agent("writer", resolved_config.agents["writer"], retry_cfg=resolved_config.retry)
     reviewer = None
     if "reviewer" in resolved_config.agents:
         reviewer = create_agent("reviewer", resolved_config.agents["reviewer"], retry_cfg=resolved_config.retry)
 
-    return Orchestrator(
+    orchestrator = Orchestrator(
         writer=writer,
         reviewer=reviewer,
         config=resolved_config,
@@ -418,6 +424,28 @@ def create_orchestrator_from_config(
         runtime_template=runtime_template,
         runtime_prompt_manifest=runtime_prompt_manifest,
     )
+    orchestrator.user_topic = user_topic
+    orchestrator.user_instructions = user_instructions
+    return orchestrator
+
+
+def _create_template_selector(config: AppConfig) -> TemplateSelector:
+    raw_mode = getattr(config.pipeline.template_mode, "value", config.pipeline.template_mode)
+    if TemplateMode(str(raw_mode)) != TemplateMode.auto:
+        return TemplateSelector()
+
+    planner_cfg = config.agents.get("planner")
+    if planner_cfg is None:
+        return TemplateSelector()
+
+    from academic_pe.agents.factory import _build_llm
+    from academic_pe.core.planner_agent import PlannerAgent
+
+    planner = PlannerAgent(
+        planner_cfg,
+        _build_llm(planner_cfg, retry_cfg=config.retry, cb_cfg=config.circuit_breaker),
+    )
+    return TemplateSelector(planner=planner)
 
 
 def create_orchestrator(

@@ -199,7 +199,11 @@ def run_pipeline_thread(
 
         # Initialize orchestrator. Draft generation no longer renders DOCX;
         # export happens only through /api/export/docx.
-        orch = create_orchestrator_from_config(config)
+        orch = create_orchestrator_from_config(
+            config,
+            user_topic=topic or "",
+            user_instructions=instructions or "",
+        )
         with run_lock:
             current_run["runtime_template"] = (
                 orch.runtime_template.model_dump(mode="json")
@@ -215,9 +219,6 @@ def run_pipeline_thread(
         # Store orchestrator for cancellation
         with _orchestrator_lock:
             _current_orchestrator = orch
-        
-        orch.user_topic = topic or ""
-        orch.user_instructions = instructions or ""
         
         # Intercept context modifications to update current_run safely in real time
         def on_context_change(d):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Protocol, Tuple
 
 from academic_pe.core.config import AppConfig, TemplateMode
 from academic_pe.core.template_compat import custom_current_from_config
@@ -20,16 +20,32 @@ class AutoTemplatePlanningRequired(TemplateSelectionError):
     pass
 
 
+class TemplatePlanner(Protocol):
+    def plan(
+        self,
+        topic: str,
+        instructions: str = "",
+    ) -> Tuple[RuntimeTemplate, RuntimePromptManifest]:
+        ...
+
+
 class TemplateSelector:
     def __init__(
         self,
         library: Optional[TemplateLibrary] = None,
         library_path: str | Path = DEFAULT_TEMPLATE_LIBRARY_PATH,
+        planner: Optional[TemplatePlanner] = None,
     ):
         self._library = library
         self._library_path = Path(library_path)
+        self._planner = planner
 
-    def select(self, config: AppConfig) -> Tuple[RuntimeTemplate, RuntimePromptManifest]:
+    def select(
+        self,
+        config: AppConfig,
+        topic: str = "",
+        instructions: str = "",
+    ) -> Tuple[RuntimeTemplate, RuntimePromptManifest]:
         mode = self._template_mode(config)
 
         if mode == TemplateMode.custom:
@@ -46,9 +62,9 @@ class TemplateSelector:
             )
 
         if mode == TemplateMode.auto:
-            raise AutoTemplatePlanningRequired(
-                "template_mode=auto requires PlannerAgent, which is not implemented yet."
-            )
+            if self._planner is None:
+                raise AutoTemplatePlanningRequired("template_mode=auto requires PlannerAgent.")
+            return self._planner.plan(topic=topic, instructions=instructions)
 
         raise TemplateSelectionError(f"Unsupported template mode: {mode}")
 

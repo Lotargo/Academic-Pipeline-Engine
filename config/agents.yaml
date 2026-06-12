@@ -39,6 +39,15 @@ agents:
       APPROVED
       or
       REJECTED: <specific actionable issues separated by semicolons>
+  planner:
+    role: Planner
+    provider: zen
+    model: mimo-v2.5-free
+    temperature: 0.2
+    system_prompt: |-
+      You are a lightweight document template planner.
+
+      Plan only the runtime document structure and prompt manifest. Do not draft document content.
 retry:
   max_retries: 3
   base_delay: 1

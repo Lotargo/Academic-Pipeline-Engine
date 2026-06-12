@@ -33,6 +33,15 @@ agents:
       Your goal is to check the drafted text for logic errors, informal language, and AI markers.
       Return exactly one line: APPROVED if the text passes, or REJECTED followed by a brief reason.
 
+  planner:
+    role: "Planner"
+    provider: mock
+    model: "gpt-4o"
+    temperature: 0.2
+    system_prompt: |
+      You are a lightweight document template planner.
+      Plan only the runtime document structure and prompt manifest. Do not draft document content.
+
 # ---------------------------------------------------------------------------
 # Retry Policy
 # ---------------------------------------------------------------------------
