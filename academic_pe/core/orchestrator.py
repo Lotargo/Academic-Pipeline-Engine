@@ -10,7 +10,8 @@ from typing import Callable, Dict, List, Optional, Protocol
 from academic_pe.core.config import AppConfig, load_config
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import detect_language, language_instruction
-from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, render_template
+from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, render_template
+from academic_pe.core.section_patch import SectionPatchError, apply_search_replace_patch
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ class Orchestrator:
         self.context: Dict[str, str] = {}
         self.user_topic: str = ""
         self.user_instructions: str = ""
+        self._draft_plan: str = ""
         self._state_history: List[PipelineState] = []
         self._hooks: Dict[str, List[HookFn]] = {
             "on_enter": [],
@@ -130,6 +132,31 @@ class Orchestrator:
         for hook in self._section_delta_hooks:
             hook(section_name, delta, accumulated)
 
+    def _set_section_content(self, section_name: str, content: str) -> None:
+        self.context[section_name] = content
+        self._emit_section_delta(section_name, content, content)
+
+    def _document_memory(self, current_section_name: str = "") -> str:
+        parts: List[str] = []
+        if self._draft_plan:
+            parts.append("[Document Plan]\n" + self._draft_plan)
+
+        completed_sections = []
+        for section in self._config.pipeline.sections:
+            if section.name == current_section_name:
+                break
+            content = self.context.get(section.name)
+            if content:
+                completed_sections.append(f"## {section.topic}\n{content}")
+
+        if completed_sections:
+            parts.append("[Already Written Sections]\n" + "\n\n".join(completed_sections))
+
+        if current_section_name and self.context.get(current_section_name):
+            parts.append("[Current Section Before Revision]\n" + self.context[current_section_name])
+
+        return "\n\n".join(parts)
+
     def revert(self) -> PipelineState:
         if not self._state_history:
             raise PipelineError("No previous state to revert to.")
@@ -149,6 +176,19 @@ class Orchestrator:
         try:
             # --- DRAFTING ---
             self.transition_to(PipelineState.DRAFTING)
+            plan_task = render_template(
+                DEFAULT_PLAN_TEMPLATE,
+                {
+                    "sections": self._config.pipeline.sections,
+                    "language": target_language,
+                    "language_instruction": language_instruction(target_language),
+                    "user_topic": self.user_topic,
+                    "user_instructions": self.user_instructions,
+                },
+            )
+            logger.info("Creating document plan before drafting sections.")
+            self._draft_plan = self._writer.process(plan_task)
+
             for section in self._config.pipeline.sections:
                 self._check_cancelled()
                 task = render_template(
@@ -168,7 +208,11 @@ class Orchestrator:
                     draft_parts.append(delta)
                     self._emit_section_delta(section_name, delta, "".join(draft_parts))
 
-                draft_content = self._writer.process(task, on_delta=on_delta)
+                draft_content = self._writer.process(
+                    task,
+                    context=self._document_memory(section.name),
+                    on_delta=on_delta,
+                )
                 if language_policy == "ru" and not has_cyrillic(draft_content):
                     logger.info("Translating section %s to Russian...", section.name)
                     draft_content = translate_markdown_to_ru(draft_content)
@@ -180,6 +224,7 @@ class Orchestrator:
             from academic_pe.agents.writer import ReviewerAgent
 
             max_retries = 3
+            review_focus = ""
             for attempt in range(max_retries):
                 self._check_cancelled()
                 if self._reviewer is None:
@@ -192,7 +237,10 @@ class Orchestrator:
                 critique = self._reviewer.process(
                     render_template(
                         DEFAULT_REVIEW_TEMPLATE,
-                        {"language": target_language},
+                        {
+                            "language": target_language,
+                            "review_focus": review_focus,
+                        },
                     ),
                     context=full_text,
                 )
@@ -212,6 +260,7 @@ class Orchestrator:
                     else critique
                 )
                 logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, reason[:100])
+                review_focus = reason
 
                 if attempt < max_retries - 1:
                     logger.info("Returning to DRAFTING for revision...")
@@ -219,7 +268,7 @@ class Orchestrator:
                     for section in self._config.pipeline.sections:
                         self._check_cancelled()
                         task = render_template(
-                            DEFAULT_REVISION_TEMPLATE,
+                            DEFAULT_PATCH_REVISION_TEMPLATE,
                             {
                                 "section": section,
                                 "reviewer_reason": reason,
@@ -229,17 +278,38 @@ class Orchestrator:
                                 "user_instructions": self.user_instructions,
                             },
                         )
-                        revised_parts: List[str] = []
-
-                        def on_revision_delta(delta: str, section_name: str = section.name) -> None:
-                            revised_parts.append(delta)
-                            self._emit_section_delta(section_name, delta, "".join(revised_parts))
-
-                        revised_content = self._writer.process(task, on_delta=on_revision_delta)
+                        current_content = self.context.get(section.name, "")
+                        patch_text = self._writer.process(
+                            task,
+                            context=self._document_memory(section.name),
+                        )
+                        try:
+                            revised_content = apply_search_replace_patch(current_content, patch_text)
+                        except SectionPatchError as exc:
+                            logger.warning(
+                                "Patch revision failed for section %s: %s. Falling back to full-section revision.",
+                                section.name,
+                                exc,
+                            )
+                            fallback_task = render_template(
+                                DEFAULT_REVISION_TEMPLATE,
+                                {
+                                    "section": section,
+                                    "reviewer_reason": reason,
+                                    "language": target_language,
+                                    "language_instruction": language_instruction(target_language),
+                                    "user_topic": self.user_topic,
+                                    "user_instructions": self.user_instructions,
+                                },
+                            )
+                            revised_content = self._writer.process(
+                                fallback_task,
+                                context=self._document_memory(section.name),
+                            )
                         if language_policy == "ru" and not has_cyrillic(revised_content):
                             logger.info("Translating revised section %s to Russian...", section.name)
                             revised_content = translate_markdown_to_ru(revised_content)
-                        self.context[section.name] = revised_content
+                        self._set_section_content(section.name, revised_content)
                     self.transition_to(PipelineState.REVIEWING)
                 else:
                     logger.error("Max retries reached. Proceeding to rendering with current content.")
