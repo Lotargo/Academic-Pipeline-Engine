@@ -29,7 +29,7 @@ agents:
   reviewer:
     role: Reviewer
     provider: zen
-    model: deepseek-v4-flash-free
+    model: mimo-v2.5-free
     temperature: 0.3
     system_prompt: 'You are a strict academic reviewer for a generated technical document.
 
@@ -114,8 +114,8 @@ pipeline:
   output_filename: Final_Academic_Paper.docx
   output_dir: exports
   language: auto
-  template_mode: auto
-  template_id: null
+  template_mode: fixed
+  template_id: academic_arxiv
 style:
   font_name: Times New Roman
   font_size: 14

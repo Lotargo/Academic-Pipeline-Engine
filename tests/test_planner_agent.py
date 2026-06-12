@@ -85,6 +85,7 @@ def test_planner_agent_parses_runtime_template_and_manifest():
     assert runtime_template.metadata["document_type"] == "poem"
     assert runtime_manifest.source == RuntimeTemplateSource.auto
     assert runtime_manifest.prompt_manifest.writer_role == "Poet"
+    assert isinstance(planner.llm, StaticPlannerProvider)
     assert "Daisies blooming in a field" in planner.llm.calls[0]["user_prompt"]
     assert "Make it gentle." in planner.llm.calls[0]["user_prompt"]
 
@@ -112,3 +113,50 @@ def test_planner_agent_rejects_missing_prompt_manifest():
 }
 """
         )
+
+
+def test_planner_agent_handles_latex_escapes():
+    planner = _planner("{}")
+    
+    # \sigma is an invalid JSON escape character sequence (starts with \s)
+    # \theta is technically a valid JSON escape sequence (\t for tab), but in LaTeX context it is a symbol.
+    # We expect our parser to safely escape both to \\sigma and \\theta, yielding successful parsing and preserving the LaTeX strings.
+    runtime_template, runtime_manifest = planner.parse_plan(
+        """
+{
+  "document_type": "article",
+  "name": "Article with LaTeX",
+  "category": "academic",
+  "language_policy": "auto",
+  "sections": [
+    {
+      "name": "latex_section",
+      "title": "LaTeX Section",
+      "instruction": "Explain the formula for \\theta and \\sigma and standard newline \\n."
+    }
+  ],
+  "prompt_manifest": {
+    "planner_role": "Academic planner",
+    "writer_role": "Writer",
+    "reviewer_role": "Reviewer",
+    "writer_task": "Write prose.",
+    "reviewer_task": "Review text.",
+    "style_contract": {
+      "tone": "formal",
+      "structure": "paragraphs"
+    },
+    "review_rubric": {
+      "required": ["accurate LaTeX"]
+    },
+    "output_constraints": {
+      "markdown_allowed": true,
+      "latex_allowed": true
+    }
+  }
+}
+"""
+    )
+    
+    assert runtime_template.name == "Article with LaTeX"
+    assert "formula for \\theta and \\sigma and standard newline" in runtime_template.sections[0].instruction
+

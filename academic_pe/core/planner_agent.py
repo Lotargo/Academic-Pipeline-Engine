@@ -112,7 +112,9 @@ class PlannerAgent:
 
     def parse_plan(self, raw: str) -> Tuple[RuntimeTemplate, RuntimePromptManifest]:
         try:
-            data = json.loads(_extract_json_object(raw))
+            extracted = _extract_json_object(raw)
+            sanitized = fix_json_escapes(extracted)
+            data = json.loads(sanitized)
         except json.JSONDecodeError as exc:
             raise PlannerAgentError(f"Planner returned invalid JSON: {exc}") from exc
 
@@ -149,6 +151,62 @@ class PlannerAgent:
         if not base_prompt:
             return PLANNER_SYSTEM_PROMPT
         return f"{base_prompt}\n\n{PLANNER_SYSTEM_PROMPT}"
+
+
+def fix_json_escapes(raw_json: str) -> str:
+    result = []
+    in_string = False
+    i = 0
+    n = len(raw_json)
+    while i < n:
+        char = raw_json[i]
+        if not in_string:
+            if char == '"':
+                in_string = True
+            result.append(char)
+            i += 1
+        else:
+            if char == '"':
+                in_string = False
+                result.append(char)
+                i += 1
+            elif char == '\\':
+                if i + 1 < n:
+                    next_char = raw_json[i + 1]
+                    is_latex_or_invalid = False
+                    if next_char in ('t', 'r', 'b', 'f'):
+                        if i + 2 < n and raw_json[i + 2].isalpha():
+                            is_latex_or_invalid = True
+                    
+                    if next_char in ('"', '\\', '/', 'n'):
+                        result.append(char)
+                        result.append(next_char)
+                        i += 2
+                    elif next_char == 'u':
+                        is_unicode = False
+                        if i + 5 < n and all(c in '0123456789abcdefABCDEF' for c in raw_json[i+2:i+6]):
+                            is_unicode = True
+                        if is_unicode:
+                            result.append('\\')
+                            result.append('u')
+                            i += 2
+                        else:
+                            result.append('\\\\')
+                            i += 1
+                    elif next_char in ('t', 'r', 'b', 'f') and not is_latex_or_invalid:
+                        result.append(char)
+                        result.append(next_char)
+                        i += 2
+                    else:
+                        result.append('\\\\')
+                        i += 1
+                else:
+                    result.append('\\\\')
+                    i += 1
+            else:
+                result.append(char)
+                i += 1
+    return "".join(result)
 
 
 def _extract_json_object(raw: str) -> str:
