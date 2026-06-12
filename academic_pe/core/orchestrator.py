@@ -10,7 +10,7 @@ from typing import Callable, Dict, List, Optional, Protocol
 from academic_pe.core.config import AppConfig, TemplateMode, load_config
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import detect_language, language_instruction
-from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, render_template
+from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_search_replace_patch
 from academic_pe.core.template_compat import template_section_to_section_prompt
@@ -95,6 +95,7 @@ class Orchestrator:
         self._section_delta_hooks: List[SectionDeltaFn] = []
         self._transitions: Dict[PipelineState, List[PipelineState]] = dict(_DEFAULT_TRANSITIONS)
         self._cancel_event: threading.Event = threading.Event()
+        self.first_attempt_reason: Optional[str] = None
 
     @property
     def state(self) -> PipelineState:
@@ -220,6 +221,7 @@ class Orchestrator:
                     task,
                     context=self._document_memory(section.name),
                     on_delta=on_delta,
+                    document_sections=self.context,
                 )
                 if language_policy == "ru" and not has_cyrillic(draft_content):
                     logger.info("Translating section %s to Russian...", section.name)
@@ -268,6 +270,8 @@ class Orchestrator:
                     else critique
                 )
                 logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, reason[:100])
+                if self.first_attempt_reason is None:
+                    self.first_attempt_reason = reason
                 review_focus = reason
 
                 if attempt < max_retries - 1:
@@ -290,6 +294,7 @@ class Orchestrator:
                         patch_text = self._writer.process(
                             task,
                             context=self._document_memory(section.name),
+                            document_sections=self.context,
                         )
                         try:
                             revised_content = apply_search_replace_patch(current_content, patch_text)
@@ -313,11 +318,50 @@ class Orchestrator:
                             revised_content = self._writer.process(
                                 fallback_task,
                                 context=self._document_memory(section.name),
+                                document_sections=self.context,
                             )
                         if language_policy == "ru" and not has_cyrillic(revised_content):
                             logger.info("Translating revised section %s to Russian...", section.name)
                             revised_content = translate_markdown_to_ru(revised_content)
                         self._set_section_content(section.name, revised_content)
+
+                    # --- Self-Verification Step ---
+                    if self.first_attempt_reason:
+                        logger.info("Starting writer self-verification against first reviewer feedback...")
+                        for section in self._config.pipeline.sections:
+                            self._check_cancelled()
+                            verified = False
+                            for verify_attempt in range(2):
+                                verify_task = render_template(
+                                    DEFAULT_VERIFY_TEMPLATE,
+                                    {
+                                        "section": section,
+                                        "first_attempt_reason": self.first_attempt_reason,
+                                        "language": target_language,
+                                        "language_instruction": language_instruction(target_language),
+                                        "user_topic": self.user_topic,
+                                        "user_instructions": self.user_instructions,
+                                    }
+                                )
+                                response = self._writer.process(
+                                    verify_task,
+                                    context=self._document_memory(section.name),
+                                    document_sections=self.context,
+                                )
+                                if response.strip() == "VERIFIED":
+                                    logger.info("Section %s verified successfully.", section.name)
+                                    verified = True
+                                    break
+                                else:
+                                    logger.warning(
+                                        "Section %s verification failed. Writer corrected the text (attempt %d/2).",
+                                        section.name, verify_attempt + 1
+                                    )
+                                    if language_policy == "ru" and not has_cyrillic(response):
+                                        logger.info("Translating verified section %s to Russian...", section.name)
+                                        response = translate_markdown_to_ru(response)
+                                    self._set_section_content(section.name, response)
+
                     self.transition_to(PipelineState.REVIEWING)
                 else:
                     logger.error("Max retries reached. Proceeding to rendering with current content.")

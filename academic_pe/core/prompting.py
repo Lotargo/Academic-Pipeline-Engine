@@ -98,8 +98,19 @@ Expected document language: {{ language }}.
 If the text passes, return exactly: APPROVED
 Reject only for concrete issues that materially harm correctness, coherence, or renderability.
 Do not reject for minor preference, harmless wording, or label differences such as "section" vs "chapter" unless they create an actual broken reference.
-If a review focus is provided, first verify whether those issues are fixed. Add new issues only when they are severe regressions or major contradictions.
+If a review focus is provided, first verify whether those issues are fixed. You MUST carefully verify whether all those issues are completely fixed. If any of those issues are still present (even partially, such as remaining foreign characters or partially corrected terms), you MUST reject again. Add new issues only when they are severe regressions or major contradictions.
 If the text fails, return exactly one line starting with REJECTED: followed by at most three specific actionable issues separated by semicolons.
+"""
+
+
+DEFAULT_VERIFY_TEMPLATE = """You are the Writer agent. Your task is to verify if the text of section '{{ section.topic }}' is free of the specific errors identified by the reviewer in their first rejection:
+{{ first_attempt_reason }}
+
+Do not look for or fix any other issues; focus only on the errors listed above.
+If the section text is completely free of those errors, reply with exactly:
+VERIFIED
+
+If any of those errors are still present, correct them and return the final corrected Markdown text of this section. Do not return diffs, search/replace blocks, edit instructions, or explanations.
 """
 
 

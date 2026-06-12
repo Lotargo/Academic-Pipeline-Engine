@@ -4,6 +4,8 @@ from typing import Callable, Optional
 from academic_pe.core.config import AgentConfig
 from academic_pe.core.llm import LLMProvider, _call_provider_generate
 
+from typing import Callable, Optional, Dict
+
 StreamCallback = Callable[[str], None]
 
 
@@ -18,6 +20,7 @@ class BaseAgent(ABC):
         task_description: str,
         context: Optional[str] = None,
         on_delta: Optional[StreamCallback] = None,
+        document_sections: Optional[Dict[str, str]] = None,
     ) -> str:
         ...
 
@@ -28,6 +31,7 @@ class DefaultAgent(BaseAgent):
         task_description: str,
         context: Optional[str] = None,
         on_delta: Optional[StreamCallback] = None,
+        document_sections: Optional[Dict[str, str]] = None,
     ) -> str:
         system_prompt = self.config.system_prompt
         if context:

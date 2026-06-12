@@ -105,3 +105,41 @@ class TestAgentFactory:
             assert False, "Should have raised ValueError"
         except ValueError as e:
             assert "nonexistent" in str(e)
+
+
+def test_writer_agent_grep_loop():
+    from academic_pe.agents.writer import WriterAgent
+    
+    class GrepMockProvider(MockProvider):
+        def __init__(self):
+            self.calls = 0
+            self.last_user_prompt = ""
+            
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            self.calls += 1
+            self.last_user_prompt = user_prompt
+            if self.calls == 1:
+                return "USE_GREP: 纯洁"
+            return "This is the final text without chinese characters."
+            
+    cfg = AgentConfig(
+        role="Writer",
+        model="gpt-mock",
+        temperature=0.0,
+        system_prompt="You are a writer.",
+    )
+    llm = GrepMockProvider()
+    agent = WriterAgent(cfg, llm)
+    
+    doc_sections = {
+        "intro": "Введение с ромашкой.",
+        "theory": "Теория с китайскими символами: 纯洁 и 种子.",
+    }
+    
+    result = agent.process("Task description", document_sections=doc_sections)
+    
+    assert llm.calls == 2
+    assert "Grep tool matches:" in llm.last_user_prompt
+    assert "Section 'theory'" in llm.last_user_prompt
+    assert "纯洁" in llm.last_user_prompt
+    assert result == "This is the final text without chinese characters."

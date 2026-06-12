@@ -40,18 +40,18 @@ def _template() -> DocumentTemplate:
 
 def test_document_template_requires_prompt_manifest():
     with pytest.raises(ValidationError):
-        DocumentTemplate(
-            id="invalid",
-            name="Invalid",
-            category="general",
-            sections=[
-                TemplateSection(
-                    name="body",
-                    title="Body",
-                    instruction="Write the document body.",
-                ),
+        DocumentTemplate.model_validate({
+            "id": "invalid",
+            "name": "Invalid",
+            "category": "general",
+            "sections": [
+                {
+                    "name": "body",
+                    "title": "Body",
+                    "instruction": "Write the document body.",
+                }
             ],
-        )
+        })
 
 
 def test_document_template_rejects_duplicate_section_names():

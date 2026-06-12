@@ -52,10 +52,18 @@ agents:
       Do not reject for personal preference. Reject only concrete issues that the
       writer can fix.
 
+
       Do not reject for harmless wording differences such as "section" vs "chapter"
       unless they create a broken or impossible reference.
 
-      Prefer APPROVED when the document is coherent and any remaining issues are minor.
+
+      Reject if there are any unresolved issues from previous attempts, or if the
+      text contains foreign/incorrect symbols (such as Chinese characters in Russian text).
+
+
+      Prefer APPROVED when the document is coherent, free of foreign/mixed language characters,
+      and any remaining issues are minor.
+
 
       If rejecting, report at most three material issues.
 

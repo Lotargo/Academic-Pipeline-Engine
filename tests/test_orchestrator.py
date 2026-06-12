@@ -1,5 +1,5 @@
 from academic_pe.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError, create_orchestrator_from_config
-from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig, SectionPrompt, TemplateMode
+from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig, SectionPrompt, TemplateMode, LanguagePolicy
 from academic_pe.core.llm import MockProvider
 from academic_pe.agents.base import DefaultAgent
 from academic_pe.core.template_library import TemplateLibrary
@@ -128,6 +128,7 @@ def test_create_orchestrator_from_config_applies_fixed_template_and_manifest():
     )
 
     assert [section.name for section in orch._config.pipeline.sections] == ["problem"]
+    assert orch.runtime_template is not None
     assert orch.runtime_template.source_template_id == "technical_note"
     assert "Role for this document template: Technical writer" in orch._writer.config.system_prompt
     assert "Write a concise technical note." in orch._writer.config.system_prompt
@@ -143,6 +144,7 @@ def test_create_orchestrator_from_config_keeps_custom_sections():
         "calculation",
         "conclusion",
     ]
+    assert orch.runtime_template is not None
     assert orch.runtime_template.source_template_id == "custom_current"
 
 
@@ -202,6 +204,7 @@ def test_create_orchestrator_from_config_applies_auto_planner_output():
     )
 
     assert [section.name for section in orch._config.pipeline.sections] == ["poem"]
+    assert orch.runtime_template is not None
     assert orch.runtime_template.source == RuntimeTemplateSource.auto
     assert "Role for this document template: Poet" in orch._writer.config.system_prompt
     assert "Write about daisies." in orch._writer.config.system_prompt
@@ -209,13 +212,13 @@ def test_create_orchestrator_from_config_applies_auto_planner_output():
 
 def test_auto_language_uses_user_prompt_language_for_drafting():
     config = _make_config()
-    config.pipeline.language = "auto"
+    config.pipeline.language = LanguagePolicy.auto
 
     class CapturingProvider(MockProvider):
         def __init__(self):
             self.prompts = []
 
-        def generate(self, system_prompt, user_prompt, model, temperature):
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
             self.prompts.append(user_prompt)
             return "APPROVED" if "Check the provided text" in user_prompt else "English draft content for the section."
 
@@ -231,13 +234,13 @@ def test_auto_language_uses_user_prompt_language_for_drafting():
 
 def test_auto_language_detects_russian_user_prompt():
     config = _make_config()
-    config.pipeline.language = "auto"
+    config.pipeline.language = LanguagePolicy.auto
 
     class CapturingProvider(MockProvider):
         def __init__(self):
             self.prompts = []
 
-        def generate(self, system_prompt, user_prompt, model, temperature):
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
             self.prompts.append(user_prompt)
             return "Текст раздела на русском языке."
 
@@ -282,7 +285,7 @@ def test_reviewer_loop_rejected_then_approved():
     call_count = 0
 
     class ConditionalMock(MockProvider):
-        def generate(self, system_prompt, user_prompt, model, temperature):
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
             nonlocal call_count
             call_count += 1
             if call_count <= 1:
@@ -318,7 +321,7 @@ def test_reviewer_loop_rejected_then_approved():
 
 def test_pipeline_failure_transitions_to_failed():
     class FailingProvider(MockProvider):
-        def generate(self, system_prompt, user_prompt, model, temperature):
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
             raise RuntimeError("LLM crashed")
 
     config = _make_config()
@@ -446,3 +449,74 @@ class TestRecovery:
         orch.transition_to(PipelineState.DRAFTING)
         orch.transition_to(PipelineState.REVIEWING)
         assert len(orch._state_history) == 2
+
+
+def test_self_verification_workflow():
+    from academic_pe.agents.writer import WriterAgent, ReviewerAgent
+    from academic_pe.core.config import QualityGateConfig, VolumeGateConfig, LatexGateConfig
+    
+    # Mock LLM provider that controls the flow
+    class FlowMockProvider(MockProvider):
+        def __init__(self):
+            self.review_calls = 0
+            self.writer_calls = 0
+            self.verify_calls = 0
+            
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            # If called for review
+            if "Check the provided text for material academic quality issues" in user_prompt:
+                self.review_calls += 1
+                if self.review_calls == 1:
+                    return "REJECTED: contains chinese symbols like 纯洁"
+                return "APPROVED"
+                
+            # If called for verification/writing
+            if "Your task is to verify if the text of section" in user_prompt:
+                self.verify_calls += 1
+                if self.verify_calls == 1:
+                    # First verify fails, returns corrected text
+                    return "Corrected section text without chinese characters."
+                # Second verify passes
+                return "VERIFIED"
+                
+            self.writer_calls += 1
+            # Normal drafting/revision response
+            if "Revise the section" in user_prompt or "minimal patch" in user_prompt:
+                return "Corrected draft section."
+            return "Initial draft section."
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(
+                role="Writer", model="mock", temperature=0.0,
+                system_prompt="Writer prompt.",
+            ),
+            "reviewer": AgentConfig(
+                role="Reviewer", model="mock", temperature=0.0,
+                system_prompt="Reviewer prompt.",
+            ),
+        },
+        quality_gate=QualityGateConfig(
+            volume=VolumeGateConfig(enabled=False),
+            latex=LatexGateConfig(enabled=False),
+        ),
+    )
+    
+    llm = FlowMockProvider()
+    writer = WriterAgent(config.agents["writer"], llm)
+    reviewer = ReviewerAgent(config.agents["reviewer"], llm)
+    
+    orch = Orchestrator(writer=writer, reviewer=reviewer, config=config)
+    
+    result = orch.run_pipeline(render_artifact=False)
+    
+    assert orch.state == PipelineState.DONE
+    # Verify first rejection was captured
+    assert orch.first_attempt_reason == "contains chinese symbols like 纯洁"
+    # Verify review was called twice (first rejects, second approves after revision/verification)
+    assert llm.review_calls == 2
+    # Verify self-verification was called
+    assert llm.verify_calls > 0
+    # The final context of sections should be corrected
+    assert "theory" in orch.context
+    assert orch.context["theory"] == "Corrected section text without chinese characters."
