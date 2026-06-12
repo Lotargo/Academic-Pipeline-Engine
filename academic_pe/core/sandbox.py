@@ -34,17 +34,23 @@ def run_code_in_sandbox(code: str, timeout_seconds: int = 15) -> SandboxResult:
         with os.fdopen(fd, "w", encoding="utf-8") as tmp:
             tmp.write(code)
 
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+
         result = subprocess.run(
-            [sys.executable, path],
+            [sys.executable, "-X", "utf8", path],
             capture_output=True,
             text=True,
             timeout=timeout_seconds,
             encoding="utf-8",
+            errors="replace",
+            env=env,
         )
         return SandboxResult(
             success=(result.returncode == 0),
-            stdout=result.stdout,
-            stderr=result.stderr,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
             exit_code=result.returncode,
         )
     except subprocess.TimeoutExpired as e:

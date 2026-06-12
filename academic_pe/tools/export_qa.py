@@ -67,7 +67,7 @@ def inspect_docx_artifacts(docx_path: str, required_sections: List[str]) -> List
         issues.append(ExportIssue("error", "DOCX contains raw dollar signs from LaTeX formulas."))
 
     for section in required_sections:
-        if section not in full_text and not any(section in paragraph.style.name.lower() for paragraph in document.paragraphs):
+        if section not in full_text and not any(section in getattr(paragraph.style, "name", "").lower() for paragraph in document.paragraphs):
             continue
 
     for table in document.tables:
@@ -96,7 +96,7 @@ def render_docx_pages(docx_path: str, qa_dir: str) -> RenderResult:
             tmp_dir,
             docx_path,
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, errors="replace")
         if proc.returncode != 0:
             return RenderResult(
                 status="failed",

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Search, Sparkles, BookOpen, ChevronRight, HelpCircle, RotateCw } from "lucide-react"
 import type { Messages } from "@/lib/i18n"
@@ -20,6 +20,15 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
   const [examples, setExamples] = useState<{ topic: string; instructions: string }[]>([])
   const [ttl, setTtl] = useState<number>(0)
   const [refreshing, setRefreshing] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    textarea.style.height = "auto"
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [instructions])
 
   const handleManualRefresh = async () => {
     if (refreshing) return
@@ -133,6 +142,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
           {/* Guidelines Textarea */}
           <div className="pt-1">
             <textarea
+              ref={textareaRef}
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
               onFocus={() => setIsFocused(true)}
@@ -140,7 +150,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               disabled={disabled}
               placeholder={t.search.instructionsPlaceholder}
               rows={2}
-              className="w-full border-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none resize-none leading-relaxed py-1"
+              className="w-full border-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none resize-none leading-relaxed py-1 transition-[height] duration-200 ease-out overflow-hidden"
             />
           </div>
 
