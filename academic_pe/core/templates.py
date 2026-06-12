@@ -23,7 +23,7 @@ class TemplateSection(BaseModel):
 
     name: str = Field(..., min_length=1)
     title: str = Field(..., min_length=1)
-    instruction: str = Field(..., min_length=1)
+    instruction: str = ""
     topic: Optional[str] = None
 
 

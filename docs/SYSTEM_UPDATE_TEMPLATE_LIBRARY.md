@@ -285,7 +285,7 @@ Recommended order before adding external services:
 
 1. Add `DocumentTemplate`, `PromptManifest`, `RuntimeTemplate`, and `RuntimePromptManifest` Pydantic models. **Done: 2026-06-12.** Implemented in `academic_pe/core/templates.py` with validation tests in `tests/test_templates.py`.
 2. Add file-backed `TemplateLibrary`. **Done: 2026-06-12.** Implemented in `academic_pe/core/template_library.py` with YAML loading and validation tests in `tests/test_template_library.py`.
-3. Move existing `pipeline.sections` into `custom_current` compatibility mode.
+3. Move existing `pipeline.sections` into `custom_current` compatibility mode. **Done: 2026-06-12.** Implemented in `academic_pe/core/template_compat.py` with tests in `tests/test_template_compat.py`.
 4. Add built-in templates in `config/document_templates.yaml`.
 5. Add `template_mode` and `template_id` to config/API run payload.
 6. Add `TemplateSelector`.
