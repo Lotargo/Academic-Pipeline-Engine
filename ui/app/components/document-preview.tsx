@@ -52,6 +52,16 @@ export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPre
       }
       setExportedFilename(data.filename)
       setExportReport(data)
+
+      // Auto-trigger browser download
+      const downloadUrl = `/api/download/${data.filename}`
+      const link = document.createElement("a")
+      link.href = downloadUrl
+      link.setAttribute("download", data.filename)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
       if (data.status === "passed") {
         toast.success("DOCX export passed quality checks")
       } else {
@@ -81,86 +91,187 @@ export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPre
   const renderMarkdown = (text: string) => {
     if (!text) return <p className="italic text-muted-foreground">{t.document.empty}</p>
 
-    const lines = text.replace(/\\\[((?:.|\n)*?)\\\]/g, "\n$$$1$$\n").split("\n")
+    const lines = text.split("\n")
+    const elements: React.ReactNode[] = []
+    
+    let currentBlockType: "paragraph" | "list" | "table" | "block_math" | null = null
+    let accumulatedLines: string[] = []
+    
+    const flushBlock = (key: string | number) => {
+      if (accumulatedLines.length === 0) return
+      
+      const blockText = accumulatedLines.join("\n")
+      
+      if (currentBlockType === "block_math") {
+        let mathText = blockText.trim()
+        if (mathText.startsWith("$$") && mathText.endsWith("$$")) {
+          mathText = mathText.slice(2, -2)
+        } else if (mathText.startsWith("\\[") && mathText.endsWith("\\]")) {
+          mathText = mathText.slice(2, -2)
+        } else if (mathText.startsWith("$$")) {
+          mathText = mathText.slice(2)
+        } else if (mathText.endsWith("$$")) {
+          mathText = mathText.slice(0, -2)
+        } else if (mathText.startsWith("\\[")) {
+          mathText = mathText.slice(2)
+        } else if (mathText.endsWith("\\]")) {
+          mathText = mathText.slice(0, -2)
+        }
+        elements.push(
+          <div key={`math-${key}`} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
+            {formatMath(mathText)}
+          </div>
+        )
+      } else if (currentBlockType === "table") {
+        const rows = accumulatedLines.map(line => {
+          const cells = line.split("|").map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1)
+          return cells
+        }).filter(row => row.length > 0 && !row.every(cell => cell.includes("---")))
+        
+        elements.push(
+          <div key={`table-${key}`} className="overflow-x-auto my-2 border border-border/80 rounded-md">
+            <table className="min-w-full border-collapse border border-border/80 text-xs">
+              <tbody>
+                {rows.map((row, ridx) => (
+                  <tr key={ridx} className={ridx === 0 ? "bg-accent/40 font-semibold" : "bg-accent/10"}>
+                    {row.map((cell, cidx) => (
+                      <td key={cidx} className="border border-border/85 px-3 py-2 font-mono">{parseInlineStyles(cell)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      } else if (currentBlockType === "list") {
+        elements.push(
+          <ul key={`list-${key}`} className="list-disc list-inside pl-4 my-1 space-y-1">
+            {accumulatedLines.map((line, lidx) => {
+              const match = line.match(/^[-*]\s+(.+)$/)
+              const body = match ? match[1] : line
+              return <li key={lidx}>{parseInlineStyles(body)}</li>
+            })}
+          </ul>
+        )
+      } else if (currentBlockType === "paragraph") {
+        const joinedText = accumulatedLines.join(" ")
+        elements.push(
+          <p key={`p-${key}`} className="indent-6 text-justify mb-4 leading-relaxed">{parseInlineStyles(joinedText)}</p>
+        )
+      }
+      
+      accumulatedLines = []
+      currentBlockType = null
+    }
+    
+    let inMathBlock = false
+    let mathDelimiter: "$$" | "\\]" | null = null
+    
+    lines.forEach((line, idx) => {
+      const stripped = line.trim()
+      
+      if (!inMathBlock) {
+        if (stripped.startsWith("$$")) {
+          flushBlock(idx)
+          inMathBlock = true
+          mathDelimiter = "$$"
+          accumulatedLines.push(line)
+          currentBlockType = "block_math"
+          if (stripped.length > 2 && stripped.endsWith("$$")) {
+            inMathBlock = false
+            flushBlock(idx)
+          }
+          return
+        } else if (stripped.startsWith("\\[")) {
+          flushBlock(idx)
+          inMathBlock = true
+          mathDelimiter = "\\]"
+          accumulatedLines.push(line)
+          currentBlockType = "block_math"
+          if (stripped.length > 2 && stripped.endsWith("\\]")) {
+            inMathBlock = false
+            flushBlock(idx)
+          }
+          return
+        }
+      } else {
+        accumulatedLines.push(line)
+        if ((mathDelimiter === "$$" && stripped.endsWith("$$")) || (mathDelimiter === "\\]" && stripped.endsWith("\\]"))) {
+          inMathBlock = false
+          flushBlock(idx)
+        }
+        return
+      }
+      
+      if (!stripped) {
+        flushBlock(idx)
+        return
+      }
+      
+      if (stripped.startsWith("### ")) {
+        flushBlock(idx)
+        elements.push(
+          <h3 key={`h3-${idx}`} className="text-base md:text-lg font-semibold font-sans tracking-normal pt-2 text-foreground">
+            {stripped.slice(4)}
+          </h3>
+        )
+        return
+      }
+      if (stripped.startsWith("## ")) {
+        flushBlock(idx)
+        elements.push(
+          <h2 key={`h2-${idx}`} className="text-lg md:text-xl font-bold font-sans tracking-tight pt-3 text-foreground">
+            {stripped.slice(3)}
+          </h2>
+        )
+        return
+      }
+      if (stripped.startsWith("# ")) {
+        flushBlock(idx)
+        elements.push(
+          <h1 key={`h1-${idx}`} className="text-xl md:text-2xl font-bold font-sans tracking-tight border-b pb-2 pt-4 text-foreground">
+            {stripped.slice(2)}
+          </h1>
+        )
+        return
+      }
+      
+      if (stripped.startsWith("|")) {
+        if (currentBlockType !== "table") {
+          flushBlock(idx)
+          currentBlockType = "table"
+        }
+        accumulatedLines.push(line)
+        return
+      }
+      
+      if (stripped.startsWith("- ") || stripped.startsWith("* ")) {
+        if (currentBlockType !== "list") {
+          flushBlock(idx)
+          currentBlockType = "list"
+        }
+        accumulatedLines.push(line)
+        return
+      }
+      
+      if (currentBlockType !== "paragraph") {
+        flushBlock(idx)
+        currentBlockType = "paragraph"
+      }
+      accumulatedLines.push(line)
+    })
+    
+    flushBlock("final")
     return (
       <div className="space-y-4 font-serif text-[15px] leading-relaxed text-foreground antialiased select-text">
-        {lines.map((line, idx) => {
-          const stripped = line.trim()
-          if (!stripped) return null
-
-          // H1
-          if (stripped.startsWith("### ")) {
-            return (
-              <h3 key={idx} className="text-base md:text-lg font-semibold font-sans tracking-normal pt-2 text-foreground">
-                {stripped.slice(4)}
-              </h3>
-            )
-          }
-
-          if (stripped.startsWith("## ")) {
-            return (
-              <h2 key={idx} className="text-lg md:text-xl font-bold font-sans tracking-tight pt-3 text-foreground">
-                {stripped.slice(3)}
-              </h2>
-            )
-          }
-
-          if (stripped.startsWith("# ")) {
-            return (
-              <h1 key={idx} className="text-xl md:text-2xl font-bold font-sans tracking-tight border-b pb-2 pt-4 text-foreground">
-                {stripped.slice(2)}
-              </h1>
-            )
-          }
-
-          if (stripped.startsWith("$$") && stripped.endsWith("$$")) {
-            return (
-              <div key={idx} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
-                {formatMath(stripped.slice(2, -2))}
-              </div>
-            )
-          }
-
-          // Table Line
-          if (stripped.startsWith("|")) {
-            // Check if separator line
-            if (stripped.includes("---")) return null
-            const cells = stripped.split("|").map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1)
-            return (
-              <div key={idx} className="overflow-x-auto my-2">
-                <table className="min-w-full border-collapse border border-border/80 text-xs">
-                  <tbody>
-                    <tr className="bg-accent/40">
-                      {cells.map((cell, cidx) => (
-                        <td key={cidx} className="border border-border/85 px-3 py-2 font-mono">{parseInlineStyles(cell)}</td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )
-          }
-
-          // Bullet point
-          if (stripped.startsWith("- ") || stripped.startsWith("* ")) {
-            return (
-              <ul key={idx} className="list-disc list-inside pl-4 my-1">
-                <li>{parseInlineStyles(stripped.slice(2))}</li>
-              </ul>
-            )
-          }
-
-          // Standard paragraph
-          return <p key={idx} className="indent-6 text-justify">{parseInlineStyles(stripped)}</p>
-        })}
+        {elements}
       </div>
     )
   }
 
   // Parse bold, italic, and math ($...$, $$...$$) inline
   const parseInlineStyles = (text: string) => {
-    // Escape standard replacements
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\\\(.*?\\\)|\$\$.*?\$\$|\$.*?\$)/g)
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\\\(.*?\\\)|\\\[.*?\\\]|\$\$.*?\$\$|\$.*?\$)/g)
 
     return parts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**")) {
@@ -170,6 +281,13 @@ export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPre
         return <em key={index} className="italic">{part.slice(1, -1)}</em>
       }
       if (part.startsWith("$$") && part.endsWith("$$")) {
+        return (
+          <span key={index} className="block my-3 py-2 px-4 rounded bg-accent/20 font-mono text-center text-xs border border-border/40 select-all">
+            {formatMath(part.slice(2, -2))}
+          </span>
+        )
+      }
+      if (part.startsWith("\\[") && part.endsWith("\\]")) {
         return (
           <span key={index} className="block my-3 py-2 px-4 rounded bg-accent/20 font-mono text-center text-xs border border-border/40 select-all">
             {formatMath(part.slice(2, -2))}

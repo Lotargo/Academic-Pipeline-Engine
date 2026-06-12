@@ -120,3 +120,5 @@ desktop.ini
 config/secrets.json
 *.docx
 *.png
+exports/_metadata/
+exports_metadata/

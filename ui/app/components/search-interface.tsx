@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Sidebar } from "./sidebar"
 import { SearchBar } from "./search-bar"
 import { ConfigEditor } from "./config-editor"
@@ -21,6 +21,7 @@ export function Search() {
   const [activeTab, setActiveTab] = useState<string>("workspace")
   const [historyList, setHistoryList] = useState<any[]>([])
   const [selectedPaper, setSelectedPaper] = useState<any>(null)
+  const notifiedRef = useRef(false)
   
   // Pipeline status state
   const [status, setStatus] = useState<any>({
@@ -32,7 +33,8 @@ export function Search() {
     docx_filename: null,
     export_report: null,
     error: null,
-    topic: ""
+    topic: "",
+    active_section: null
   })
 
   const fetchStatus = async () => {
@@ -41,10 +43,12 @@ export function Search() {
       if (res.ok) {
         const data = await res.json()
         setStatus(data)
+        return data
       }
     } catch (e) {
       console.error("Error fetching pipeline status on mount:", e)
     }
+    return null
   }
 
   const fetchLanguage = async () => {
@@ -71,48 +75,51 @@ export function Search() {
   useEffect(() => {
     let interval: any
     let events: EventSource | null = null
-    let notified = false
-    if (status.status === "RUNNING" && typeof window !== "undefined" && "EventSource" in window) {
-      events = new EventSource("/api/status/stream")
-      events.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-        setStatus(data)
-        if (data.status === "COMPLETED" && !notified) {
-          notified = true
-          fetchHistory()
-          toast.success(t.workspace.generated)
-          events?.close()
-        } else if (data.status === "FAILED" && !notified) {
-          notified = true
-          toast.error(t.fsm.failed)
-          events?.close()
-        } else if (data.status === "CANCELLED" && !notified) {
-          notified = true
-          toast.info("Pipeline was cancelled")
+
+    const handleStatusUpdate = (data: any) => {
+      setStatus(data)
+      if (data.status === "COMPLETED" && !notifiedRef.current) {
+        notifiedRef.current = true
+        fetchHistory()
+        toast.success(t.workspace.generated)
+        events?.close()
+      } else if (data.status === "FAILED" && !notifiedRef.current) {
+        notifiedRef.current = true
+        toast.error(t.fsm.failed)
+        events?.close()
+      } else if (data.status === "CANCELLED" && !notifiedRef.current) {
+        notifiedRef.current = true
+        toast.info("Pipeline was cancelled")
+        events?.close()
+      }
+    }
+
+    if (status.status === "RUNNING") {
+      if (typeof window !== "undefined" && "EventSource" in window) {
+        events = new EventSource("/api/status/stream")
+        events.onmessage = (event) => {
+          handleStatusUpdate(JSON.parse(event.data))
+        }
+        events.onerror = () => {
+          console.warn("SSE stream connection error; HTTP polling remains active.")
           events?.close()
         }
       }
-      events.onerror = () => events?.close()
-    } else if (status.status === "RUNNING") {
+
       interval = setInterval(async () => {
-        const res = await fetch("/api/status")
-        if (res.ok) {
-          const data = await res.json()
-          setStatus(data)
-          if (data.status === "COMPLETED" && !notified) {
-            notified = true
-            fetchHistory()
-            toast.success(t.workspace.generated)
-          } else if (data.status === "FAILED" && !notified) {
-            notified = true
-            toast.error(t.fsm.failed)
-          } else if (data.status === "CANCELLED" && !notified) {
-            notified = true
-            toast.info("Pipeline was cancelled")
+        try {
+          const res = await fetch("/api/status")
+          if (res.ok) {
+            handleStatusUpdate(await res.json())
           }
+        } catch (e) {
+          console.error("HTTP status polling error:", e)
         }
       }, 1000)
+    } else {
+      notifiedRef.current = false
     }
+
     return () => {
       clearInterval(interval)
       events?.close()
@@ -132,9 +139,13 @@ export function Search() {
   }
 
   const handleStartGeneration = async (topic: string, instructions: string) => {
-    // Reset local state first
+    notifiedRef.current = false
+    
+    // Switch to FSM visualization tab immediately; the backend status becomes
+    // the source of truth after /api/run accepts the job.
+    setActiveTab("fsm")
     setStatus({
-      status: "RUNNING",
+      status: "STARTING",
       state: "INIT",
       logs: ["Triggering pipeline..."],
       context: {},
@@ -142,11 +153,9 @@ export function Search() {
       docx_filename: null,
       export_report: null,
       error: null,
-      topic: topic
+      topic: topic,
+      active_section: null
     })
-    
-    // Switch to FSM visualization tab
-    setActiveTab("fsm")
     
     try {
       const res = await fetch("/api/run", {
@@ -157,6 +166,16 @@ export function Search() {
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.detail || "Failed to start pipeline")
+      }
+      const serverStatus = await fetchStatus()
+      if (!serverStatus || serverStatus.status !== "RUNNING") {
+        setStatus((prev: any) => ({
+          ...prev,
+          status: "RUNNING",
+          state: serverStatus?.state || "INIT",
+          logs: serverStatus?.logs || prev.logs,
+          topic: serverStatus?.topic || topic,
+        }))
       }
       toast.info(t.nav.pipelineDrafting)
     } catch (e: any) {
@@ -192,39 +211,41 @@ export function Search() {
             <span className="text-xs font-black text-foreground truncate max-w-[200px] md:max-w-md">
               {selectedPaper
                 ? selectedPaper.topic
-                : status.status === "RUNNING"
+                : status.status === "RUNNING" || status.status === "STARTING"
                 ? `${t.nav.running}: ${status.topic}`
                 : t.nav.activeWorkspace}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
-            {status.status === "RUNNING" && (
+            {(status.status === "RUNNING" || status.status === "STARTING") && (
               <>
                 <div className="flex items-center gap-2 rounded-full bg-teal-500/10 px-3 py-1 text-[10px] font-bold text-teal-600 dark:text-teal-400 animate-pulse border border-teal-500/20">
                   <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
                   <span>{t.nav.pipelineDrafting}</span>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/api/cancel", { method: "POST" })
-                      if (!res.ok) {
-                        const err = await res.json()
-                        throw new Error(err.detail || "Failed to cancel pipeline")
+                {status.status === "RUNNING" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/cancel", { method: "POST" })
+                        if (!res.ok) {
+                          const err = await res.json()
+                          throw new Error(err.detail || "Failed to cancel pipeline")
+                        }
+                        toast.info("Pipeline cancellation requested")
+                      } catch (e: any) {
+                        toast.error(e.message || "Failed to cancel")
                       }
-                      toast.info("Pipeline cancellation requested")
-                    } catch (e: any) {
-                      toast.error(e.message || "Failed to cancel")
-                    }
-                  }}
-                  className="h-7 px-3 text-[10px] font-bold uppercase border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 gap-1.5"
-                >
-                  <XCircle className="h-3 w-3" />
-                  Cancel
-                </Button>
+                    }}
+                    className="h-7 px-3 text-[10px] font-bold uppercase border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 gap-1.5"
+                  >
+                    <XCircle className="h-3 w-3" />
+                    Cancel
+                  </Button>
+                )}
               </>
             )}
             
@@ -319,12 +340,12 @@ export function Search() {
                 {/* Input Panel */}
                 <SearchBar
                   onSearch={handleStartGeneration}
-                  disabled={status.status === "RUNNING"}
+                  disabled={status.status === "RUNNING" || status.status === "STARTING"}
                   t={t}
                 />
 
                 {/* Active compilation summary card */}
-                {status.status === "RUNNING" && (
+                {(status.status === "RUNNING" || status.status === "STARTING") && (
                   <div className="p-4 rounded-xl border border-teal-500/20 bg-teal-500/5 animate-pulse text-xs flex items-center justify-between">
                     <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400">
                       <span className="relative flex h-2 w-2">

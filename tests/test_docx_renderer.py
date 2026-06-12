@@ -259,3 +259,17 @@ class TestNewRendererFeatures:
         doc = Document(tmp_doc)
         # Check if there is an image in the document shapes or inline shapes
         assert len(doc.inline_shapes) == 1
+
+    def test_renders_bracket_and_parenthesis_math(self, tmp_doc):
+        content = {
+            "theory": "Here is an inline formula \\(\\sigma\\).\n\nAnd a block formula:\n\\[\nM = (Q, \\sigma)\n\\]"
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        assert "M = (Q, sigma)" in full_text
+        assert "sigma" in full_text
+        assert "\\[" not in full_text
+        assert "\\]" not in full_text
+        assert "\\(" not in full_text
+        assert "\\)" not in full_text

@@ -1,11 +1,19 @@
 import re
-from typing import Optional
+from typing import Callable, Optional
 
 from academic_pe.agents.base import BaseAgent
+from academic_pe.core.llm import _call_provider_generate
+
+StreamCallback = Callable[[str], None]
 
 
 class WriterAgent(BaseAgent):
-    def process(self, task_description: str, context: Optional[str] = None) -> str:
+    def process(
+        self,
+        task_description: str,
+        context: Optional[str] = None,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         system_prompt = self.config.system_prompt
         if context:
             system_prompt += (
@@ -15,18 +23,25 @@ class WriterAgent(BaseAgent):
                 f"{context}"
             )
 
-        return self.llm.generate(
+        return _call_provider_generate(
+            self.llm,
             system_prompt=system_prompt,
             user_prompt=task_description,
             model=self.config.model,
             temperature=self.config.temperature,
+            on_delta=on_delta,
         )
 
 
 class ReviewerAgent(BaseAgent):
     _APPROVED_PATTERN = re.compile(r"^\s*APPROVED\s*$", re.IGNORECASE)
 
-    def process(self, task_description: str, context: Optional[str] = None) -> str:
+    def process(
+        self,
+        task_description: str,
+        context: Optional[str] = None,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         system_prompt = self.config.system_prompt
         if context:
             system_prompt += f"\n\n[Text to Review]\n{context}"

@@ -2,7 +2,7 @@ agents:
   writer:
     role: Writer
     provider: zen
-    model: big-pickle
+    model: mimo-v2.5-free
     temperature: 0.7
     system_prompt: 'You are an expert academic writer.
 
@@ -14,7 +14,7 @@ agents:
   reviewer:
     role: Reviewer
     provider: zen
-    model: big-pickle
+    model: mimo-v2.5-free
     temperature: 0.3
     system_prompt: 'You are a strict academic reviewer.
 

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, FileDown } from "lucide-react"
+import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, FileDown, Eye, PanelTop, Moon } from "lucide-react"
 import { toast } from "sonner"
 import type { Messages } from "@/lib/i18n"
 
@@ -12,6 +12,8 @@ interface LiveDocumentCanvasProps {
 export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCanvasProps) {
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [draftViewMode, setDraftViewMode] = useState<"live" | "banner">("live")
+  const [dimDrafting, setDimDrafting] = useState(false)
   const context = status?.context || {}
   const activeState = status?.state || "INIT"
   const isRunning = status?.status === "RUNNING"
@@ -40,6 +42,16 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         docx_filename: data.filename,
         export_report: data,
       })
+      
+      // Auto-trigger browser download
+      const downloadUrl = `/api/download/${data.filename}`
+      const link = document.createElement("a")
+      link.href = downloadUrl
+      link.setAttribute("download", data.filename)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
       if (data.status === "passed") {
         toast.success("DOCX export passed quality checks")
       } else {
@@ -84,10 +96,14 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
   // Determine active section index during drafting
   let activeSectionId = ""
   if (activeState === "DRAFTING") {
-    // Active is the first section that hasn't been drafted yet
-    const nextToDraft = allSections.find((s) => !context[s.id])
-    if (nextToDraft) {
-      activeSectionId = nextToDraft.id
+    if (status?.active_section) {
+      activeSectionId = status.active_section
+    } else {
+      // Active is the first section that hasn't been drafted yet
+      const nextToDraft = allSections.find((s) => !context[s.id])
+      if (nextToDraft) {
+        activeSectionId = nextToDraft.id
+      }
     }
   }
 
@@ -106,7 +122,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
   // Inline styling parser (supports bold, italic, and LaTeX blocks)
   const parseInlineStyles = (text: string) => {
     if (!text) return null
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\\\(.*?\\\)|\$\$.*?\$\$|\$.*?\$)/g)
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\\\(.*?\\\)|\\\[.*?\\\]|\$\$.*?\$\$|\$.*?\$)/g)
 
     return parts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**")) {
@@ -116,6 +132,13 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         return <em key={index} className="italic text-zinc-800 dark:text-zinc-200">{part.slice(1, -1)}</em>
       }
       if (part.startsWith("$$") && part.endsWith("$$")) {
+        return (
+          <span key={index} className="block my-3 py-3 px-4 rounded-md bg-sky-50/70 dark:bg-sky-950/20 font-mono text-center text-sm border border-sky-200/70 dark:border-sky-800/50 select-all text-sky-800 dark:text-sky-200">
+            {formatMath(part.slice(2, -2))}
+          </span>
+        )
+      }
+      if (part.startsWith("\\[") && part.endsWith("\\]")) {
         return (
           <span key={index} className="block my-3 py-3 px-4 rounded-md bg-sky-50/70 dark:bg-sky-950/20 font-mono text-center text-sm border border-sky-200/70 dark:border-sky-800/50 select-all text-sky-800 dark:text-sky-200">
             {formatMath(part.slice(2, -2))}
@@ -143,76 +166,188 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
   // Render paragraphs and headers
   const renderContent = (text: string) => {
     if (!text) return null
-    const normalized = text.replace(/\\\[((?:.|\n)*?)\\\]/g, "\n$$$1$$\n")
-    return normalized.split("\n").map((line, idx) => {
-      const stripped = line.trim()
-      if (!stripped) return null
-
-      if (stripped.startsWith("### ")) {
-        return (
-          <h4 key={idx} className="text-base font-semibold font-sans tracking-normal pt-2 mb-2 text-slate-800 dark:text-slate-100">
-            {stripped.slice(4)}
-          </h4>
-        )
-      }
-      if (stripped.startsWith("## ")) {
-        return (
-          <h3 key={idx} className="text-lg font-bold font-sans tracking-tight pt-3 mb-2 text-slate-800 dark:text-slate-50">
-            {stripped.slice(3)}
-          </h3>
-        )
-      }
-      if (stripped.startsWith("# ")) {
-        return (
-          <h2 key={idx} className="text-xl font-bold font-sans tracking-tight border-b border-slate-200 dark:border-slate-800 pb-2 pt-4 mb-3 text-slate-900 dark:text-slate-50">
-            {stripped.slice(2)}
-          </h2>
-        )
-      }
-      if (stripped.startsWith("$$") && stripped.endsWith("$$")) {
-        return (
-          <div key={idx} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
-            {formatMath(stripped.slice(2, -2))}
+    const lines = text.split("\n")
+    const elements: React.ReactNode[] = []
+    
+    let currentBlockType: "paragraph" | "list" | "table" | "block_math" | null = null
+    let accumulatedLines: string[] = []
+    
+    const flushBlock = (key: string | number) => {
+      if (accumulatedLines.length === 0) return
+      
+      const blockText = accumulatedLines.join("\n")
+      
+      if (currentBlockType === "block_math") {
+        let mathText = blockText.trim()
+        if (mathText.startsWith("$$") && mathText.endsWith("$$")) {
+          mathText = mathText.slice(2, -2)
+        } else if (mathText.startsWith("\\[") && mathText.endsWith("\\]")) {
+          mathText = mathText.slice(2, -2)
+        } else if (mathText.startsWith("$$")) {
+          mathText = mathText.slice(2)
+        } else if (mathText.endsWith("$$")) {
+          mathText = mathText.slice(0, -2)
+        } else if (mathText.startsWith("\\[")) {
+          mathText = mathText.slice(2)
+        } else if (mathText.endsWith("\\]")) {
+          mathText = mathText.slice(0, -2)
+        }
+        elements.push(
+          <div key={`math-${key}`} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
+            {formatMath(mathText)}
           </div>
         )
-      }
-      if (stripped.startsWith("- ") || stripped.startsWith("* ")) {
-        return (
-          <ul key={idx} className="list-disc pl-6 my-2 text-slate-700 dark:text-slate-300 leading-relaxed">
-            <li>{parseInlineStyles(stripped.slice(2))}</li>
-          </ul>
-        )
-      }
-      if (stripped.startsWith("|")) {
-        if (stripped.includes("---")) return null
-        const cells = stripped.split("|").map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1)
-        return (
-          <div key={idx} className="overflow-x-auto my-3 border border-slate-200 dark:border-slate-800 rounded-md">
+      } else if (currentBlockType === "table") {
+        const rows = accumulatedLines.map(line => {
+          const cells = line.split("|").map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1)
+          return cells
+        }).filter(row => row.length > 0 && !row.every(cell => cell.includes("---")))
+        
+        elements.push(
+          <div key={`table-${key}`} className="overflow-x-auto my-3 border border-slate-200 dark:border-slate-800 rounded-md">
             <table className="min-w-full border-collapse text-sm">
               <tbody>
-                <tr className="bg-slate-50 dark:bg-slate-900/60">
-                  {cells.map((cell, cidx) => (
-                    <td key={cidx} className="border border-slate-200 dark:border-slate-800 px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{parseInlineStyles(cell)}</td>
-                  ))}
-                </tr>
+                {rows.map((row, ridx) => (
+                  <tr key={ridx} className={ridx === 0 ? "bg-slate-100 dark:bg-slate-900 font-semibold" : "bg-slate-50 dark:bg-slate-900/60"}>
+                    {row.map((cell, cidx) => (
+                      <td key={cidx} className="border border-slate-200 dark:border-slate-800 px-3 py-2 font-mono text-slate-700 dark:text-slate-300">
+                        {parseInlineStyles(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )
+      } else if (currentBlockType === "list") {
+        elements.push(
+          <ul key={`list-${key}`} className="list-disc pl-6 my-2 text-slate-700 dark:text-slate-300 leading-relaxed space-y-1">
+            {accumulatedLines.map((line, lidx) => {
+              const match = line.match(/^[-*]\s+(.+)$/)
+              const body = match ? match[1] : line
+              return <li key={lidx}>{parseInlineStyles(body)}</li>
+            })}
+          </ul>
+        )
+      } else if (currentBlockType === "paragraph") {
+        const joinedText = accumulatedLines.join(" ")
+        elements.push(
+          <p key={`p-${key}`} className="indent-6 text-justify text-slate-700 dark:text-slate-300 mb-4 leading-8 text-[16px]">
+            {parseInlineStyles(joinedText)}
+          </p>
+        )
       }
-
-      return (
-        <p key={idx} className="indent-6 text-justify text-slate-700 dark:text-slate-300 mb-4 leading-8 text-[16px]">
-          {parseInlineStyles(stripped)}
-        </p>
-      )
+      
+      accumulatedLines = []
+      currentBlockType = null
+    }
+    
+    let inMathBlock = false
+    let mathDelimiter: "$$" | "\\]" | null = null
+    
+    lines.forEach((line, idx) => {
+      const stripped = line.trim()
+      
+      if (!inMathBlock) {
+        if (stripped.startsWith("$$")) {
+          flushBlock(idx)
+          inMathBlock = true
+          mathDelimiter = "$$"
+          accumulatedLines.push(line)
+          currentBlockType = "block_math"
+          if (stripped.length > 2 && stripped.endsWith("$$")) {
+            inMathBlock = false
+            flushBlock(idx)
+          }
+          return
+        } else if (stripped.startsWith("\\[")) {
+          flushBlock(idx)
+          inMathBlock = true
+          mathDelimiter = "\\]"
+          accumulatedLines.push(line)
+          currentBlockType = "block_math"
+          if (stripped.length > 2 && stripped.endsWith("\\]")) {
+            inMathBlock = false
+            flushBlock(idx)
+          }
+          return
+        }
+      } else {
+        accumulatedLines.push(line)
+        if ((mathDelimiter === "$$" && stripped.endsWith("$$")) || (mathDelimiter === "\\]" && stripped.endsWith("\\]"))) {
+          inMathBlock = false
+          flushBlock(idx)
+        }
+        return
+      }
+      
+      if (!stripped) {
+        flushBlock(idx)
+        return
+      }
+      
+      if (stripped.startsWith("### ")) {
+        flushBlock(idx)
+        elements.push(
+          <h4 key={`h4-${idx}`} className="text-base font-semibold font-sans tracking-normal pt-2 mb-2 text-slate-800 dark:text-slate-100">
+            {stripped.slice(4)}
+          </h4>
+        )
+        return
+      }
+      if (stripped.startsWith("## ")) {
+        flushBlock(idx)
+        elements.push(
+          <h3 key={`h3-${idx}`} className="text-lg font-bold font-sans tracking-tight pt-3 mb-2 text-slate-800 dark:text-slate-50">
+            {stripped.slice(3)}
+          </h3>
+        )
+        return
+      }
+      if (stripped.startsWith("# ")) {
+        flushBlock(idx)
+        elements.push(
+          <h2 key={`h2-${idx}`} className="text-xl font-bold font-sans tracking-tight border-b border-slate-200 dark:border-slate-800 pb-2 pt-4 mb-3 text-slate-900 dark:text-slate-50">
+            {stripped.slice(2)}
+          </h2>
+        )
+        return
+      }
+      
+      if (stripped.startsWith("|")) {
+        if (currentBlockType !== "table") {
+          flushBlock(idx)
+          currentBlockType = "table"
+        }
+        accumulatedLines.push(line)
+        return
+      }
+      
+      if (stripped.startsWith("- ") || stripped.startsWith("* ")) {
+        if (currentBlockType !== "list") {
+          flushBlock(idx)
+          currentBlockType = "list"
+        }
+        accumulatedLines.push(line)
+        return
+      }
+      
+      if (currentBlockType !== "paragraph") {
+        flushBlock(idx)
+        currentBlockType = "paragraph"
+      }
+      accumulatedLines.push(line)
     })
+    
+    flushBlock("final")
+    return elements
   }
 
   return (
     <div className="w-full h-full flex flex-col space-y-4">
       {/* Document Sheet Container */}
-      <div className="relative flex-1 bg-[#fbfaf7] dark:bg-[#191b20] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800/80 rounded-xl shadow-sm p-6 md:p-10 font-serif min-h-[650px] overflow-y-auto max-h-[80vh] scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 transition-colors duration-200">
+      <div className={`relative flex-1 bg-[#fbfaf7] dark:bg-[#191b20] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800/80 rounded-xl shadow-sm p-6 md:p-10 font-serif min-h-[650px] overflow-y-auto max-h-[80vh] scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 transition-colors duration-200 ${dimDrafting && isRunning ? "brightness-75" : ""}`}>
         
         {/* Paper Header / Running Metadata */}
         <div className="flex items-center justify-between border-b border-zinc-200/60 dark:border-zinc-800/60 pb-3 mb-6 text-[10px] font-mono tracking-widest text-zinc-400 dark:text-zinc-500 uppercase">
@@ -221,6 +356,45 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
             <span>{t.document.compiler}</span>
           </div>
           <div className="flex items-center gap-2">
+            {isRunning && (
+              <div className="flex items-center gap-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/80 p-1 lowercase tracking-normal font-sans">
+                <button
+                  onClick={() => setDraftViewMode("live")}
+                  className={`h-6 px-2 rounded text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border-0 ${
+                    draftViewMode === "live"
+                      ? "bg-teal-500/15 text-teal-600 dark:text-teal-300"
+                      : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  }`}
+                  title="Show live generated text"
+                >
+                  <Eye className="h-3 w-3" />
+                  Live
+                </button>
+                <button
+                  onClick={() => setDraftViewMode("banner")}
+                  className={`h-6 px-2 rounded text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border-0 ${
+                    draftViewMode === "banner"
+                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-300"
+                      : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  }`}
+                  title="Show drafting banner"
+                >
+                  <PanelTop className="h-3 w-3" />
+                  Banner
+                </button>
+                <button
+                  onClick={() => setDimDrafting((value) => !value)}
+                  className={`h-6 w-6 rounded flex items-center justify-center transition-colors cursor-pointer border-0 ${
+                    dimDrafting
+                      ? "bg-zinc-800 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      : "bg-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  }`}
+                  title="Toggle dimmed preview"
+                >
+                  <Moon className="h-3 w-3" />
+                </button>
+              </div>
+            )}
             {isRunning && (
               <>
                 <span className="relative flex h-1.5 w-1.5">
@@ -291,6 +465,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
           {allSections.map((section) => {
             const hasContent = !!context[section.id]
             const isDrafting = activeSectionId === section.id
+            const showLiveDraft = isDrafting && draftViewMode === "live"
 
             return (
               <div key={section.id} className="relative group transition-all duration-300">
@@ -301,13 +476,17 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                     {section.title}
                   </h2>
                   <div className="text-[10px] font-sans">
-                    {hasContent ? (
+                    {hasContent && !isDrafting ? (
                       <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
+                        <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
                       </span>
                     ) : isDrafting ? (
                       <span className="text-amber-500 dark:text-amber-400 font-bold flex items-center gap-1 animate-pulse">
                         <Loader2 className="h-3 w-3 animate-spin" /> {t.document.drafting}
+                      </span>
+                    ) : hasContent ? (
+                      <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
                       </span>
                     ) : (
                       <span className="text-zinc-400 dark:text-zinc-500">{t.document.pending}</span>
@@ -316,19 +495,54 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                 </div>
 
                 {/* Section Content / Loading Card / Placeholder */}
-                {hasContent ? (
+                {hasContent && !isDrafting ? (
                   <div className="animate-in fade-in duration-500">
                     {renderContent(context[section.id])}
                   </div>
                 ) : isDrafting ? (
-                  <div className="rounded-xl border border-dashed border-amber-300 dark:border-amber-900/50 bg-amber-50/10 dark:bg-amber-950/5 p-6 animate-pulse flex flex-col items-center justify-center text-center space-y-3">
-                    <PenTool className="h-5 w-5 text-amber-500 animate-bounce" />
-                    <div>
-                      <h4 className="text-xs font-sans font-bold text-zinc-800 dark:text-zinc-200">Writer Agent Drafting</h4>
-                      <p className="text-xs font-sans text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm">
-                        Markdown and LaTeX preview updates as sections arrive from the agent stream.
-                      </p>
+                  showLiveDraft ? (
+                    <div className="animate-in fade-in duration-500 space-y-3">
+                      {context[section.id] ? (
+                        renderContent(context[section.id])
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-teal-300/70 dark:border-teal-900/60 bg-teal-50/30 dark:bg-teal-950/10 p-6 text-center">
+                          <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2 text-teal-500" />
+                          <p className="text-xs font-sans text-zinc-500 dark:text-zinc-400 italic">Waiting for the first streamed tokens...</p>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between border-t border-teal-500/10 pt-2 mt-2">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-500">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Live draft view</span>
+                        </div>
+                        <button
+                          onClick={() => setDraftViewMode("banner")}
+                          className="text-[10px] font-bold text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-200 cursor-pointer bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded border-0"
+                        >
+                          Show Banner
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <div className="relative rounded-xl border border-dashed border-amber-300 dark:border-amber-900/50 bg-amber-50/10 dark:bg-amber-950/5 p-6 animate-pulse flex flex-col items-center justify-center text-center space-y-3">
+                      <button
+                        onClick={() => setDraftViewMode("live")}
+                        className="absolute top-3 right-3 text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer bg-transparent border-0"
+                      >
+                        Show Live Stream
+                      </button>
+                      <PenTool className="h-5 w-5 text-amber-500 animate-bounce" />
+                      <div>
+                        <h4 className="text-xs font-sans font-bold text-zinc-800 dark:text-zinc-200">Writer Agent Drafting</h4>
+                        <p className="text-xs font-sans text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm">
+                          Markdown and LaTeX preview updates as sections arrive from the agent stream.
+                        </p>
+                      </div>
+                    </div>
+                  )
+                ) : hasContent ? (
+                  <div className="animate-in fade-in duration-500">
+                    {renderContent(context[section.id])}
                   </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800/60 p-6 flex flex-col items-center justify-center text-center text-zinc-300 dark:text-zinc-700">

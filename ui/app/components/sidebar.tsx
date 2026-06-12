@@ -40,10 +40,18 @@ export function Sidebar({
     setActiveTab("workspace")
   }
 
+  const handleNavigate = (tab: string) => {
+    setSelectedPaper(null)
+    setActiveTab(tab)
+  }
+
   const handleSelectPaper = (paper: any) => {
     setSelectedPaper(paper)
     setActiveTab("history_preview")
   }
+
+  const historyKey = (paper: any) =>
+    [paper?.filename || "draft", paper?.topic || "", paper?.timestamp || ""].join("|")
 
   return (
     <div
@@ -89,10 +97,7 @@ export function Sidebar({
       {/* Main Navigation */}
       <nav className="flex flex-col gap-1 px-2 mb-4">
         <button
-          onClick={() => {
-            setSelectedPaper(null)
-            setActiveTab("workspace")
-          }}
+          onClick={() => handleNavigate("workspace")}
           className={`flex items-center gap-3 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
             activeTab === "workspace" && !selectedPaper
               ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
@@ -105,9 +110,9 @@ export function Sidebar({
         </button>
 
         <button
-          onClick={() => setActiveTab("fsm")}
+          onClick={() => handleNavigate("fsm")}
           className={`flex items-center gap-3 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-            activeTab === "fsm"
+            activeTab === "fsm" && !selectedPaper
               ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
               : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
           } ${collapsed ? "justify-center px-0" : ""}`}
@@ -118,9 +123,9 @@ export function Sidebar({
         </button>
 
         <button
-          onClick={() => setActiveTab("config")}
+          onClick={() => handleNavigate("config")}
           className={`flex items-center gap-3 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-            activeTab === "config"
+            activeTab === "config" && !selectedPaper
               ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
               : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
           } ${collapsed ? "justify-center px-0" : ""}`}
@@ -145,10 +150,10 @@ export function Sidebar({
       <ScrollArea className="flex-1 px-2">
         <div className="space-y-0.5 pb-4">
           {historyList.map((paper, index) => {
-            const isSelected = selectedPaper?.filename === paper.filename
+            const isSelected = selectedPaper === paper
             return (
               <button
-                key={index}
+                key={`${historyKey(paper)}|${index}`}
                 onClick={() => handleSelectPaper(paper)}
                 className={`group w-full text-left px-3 py-2 text-xs leading-tight rounded-lg border transition-all relative flex items-center gap-2 cursor-pointer ${
                   isSelected

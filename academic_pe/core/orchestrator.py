@@ -58,6 +58,7 @@ class Renderer(Protocol):
 
 
 HookFn = Callable[[PipelineState, PipelineState], None]
+SectionDeltaFn = Callable[[str, str, str], None]
 
 
 class Orchestrator:
@@ -81,6 +82,7 @@ class Orchestrator:
             "on_enter": [],
             "on_exit": [],
         }
+        self._section_delta_hooks: List[SectionDeltaFn] = []
         self._transitions: Dict[PipelineState, List[PipelineState]] = dict(_DEFAULT_TRANSITIONS)
         self._cancel_event: threading.Event = threading.Event()
 
@@ -97,6 +99,9 @@ class Orchestrator:
 
     def on_exit(self, callback: HookFn) -> None:
         self._hooks["on_exit"].append(callback)
+
+    def on_section_delta(self, callback: SectionDeltaFn) -> None:
+        self._section_delta_hooks.append(callback)
 
     def cancel(self) -> None:
         self._cancel_event.set()
@@ -120,6 +125,10 @@ class Orchestrator:
         self._state = new_state
         for hook in self._hooks["on_enter"]:
             hook(old_state, new_state)
+
+    def _emit_section_delta(self, section_name: str, delta: str, accumulated: str) -> None:
+        for hook in self._section_delta_hooks:
+            hook(section_name, delta, accumulated)
 
     def revert(self) -> PipelineState:
         if not self._state_history:
@@ -153,7 +162,13 @@ class Orchestrator:
                     },
                 )
                 logger.debug("Drafting section: %s", section.name)
-                draft_content = self._writer.process(task)
+                draft_parts: List[str] = []
+
+                def on_delta(delta: str, section_name: str = section.name) -> None:
+                    draft_parts.append(delta)
+                    self._emit_section_delta(section_name, delta, "".join(draft_parts))
+
+                draft_content = self._writer.process(task, on_delta=on_delta)
                 if language_policy == "ru" and not has_cyrillic(draft_content):
                     logger.info("Translating section %s to Russian...", section.name)
                     draft_content = translate_markdown_to_ru(draft_content)
@@ -207,14 +222,20 @@ class Orchestrator:
                             DEFAULT_REVISION_TEMPLATE,
                             {
                                 "section": section,
-                                "reviewer_reason": reason[:500],
+                                "reviewer_reason": reason,
                                 "language": target_language,
                                 "language_instruction": language_instruction(target_language),
                                 "user_topic": self.user_topic,
                                 "user_instructions": self.user_instructions,
                             },
                         )
-                        revised_content = self._writer.process(task)
+                        revised_parts: List[str] = []
+
+                        def on_revision_delta(delta: str, section_name: str = section.name) -> None:
+                            revised_parts.append(delta)
+                            self._emit_section_delta(section_name, delta, "".join(revised_parts))
+
+                        revised_content = self._writer.process(task, on_delta=on_revision_delta)
                         if language_policy == "ru" and not has_cyrillic(revised_content):
                             logger.info("Translating revised section %s to Russian...", section.name)
                             revised_content = translate_markdown_to_ru(revised_content)

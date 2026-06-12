@@ -17,7 +17,7 @@ from docx.shared import Cm, Inches, Pt, RGBColor
 logger = logging.getLogger(__name__)
 
 
-_INLINE_TOKEN_RE = re.compile(r"(\$\$.*?\$\$|\$.*?\$|\*\*.*?\*\*|\*[^*\n]+\*)", re.DOTALL)
+_INLINE_TOKEN_RE = re.compile(r"(\$\$.*?\$\$|\$.*?\$|\\\(.*?\\\)|\\\[.*?\\\]|\*\*.*?\*\*|\*[^*\n]+\*)", re.DOTALL)
 _LIST_RE = re.compile(r"^(\s*)([-*]|\d+[.)])\s+(.+)$")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 
@@ -170,6 +170,10 @@ def add_formatted_text(paragraph, text: str, font_name: str = "Times New Roman",
             parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, italic=True)
         elif part.startswith("$") and part.endswith("$"):
             parse_math_content(paragraph, part[1:-1], font_name=font_name, font_size=font_size, italic=True)
+        elif part.startswith("\\(") and part.endswith("\\)"):
+            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, italic=True)
+        elif part.startswith("\\[") and part.endswith("\\]"):
+            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, italic=True)
         elif part.startswith("**") and part.endswith("**"):
             inner = part[2:-2]
             run = paragraph.add_run(inner)
@@ -358,67 +362,133 @@ def _render_markdown_block(
     line_spacing: float,
 ) -> None:
     lines = text_block.split("\n")
-    table_lines: List[str] = []
+    
+    current_block_type = None  # None, "paragraph", "list", "table", "block_math"
+    accumulated_lines: List[str] = []
+    
+    def flush_current_block() -> None:
+        nonlocal current_block_type, accumulated_lines
+        if not accumulated_lines:
+            return
+        
+        block_text = "\n".join(accumulated_lines)
+        
+        if current_block_type == "table":
+            render_table_block(doc, accumulated_lines, font_name=font_name)
+        elif current_block_type == "list":
+            for line in accumulated_lines:
+                list_match = _LIST_RE.match(line)
+                if list_match:
+                    marker = list_match.group(2)
+                    body = list_match.group(3)
+                    style = "List Number" if marker[0].isdigit() else "List Bullet"
+                    paragraph = doc.add_paragraph(style=style)
+                    paragraph.paragraph_format.space_after = Pt(3)
+                    add_formatted_text(paragraph, body, font_name=font_name, font_size=font_size)
+        elif current_block_type == "block_math":
+            math_text = block_text.strip()
+            if math_text.startswith("$$") and math_text.endswith("$$"):
+                math_text = math_text[2:-2]
+            elif math_text.startswith(r"\[") and math_text.endswith(r"\]"):
+                math_text = math_text[2:-2]
+            elif math_text.startswith(r"\["):
+                math_text = math_text[2:]
+            elif math_text.endswith(r"\]"):
+                math_text = math_text[:-2]
+                
+            paragraph = doc.add_paragraph()
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph.paragraph_format.space_before = Pt(6)
+            paragraph.paragraph_format.space_after = Pt(6)
+            parse_math_content(paragraph, math_text, font_name=font_name, font_size=font_size, italic=True)
+        elif current_block_type == "paragraph":
+            single_line_text = " ".join(l.strip() for l in accumulated_lines if l.strip())
+            _add_markdown_paragraph(
+                doc,
+                single_line_text,
+                "Body Text",
+                font_name,
+                font_size,
+                alignment,
+                first_line_indent_cm,
+                line_spacing,
+            )
+            
+        accumulated_lines = []
+        current_block_type = None
 
-    def flush_table() -> None:
-        nonlocal table_lines
-        if table_lines:
-            render_table_block(doc, table_lines, font_name=font_name)
-            table_lines = []
-
+    in_math_block = False
+    math_delimiter = None
+    
     for line in lines:
         stripped = line.strip()
+        
+        if not in_math_block:
+            if stripped.startswith("$$"):
+                flush_current_block()
+                in_math_block = True
+                math_delimiter = "$$"
+                accumulated_lines.append(line)
+                current_block_type = "block_math"
+                if len(stripped) > 2 and stripped.endswith("$$"):
+                    in_math_block = False
+                    flush_current_block()
+                continue
+            elif stripped.startswith(r"\["):
+                flush_current_block()
+                in_math_block = True
+                math_delimiter = r"\]"
+                accumulated_lines.append(line)
+                current_block_type = "block_math"
+                if len(stripped) > 2 and stripped.endswith(r"\]"):
+                    in_math_block = False
+                    flush_current_block()
+                continue
+        else:
+            accumulated_lines.append(line)
+            if (math_delimiter == "$$" and stripped.endswith("$$")) or (math_delimiter == r"\]" and stripped.endswith(r"\]")):
+                in_math_block = False
+                flush_current_block()
+            continue
+
         if not stripped:
-            flush_table()
+            flush_current_block()
             continue
-
-        if stripped.startswith("|"):
-            table_lines.append(stripped)
-            continue
-
-        flush_table()
 
         heading = _HEADING_RE.match(stripped)
         if heading:
+            flush_current_block()
             level = min(len(heading.group(1)), 3)
             paragraph = doc.add_paragraph(style=f"Heading {level}")
             add_formatted_text(paragraph, heading.group(2), font_name=font_name, font_size=font_size + 4 - level)
             continue
 
-        list_match = _LIST_RE.match(line)
-        if list_match:
-            marker = list_match.group(2)
-            body = list_match.group(3)
-            style = "List Number" if marker[0].isdigit() else "List Bullet"
-            paragraph = doc.add_paragraph(style=style)
-            paragraph.paragraph_format.space_after = Pt(3)
-            add_formatted_text(paragraph, body, font_name=font_name, font_size=font_size)
-            continue
-
         if "[Chart]" in stripped or "[Chart:" in stripped:
+            flush_current_block()
             _render_chart(doc, stripped, section, font_name, font_size)
             continue
 
-        if stripped.startswith("$$") and stripped.endswith("$$"):
-            paragraph = doc.add_paragraph()
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            paragraph.paragraph_format.space_before = Pt(6)
-            paragraph.paragraph_format.space_after = Pt(6)
-            parse_math_content(paragraph, stripped[2:-2], font_name=font_name, font_size=font_size, italic=True)
+        if stripped.startswith("|"):
+            if current_block_type != "table":
+                flush_current_block()
+                current_block_type = "table"
+            accumulated_lines.append(line)
             continue
 
-        _add_markdown_paragraph(
-            doc,
-            stripped,
-            "Body Text",
-            font_name,
-            font_size,
-            alignment,
-            first_line_indent_cm,
-            line_spacing,
-        )
+        list_match = _LIST_RE.match(line)
+        if list_match:
+            if current_block_type != "list":
+                flush_current_block()
+                current_block_type = "list"
+            accumulated_lines.append(line)
+            continue
 
-    flush_table()
+        if current_block_type != "paragraph":
+            flush_current_block()
+            current_block_type = "paragraph"
+        accumulated_lines.append(line)
+
+    flush_current_block()
 
 
 def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", config: Optional[Any] = None):

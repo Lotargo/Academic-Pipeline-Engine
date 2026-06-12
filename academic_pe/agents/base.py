@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Callable, Optional
 
 from academic_pe.core.config import AgentConfig
-from academic_pe.core.llm import LLMProvider
+from academic_pe.core.llm import LLMProvider, _call_provider_generate
+
+StreamCallback = Callable[[str], None]
 
 
 class BaseAgent(ABC):
@@ -11,19 +13,31 @@ class BaseAgent(ABC):
         self.llm = llm
 
     @abstractmethod
-    def process(self, task_description: str, context: Optional[str] = None) -> str:
+    def process(
+        self,
+        task_description: str,
+        context: Optional[str] = None,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         ...
 
 
 class DefaultAgent(BaseAgent):
-    def process(self, task_description: str, context: Optional[str] = None) -> str:
+    def process(
+        self,
+        task_description: str,
+        context: Optional[str] = None,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         system_prompt = self.config.system_prompt
         if context:
             system_prompt += f"\n\n[Context Data]\n{context}"
 
-        return self.llm.generate(
+        return _call_provider_generate(
+            self.llm,
             system_prompt=system_prompt,
             user_prompt=task_description,
             model=self.config.model,
             temperature=self.config.temperature,
+            on_delta=on_delta,
         )

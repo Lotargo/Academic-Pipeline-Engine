@@ -40,7 +40,8 @@ current_run = {
     "export_report": None,
     "error": None,
     "topic": "",
-    "timestamp": None
+    "timestamp": None,
+    "active_section": None,
 }
 
 # Thread lock for safety
@@ -134,7 +135,7 @@ async def status_stream():
         last_payload = None
         while True:
             with run_lock:
-                payload = json.dumps(current_run, ensure_ascii=False, default=str)
+                payload = json.dumps(dict(current_run), ensure_ascii=False, default=str)
                 running = current_run.get("status") == "RUNNING"
 
             if payload != last_payload:
@@ -146,7 +147,15 @@ async def status_stream():
             else:
                 await asyncio.sleep(0.25)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 class InterceptingDict(dict):
     def __init__(self, callback, *args, **kwargs):
@@ -170,7 +179,8 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         
         # Apply prompt overrides if topic is provided
         if topic:
-            current_run["topic"] = topic
+            with run_lock:
+                current_run["topic"] = topic
             for sec in config.pipeline.sections:
                 if sec.name == "theory":
                     sec.topic = f"{topic}: Theoretical Foundations"
@@ -201,18 +211,28 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         def on_context_change(d):
             with run_lock:
                 current_run["context"] = dict(d)
+
+        def on_section_delta(section_name: str, delta: str, accumulated: str):
+            with run_lock:
+                context = dict(current_run.get("context") or {})
+                context[section_name] = accumulated
+                current_run["context"] = context
+                current_run["active_section"] = section_name
         orch.context = InterceptingDict(on_context_change)
         
         # Set transition hooks
         def on_enter_hook(old_state, new_state):
-            current_run["state"] = new_state.name
-            current_run["logs"].append(f"[FSM] Entering state: {new_state.name}")
+            with run_lock:
+                current_run["state"] = new_state.name
+                current_run["logs"].append(f"[FSM] Entering state: {new_state.name}")
             
         def on_exit_hook(old_state, new_state):
-            current_run["logs"].append(f"[FSM] Exiting state: {old_state.name}")
+            with run_lock:
+                current_run["logs"].append(f"[FSM] Exiting state: {old_state.name}")
             
         orch.on_enter(on_enter_hook)
         orch.on_exit(on_exit_hook)
+        orch.on_section_delta(on_section_delta)
         
         # Intercept review decisions for progress logs
         orig_reviewer_process = None
@@ -220,8 +240,9 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
             orig_process = orch._reviewer.process
             def logged_reviewer_process(task_description: str, context: Optional[str] = None) -> str:
                 res = orig_process(task_description, context)
-                current_run["reviewer_feedback"].append(res)
-                current_run["logs"].append(f"[Reviewer Feedback]: {res}")
+                with run_lock:
+                    current_run["reviewer_feedback"].append(res)
+                    current_run["logs"].append(f"[Reviewer Feedback]: {res}")
                 return res
             orch._reviewer.process = logged_reviewer_process
 
@@ -229,11 +250,13 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         output_path = orch.run_pipeline(render_artifact=False)
         
         # Update current context preview
-        current_run["context"] = orch.context
-        current_run["docx_filename"] = os.path.basename(output_path) if output_path else None
-        current_run["export_report"] = None
-        current_run["status"] = "COMPLETED"
-        current_run["state"] = "DONE"
+        with run_lock:
+            current_run["context"] = dict(orch.context)
+            current_run["docx_filename"] = os.path.basename(output_path) if output_path else None
+            current_run["export_report"] = None
+            current_run["status"] = "COMPLETED"
+            current_run["state"] = "DONE"
+            current_run["active_section"] = None
         
         # Save history metadata
         output_dir = os.path.dirname(output_path) if output_path else _pipeline_output_dir()
@@ -257,15 +280,19 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
             json.dump(metadata, f, ensure_ascii=False, indent=2)
             
     except PipelineCancelled:
-        current_run["status"] = "CANCELLED"
-        current_run["state"] = "CANCELLED"
-        current_run["logs"].append("[FSM] Pipeline cancelled by user")
+        with run_lock:
+            current_run["status"] = "CANCELLED"
+            current_run["state"] = "CANCELLED"
+            current_run["logs"].append("[FSM] Pipeline cancelled by user")
+            current_run["active_section"] = None
         logging.getLogger(__name__).info("Pipeline cancelled by user request")
     except Exception as e:
-        current_run["status"] = "FAILED"
-        current_run["state"] = "FAILED"
-        current_run["error"] = str(e)
-        current_run["logs"].append(f"[Error]: {str(e)}")
+        with run_lock:
+            current_run["status"] = "FAILED"
+            current_run["state"] = "FAILED"
+            current_run["error"] = str(e)
+            current_run["logs"].append(f"[Error]: {str(e)}")
+            current_run["active_section"] = None
         logging.getLogger(__name__).exception("Pipeline background execution failed")
     finally:
         with _orchestrator_lock:
@@ -291,6 +318,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["error"] = None
         current_run["topic"] = payload.topic
         current_run["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_run["active_section"] = None
 
     background_tasks.add_task(run_pipeline_thread, payload.topic, payload.instructions)
     return {"status": "started", "message": "Pipeline execution started in the background"}

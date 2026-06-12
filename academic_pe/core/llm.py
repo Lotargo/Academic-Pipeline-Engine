@@ -6,16 +6,81 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import os
-from typing import Optional, Union, Any
+from typing import Callable, Optional, Union, Any
 
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
+StreamCallback = Callable[[str], None]
+
+
+def _openai_chat_generate(
+    client: OpenAI,
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    temperature: float,
+    on_delta: Optional[StreamCallback] = None,
+) -> str:
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    if on_delta is None:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    chunks: list[str] = []
+    stream = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        stream=True,
+    )
+    for event in stream:
+        delta = event.choices[0].delta.content or ""
+        if delta:
+            chunks.append(delta)
+            on_delta(delta)
+    return "".join(chunks)
+
+
+def _call_provider_generate(
+    provider: "LLMProvider",
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    temperature: float,
+    on_delta: Optional[StreamCallback] = None,
+) -> str:
+    if on_delta is None:
+        return provider.generate(system_prompt, user_prompt, model, temperature)
+    try:
+        return provider.generate(system_prompt, user_prompt, model, temperature, on_delta=on_delta)
+    except TypeError as exc:
+        if "on_delta" not in str(exc):
+            raise
+        result = provider.generate(system_prompt, user_prompt, model, temperature)
+        if result:
+            on_delta(result)
+        return result
+
 
 class LLMProvider(ABC):
     @abstractmethod
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         ...
 
 
@@ -30,16 +95,15 @@ class OpenAIProvider(LLMProvider):
             )
         self._client = OpenAI(api_key=key)
 
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
-        response = self._client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-        )
-        return response.choices[0].message.content or ""
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
+        return _openai_chat_generate(self._client, system_prompt, user_prompt, model, temperature, on_delta)
 
 
 class CustomOpenAIProvider(LLMProvider):
@@ -48,16 +112,15 @@ class CustomOpenAIProvider(LLMProvider):
         key = api_key or get_secret("custom_openai") or os.getenv(api_key_env) or "sk-placeholder"
         self._client = OpenAI(api_key=key, base_url=base_url)
 
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
-        response = self._client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-        )
-        return response.choices[0].message.content or ""
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
+        return _openai_chat_generate(self._client, system_prompt, user_prompt, model, temperature, on_delta)
 
 
 class GoogleProvider(LLMProvider):
@@ -74,19 +137,18 @@ class GoogleProvider(LLMProvider):
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
         )
 
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         model_name = model
         if not model_name.startswith("gemini-"):
             model_name = "gemini-1.5-flash"
-        response = self._client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-        )
-        return response.choices[0].message.content or ""
+        return _openai_chat_generate(self._client, system_prompt, user_prompt, model_name, temperature, on_delta)
 
 
 class LMStudioProvider(LLMProvider):
@@ -96,16 +158,15 @@ class LMStudioProvider(LLMProvider):
         key = api_key or get_secret("lm_studio") or "lm-studio"
         self._client = OpenAI(api_key=key, base_url=url)
 
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
-        response = self._client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-        )
-        return response.choices[0].message.content or ""
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
+        return _openai_chat_generate(self._client, system_prompt, user_prompt, model, temperature, on_delta)
 
 
 class ZenProvider(LLMProvider):
@@ -119,16 +180,15 @@ class ZenProvider(LLMProvider):
             )
         self._client = OpenAI(api_key=key, base_url="https://opencode.ai/zen/v1")
 
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
-        response = self._client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-        )
-        return response.choices[0].message.content or ""
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
+        return _openai_chat_generate(self._client, system_prompt, user_prompt, model, temperature, on_delta)
 
 
 class AnthropicProvider(LLMProvider):
@@ -149,7 +209,14 @@ class AnthropicProvider(LLMProvider):
             )
         self._client = Anthropic(api_key=key)
 
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         message = self._client.messages.create(
             model=model,
             system=system_prompt,
@@ -160,18 +227,32 @@ class AnthropicProvider(LLMProvider):
         if message.content:
             first_block = message.content[0]
             if hasattr(first_block, "text"):
-                return getattr(first_block, "text") or ""
+                text = getattr(first_block, "text") or ""
+                if on_delta is not None and text:
+                    on_delta(text)
+                return text
         return ""
 
 
 class MockProvider(LLMProvider):
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
-        return (
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
+        text = (
             f"# Generated Section\n\n"
             f"This is a mock response for prompt: {user_prompt[:60]}...\n\n"
             f"System prompt used: {system_prompt[:60]}...\n"
             f"Model: {model}, Temperature: {temperature}"
         )
+        if on_delta is not None:
+            for chunk in text.split(" "):
+                on_delta(f"{chunk} ")
+        return text
 
 
 @dataclass
@@ -186,15 +267,22 @@ class RetryProvider(LLMProvider):
         self._inner = inner
         self._config = config
 
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         if self._config.max_retries <= 0:
-            return self._inner.generate(system_prompt, user_prompt, model, temperature)
+            return _call_provider_generate(self._inner, system_prompt, user_prompt, model, temperature, on_delta)
 
         last_error: Optional[Exception] = None
 
         for attempt in range(self._config.max_retries):
             try:
-                return self._inner.generate(system_prompt, user_prompt, model, temperature)
+                return _call_provider_generate(self._inner, system_prompt, user_prompt, model, temperature, on_delta)
             except Exception as e:
                 last_error = e
                 if attempt < self._config.max_retries - 1:
@@ -236,7 +324,14 @@ class CircuitBreakerProvider(LLMProvider):
                 logger.info("Circuit breaker: OPEN -> HALF_OPEN")
         return self._state
 
-    def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        on_delta: Optional[StreamCallback] = None,
+    ) -> str:
         current_state = self.state
         if current_state == CircuitState.OPEN:
             raise RuntimeError(
@@ -245,7 +340,7 @@ class CircuitBreakerProvider(LLMProvider):
             )
 
         try:
-            result = self._inner.generate(system_prompt, user_prompt, model, temperature)
+            result = _call_provider_generate(self._inner, system_prompt, user_prompt, model, temperature, on_delta)
             self._on_success()
             return result
         except Exception as e:
