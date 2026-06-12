@@ -324,6 +324,7 @@ class Orchestrator:
                     "user_topic": self.user_topic,
                     "user_instructions": self.user_instructions,
                     "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                    "output_dir": self._config.pipeline.output_dir,
                 },
             )
             logger.info("Creating document plan before drafting sections.")
@@ -340,6 +341,7 @@ class Orchestrator:
                         "user_topic": self.user_topic,
                         "user_instructions": self.user_instructions,
                         "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                        "output_dir": self._config.pipeline.output_dir,
                     },
                 )
                 logger.debug("Drafting section: %s", section.name)
@@ -434,6 +436,7 @@ class Orchestrator:
                                 "review_focus": review_focus,
                                 "sections": self._config.pipeline.sections,
                                 "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                "output_dir": self._config.pipeline.output_dir,
                             },
                         ),
                         context=full_text,
@@ -479,6 +482,7 @@ class Orchestrator:
                                 "user_topic": self.user_topic,
                                 "user_instructions": self.user_instructions,
                                 "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                "output_dir": self._config.pipeline.output_dir,
                             },
                         )
                         current_content = self.context.get(section.name, "")
@@ -512,6 +516,7 @@ class Orchestrator:
                                     "user_topic": self.user_topic,
                                     "user_instructions": self.user_instructions,
                                     "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                    "output_dir": self._config.pipeline.output_dir,
                                 },
                             )
                             for fallback_attempt in range(max_sandbox_retries):
@@ -577,6 +582,7 @@ class Orchestrator:
                                         "user_topic": self.user_topic,
                                         "user_instructions": self.user_instructions,
                                         "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                        "output_dir": self._config.pipeline.output_dir,
                                     }
                                 )
                                 response = self._writer.process(

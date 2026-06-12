@@ -34,9 +34,9 @@ The code inside this block will be executed in a sandbox. It MUST:
    matplotlib.use("Agg")
    import matplotlib.pyplot as plt
 2. Generate the plot/chart based on the section's data or formulas.
-3. Save the plot to a unique png file in the `exports` directory, e.g., `exports/plot_{{ section.name }}.png`.
+3. Save the plot to a unique png file in the `{{ output_dir | default('exports') }}` directory, e.g., `{{ output_dir | default('exports') }}/plot_{{ section.name }}.png`.
 4. Use `print()` to output a standard Markdown image tag referencing the saved image, e.g.:
-   print("![Description of the plot](exports/plot_{{ section.name }}.png)")
+   print("![Description of the plot]({{ output_dir | default('exports') }}/plot_{{ section.name }}.png)")
 This output tag will automatically embed the figure in the final Word document.
 Ensure your code is clean, executable, and does not print any other text besides the Markdown image tag.
 {% endif %}
@@ -80,7 +80,7 @@ Do not introduce new chapter numbering schemes, new missing references, or unrel
 
 {% if academic_mode|default(false) %}
 IMPORTANT: Since you are in Academic Mode, you MUST preserve or correct the python-run code block used for visualization. 
-If correcting a visualization error, ensure the block starts with ` ```python-run `, sets `matplotlib.use("Agg")`, saves to `exports/plot_{{ section.name }}.png`, and prints the Markdown image tag `![Caption](path)`.
+If correcting a visualization error, ensure the block starts with ` ```python-run `, sets `matplotlib.use("Agg")`, saves to `{{ output_dir | default('exports') }}/plot_{{ section.name }}.png`, and prints the Markdown image tag `![Caption]({{ output_dir | default('exports') }}/plot_{{ section.name }}.png)`.
 {% endif %}
 
 IMPORTANT: Return only the final corrected Markdown text of this section. Do not return diffs, search/replace blocks, edit instructions, or explanations.
@@ -131,7 +131,7 @@ Reject only for concrete issues that materially harm correctness, coherence, or 
 Do not reject for minor preference, harmless wording, or label differences such as "section" vs "chapter" unless they create an actual broken reference.
 
 {% if academic_mode|default(false) %}
-[Academic Mode Requirement]: You MUST check if the document contains at least one generated data visualization, chart, or plot (represented by markdown image tags like `![Figure](exports/...)` or ` ```python-run ` code blocks). If no visualization is present in the document, you MUST reject it with a comment under `[general]` or the appropriate section, demanding the addition of supporting charts/plots.
+[Academic Mode Requirement]: You MUST check if the document contains at least one generated data visualization, chart, or plot (represented by markdown image tags like `![Figure]({{ output_dir | default('exports') }}/...)` or ` ```python-run ` code blocks). If no visualization is present in the document, you MUST reject it with a comment under `[general]` or the appropriate section, demanding the addition of supporting charts/plots.
 {% endif %}
 
 If a review focus is provided, first verify whether those issues are fixed. You MUST carefully verify whether all those issues are completely fixed. If any of those issues are still present (even partially), you MUST reject again. Add new issues only when they are severe regressions or major contradictions.

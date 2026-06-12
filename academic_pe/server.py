@@ -76,6 +76,7 @@ current_run = {
     "runtime_template": None,
     "runtime_prompt_manifest": None,
     "academic_mode": False,
+    "run_id": None,
 }
 
 # Thread lock for safety
@@ -277,6 +278,7 @@ def run_pipeline_thread(
     template_mode: Optional[TemplateMode] = None,
     template_id: Optional[str] = None,
     academic_mode: Optional[bool] = None,
+    run_id: Optional[str] = None,
 ):
     global current_run, _current_orchestrator
     
@@ -293,6 +295,9 @@ def run_pipeline_thread(
             config.pipeline.template_id = template_id
         if academic_mode is not None:
             config.pipeline.academic_mode = academic_mode
+        if run_id:
+            config.pipeline.output_dir = os.path.join("exports", run_id)
+            os.makedirs(config.pipeline.output_dir, exist_ok=True)
         with run_lock:
             current_run["template_mode"] = config.pipeline.template_mode.value
             current_run["template_id"] = config.pipeline.template_id
@@ -406,12 +411,14 @@ def run_pipeline_thread(
             current_run["active_section"] = None
         
         # Save history metadata
-        output_dir = os.path.dirname(output_path) if output_path else _pipeline_output_dir()
-        metadata_dir = _metadata_dir(output_dir)
+        metadata_dir = os.path.join("exports", "_metadata")
         os.makedirs(metadata_dir, exist_ok=True)
+        metadata_stem = Path(output_path).stem
+        if not metadata_stem and run_id:
+            metadata_stem = run_id
         metadata_filename = os.path.join(
             metadata_dir,
-            f"{Path(output_path).stem}.{datetime.now().strftime('%Y%m%d%H%M%S')}.metadata.json",
+            f"{metadata_stem}.{datetime.now().strftime('%Y%m%d%H%M%S')}.metadata.json",
         )
         metadata = {
             "topic": topic,
@@ -468,6 +475,9 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         if current_run["status"] == "RUNNING":
             raise HTTPException(status_code=400, detail="A pipeline is already executing")
             
+        # Generate unique run_id
+        run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
         # Reset current run status
         current_run["status"] = "RUNNING"
         current_run["state"] = "INIT"
@@ -490,6 +500,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["academic_mode"] = (
             payload.academic_mode if payload.academic_mode is not None else False
         )
+        current_run["run_id"] = run_id
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -498,6 +509,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         payload.template_mode,
         payload.template_id,
         payload.academic_mode,
+        run_id,
     )
     return {"status": "started", "message": "Pipeline execution started in the background"}
 
@@ -531,10 +543,15 @@ def export_prerequisites():
 @app.post("/api/export/docx")
 def export_docx(payload: ExportRequest):
     global current_run
+    run_id = None
     if payload.context:
         context = dict(payload.context)
         topic = payload.topic or "Untitled"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with run_lock:
+            val = current_run.get("run_id")
+            if isinstance(val, str):
+                run_id = val
     else:
         with run_lock:
             if current_run["status"] == "RUNNING":
@@ -543,6 +560,9 @@ def export_docx(payload: ExportRequest):
             context = dict(current_context) if isinstance(current_context, dict) else {}
             topic = str(current_run.get("topic") or "Untitled")
             timestamp = str(current_run.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            val = current_run.get("run_id")
+            if isinstance(val, str):
+                run_id = val
 
     with run_lock:
         if not payload.context and current_run["status"] == "RUNNING":
@@ -552,6 +572,9 @@ def export_docx(payload: ExportRequest):
         raise HTTPException(status_code=400, detail="No draft content is available to export")
 
     config = load_config("config/agents.yaml")
+    if isinstance(run_id, str):
+        config.pipeline.output_dir = os.path.join("exports", run_id)
+        os.makedirs(config.pipeline.output_dir, exist_ok=True)
 
     # Resolve runtime template from payload or current run
     rt_data: Optional[dict] = None
@@ -613,6 +636,9 @@ def export_docx(payload: ExportRequest):
             )
         )
 
+    if run_id:
+        result.filename = f"{run_id}/{result.filename}"
+
     with run_lock:
         if not payload.context:
             current_run["docx_filename"] = result.filename
@@ -621,7 +647,7 @@ def export_docx(payload: ExportRequest):
         if isinstance(logs_list, list):
             logs_list.append(f"[Export QA]: {result.status.upper()} for {result.filename}")
 
-    metadata_dir = _metadata_dir(config.pipeline.output_dir)
+    metadata_dir = os.path.join("exports", "_metadata")
     os.makedirs(metadata_dir, exist_ok=True)
     metadata_filename = os.path.join(
         metadata_dir,
@@ -649,20 +675,25 @@ def export_docx(payload: ExportRequest):
 
     return result.to_dict()
 
-@app.get("/api/download/{filename}")
+@app.get("/api/download/{filename:path}")
 def download_file(filename: str):
     output_dir = _pipeline_output_dir()
         
-    safe_filename = os.path.basename(filename)
-    file_path = os.path.join(output_dir, safe_filename)
+    file_path = os.path.abspath(os.path.join(output_dir, filename))
+    abs_output_dir = os.path.abspath(output_dir)
+    if not file_path.startswith(abs_output_dir):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File {safe_filename} not found")
-    return FileResponse(file_path, filename=safe_filename, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        raise HTTPException(status_code=404, detail=f"File {filename} not found")
+        
+    download_name = os.path.basename(file_path)
+    return FileResponse(file_path, filename=download_name, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 @app.get("/api/history")
 def get_history():
     output_dir = _pipeline_output_dir()
-    metadata_dir = _metadata_dir(output_dir)
+    metadata_dir = os.path.join("exports", "_metadata")
         
     if not os.path.exists(metadata_dir):
         return []
