@@ -26,6 +26,7 @@ export function Search() {
   const [activeTab, setActiveTab] = useState<string>("workspace")
   const [historyList, setHistoryList] = useState<any[]>([])
   const [selectedPaper, setSelectedPaper] = useState<any>(null)
+  const [viewedPaperIds, setViewedPaperIds] = useState<string[]>([])
   const [archivedWorksOpen, setArchivedWorksOpen] = useState(false)
   const [exportingDocx, setExportingDocx] = useState(false)
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
@@ -111,9 +112,33 @@ export function Search() {
     fetchLanguage()
     setNickname(window.localStorage.getItem("ape.profile.nickname") || "")
     setAvatarUrl(window.localStorage.getItem("ape.profile.avatar"))
+    
+    // Load viewed paper IDs on mount
+    const stored = window.localStorage.getItem("ape.viewed-papers")
+    if (stored) {
+      try {
+        setViewedPaperIds(JSON.parse(stored))
+      } catch (e) {
+        console.error("Failed to parse viewed papers:", e)
+      }
+    }
+    
     window.addEventListener("ape-config-saved", fetchLanguage)
     return () => window.removeEventListener("ape-config-saved", fetchLanguage)
   }, [])
+
+  useEffect(() => {
+    if (selectedPaper?.id) {
+      setViewedPaperIds((prev) => {
+        if (!prev.includes(selectedPaper.id)) {
+          const next = [...prev, selectedPaper.id]
+          window.localStorage.setItem("ape.viewed-papers", JSON.stringify(next))
+          return next
+        }
+        return prev
+      })
+    }
+  }, [selectedPaper])
 
   useEffect(() => {
     let interval: any
@@ -196,6 +221,15 @@ export function Search() {
       if (res.ok) {
         const data = await res.json()
         setHistoryList(data)
+
+        // Initialize viewedPaperIds with all existing paper IDs on first load
+        // if no viewed papers list has been tracked yet.
+        const stored = window.localStorage.getItem("ape.viewed-papers")
+        if (!stored && data.length > 0) {
+          const allIds = data.map((p: any) => p.id).filter(Boolean)
+          setViewedPaperIds(allIds)
+          window.localStorage.setItem("ape.viewed-papers", JSON.stringify(allIds))
+        }
       }
     } catch (e) {
       console.error("Error loading history list:", e)
@@ -370,6 +404,7 @@ export function Search() {
         historyList={historyList}
         selectedPaper={selectedPaper}
         setSelectedPaper={setSelectedPaper}
+        viewedPaperIds={viewedPaperIds}
         t={t}
         language={language}
         onLanguageChange={handleLanguageChange}

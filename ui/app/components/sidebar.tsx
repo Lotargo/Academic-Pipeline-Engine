@@ -43,6 +43,7 @@ interface SidebarProps {
   historyList: any[]
   selectedPaper: any
   setSelectedPaper: (paper: any) => void
+  viewedPaperIds: string[]
   t: Messages
   language: UiLanguage
   onLanguageChange: (language: UiLanguage) => Promise<void> | void
@@ -72,6 +73,7 @@ export function Sidebar({
   historyList,
   selectedPaper,
   setSelectedPaper,
+  viewedPaperIds = [],
   t,
   language,
   onLanguageChange,
@@ -173,11 +175,12 @@ export function Sidebar({
   return (
     <div
       ref={sidebarRef}
-      className={`relative flex flex-col border-r border-border bg-background z-50 h-screen shrink-0 select-none overflow-hidden ${
+      className={`relative z-50 h-screen shrink-0 ${
         isResizing ? "" : "transition-[width] duration-200 ease-out"
       }`}
       style={{ width: collapsed ? COLLAPSED_WIDTH : sidebarWidth }}
     >
+      <div className="relative flex flex-col w-full h-full border-r border-border bg-background select-none overflow-hidden">
       {!collapsed && (
         <div
           role="separator"
@@ -212,16 +215,6 @@ export function Sidebar({
           <span className="absolute inset-y-4 right-0 w-px bg-border" />
         </div>
       )}
-
-      {/* Collapse Toggle Button */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="absolute top-1/2 -right-3 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground shadow-sm hover:scale-105 active:scale-95 cursor-pointer z-50"
-      >
-        {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-      </button>
 
       {/* Header Logo */}
       <div className={`px-3 pt-4 mb-5 ${collapsed ? "flex justify-center" : ""}`}>
@@ -299,6 +292,7 @@ export function Sidebar({
         <div className="space-y-0.5 pb-4">
           {historyList.map((paper, index) => {
             const isSelected = selectedPaper === paper
+            const isUnviewed = paper.id && !viewedPaperIds.includes(paper.id)
             return (
               <div
                 key={`${historyKey(paper)}|${index}`}
@@ -318,13 +312,16 @@ export function Sidebar({
                   <FileText className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-ape-primary" />
                   {!collapsed ? (
                     <div className="flex min-w-0 flex-col truncate pr-1">
-                      <span className="truncate text-[12px] font-semibold leading-snug">{paper.topic}</span>
+                      <span className={`truncate text-[12px] leading-snug ${isUnviewed ? "font-bold text-foreground" : "font-semibold text-foreground/90"}`}>{paper.topic}</span>
                       <span className="ape-micro">{paper.timestamp}</span>
                     </div>
                   ) : (
-                    <div className="w-1.5 h-1.5 rounded-full bg-ape-primary absolute bottom-1 right-1" />
+                    isUnviewed && <div className="w-1.5 h-1.5 rounded-full bg-ape-primary absolute bottom-1 right-1" />
                   )}
                 </button>
+                {isUnviewed && !collapsed && (
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-ape-primary pointer-events-none group-hover:hidden" />
+                )}
                 {!collapsed && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -426,6 +423,17 @@ export function Sidebar({
           </button>
         </ProfileModal>
       </div>
+      </div>
+
+      {/* Collapse Toggle Button */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="absolute top-1/2 -right-4 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 dark:border-zinc-700 bg-background text-zinc-600 dark:text-zinc-400 hover:bg-ape-primary hover:text-white hover:border-ape-primary hover:shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-ape-primary/25 hover:scale-110 active:scale-95 shadow-md transition-all duration-200 cursor-pointer z-50"
+      >
+        {collapsed ? <ChevronRight className="h-4.5 w-4.5" /> : <ChevronLeft className="h-4.5 w-4.5" />}
+      </button>
     </div>
   )
 }
