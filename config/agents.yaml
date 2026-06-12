@@ -156,8 +156,8 @@ pipeline:
   output_filename: Final_Academic_Paper.docx
   output_dir: exports
   language: auto
-  template_mode: fixed
-  template_id: academic_arxiv
+  template_mode: auto
+  template_id: null
 style:
   font_name: Times New Roman
   font_size: 14

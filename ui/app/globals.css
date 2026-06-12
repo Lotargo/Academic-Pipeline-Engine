@@ -320,3 +320,104 @@
     opacity: 1;
   }
 }
+
+/* Windows 11 Fluent Design style Progress Ring */
+@keyframes win11-fluent-rotate {
+  0% {
+    transform: rotate(225deg);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  7% {
+    transform: rotate(345deg);
+    animation-timing-function: linear;
+  }
+  30% {
+    transform: rotate(455deg);
+    animation-timing-function: ease-in-out;
+  }
+  39% {
+    transform: rotate(570deg);
+    animation-timing-function: linear;
+  }
+  70% {
+    transform: rotate(815deg);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  75% {
+    transform: rotate(945deg);
+    animation-timing-function: ease-out;
+  }
+  76% {
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(945deg);
+    opacity: 0;
+  }
+}
+
+.win11-spinner {
+  position: relative;
+  display: inline-block;
+}
+
+.win11-spinner-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transform: rotate(225deg);
+  animation: win11-fluent-rotate 4.5s infinite;
+}
+
+.win11-spinner-dot::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  border-radius: 50%;
+  background-color: currentColor;
+  box-shadow: 0 0 3.5px currentColor;
+}
+
+/* Size mappings and layout */
+.win11-spinner-sm {
+  width: 16px;
+  height: 16px;
+}
+.win11-spinner-sm .win11-spinner-dot::after {
+  width: 1.8px;
+  height: 1.8px;
+  left: calc(50% - 0.9px);
+}
+
+.win11-spinner-md {
+  width: 22px;
+  height: 22px;
+}
+.win11-spinner-md .win11-spinner-dot::after {
+  width: 2.5px;
+  height: 2.5px;
+  left: calc(50% - 1.25px);
+}
+
+.win11-spinner-lg {
+  width: 30px;
+  height: 30px;
+}
+.win11-spinner-lg .win11-spinner-dot::after {
+  width: 3.4px;
+  height: 3.4px;
+  left: calc(50% - 1.7px);
+}
+
+/* Delays for the elastic chasing effect */
+.win11-spinner-dot:nth-child(1) { animation-delay: 0.15s; }
+.win11-spinner-dot:nth-child(2) { animation-delay: 0.30s; }
+.win11-spinner-dot:nth-child(3) { animation-delay: 0.45s; }
+.win11-spinner-dot:nth-child(4) { animation-delay: 0.60s; }
+.win11-spinner-dot:nth-child(5) { animation-delay: 0.75s; }
+

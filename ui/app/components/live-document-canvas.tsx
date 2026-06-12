@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, Eye, PanelTop, Moon, ChevronDown, ChevronUp } from "lucide-react"
+import { FileText, CheckCircle2, PenTool, Check, Copy, Eye, PanelTop, Moon, ChevronDown, ChevronUp } from "lucide-react"
 import { toast } from "sonner"
+import { Win11Loader } from "./win11-loader"
 import type { Messages } from "@/lib/i18n"
 import { useTheme } from "next-themes"
 import dynamic from "next/dynamic"
@@ -630,8 +631,8 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                           <CheckCircle2 className="h-3 w-3" /> {t.document.compiled}
                         </span>
                       ) : isDrafting ? (
-                        <span className="text-amber-500 dark:text-amber-400 font-bold flex items-center gap-1 animate-pulse">
-                          <Loader2 className="h-3 w-3 animate-spin" /> {t.document.drafting}
+                        <span className="text-amber-500 dark:text-amber-400 font-bold flex items-center gap-1.5 animate-pulse">
+                          <Win11Loader size="sm" className="text-amber-500" /> {t.document.drafting}
                         </span>
                       ) : hasContent ? (
                         <span className="text-emerald-500 dark:text-emerald-400 font-bold flex items-center gap-1">
@@ -707,13 +708,13 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
                         renderContent(context[section.id])
                       ) : (
                         <div className="rounded-xl border border-dashed border-ape-primary/35 bg-ape-primary-soft/20 p-6 text-center">
-                          <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2 text-ape-primary" />
+                          <Win11Loader size="md" className="mx-auto mb-3 text-ape-primary" />
                           <p className="text-xs font-sans text-zinc-500 dark:text-zinc-400 italic">Waiting for the first streamed tokens...</p>
                         </div>
                       )}
                       <div className="flex items-center justify-between border-t border-ape-primary/10 pt-2 mt-2">
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-500">
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-500">
+                          <Win11Loader size="sm" className="text-amber-500" />
                           <span>Live draft view</span>
                         </div>
                         <button

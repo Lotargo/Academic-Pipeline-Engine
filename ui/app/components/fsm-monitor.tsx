@@ -4,6 +4,7 @@ import { Fragment } from "react"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, CheckCircle2, Circle, Loader2, RefreshCw, Layers, XCircle, MessageSquare } from "lucide-react"
 import type { Messages } from "@/lib/i18n"
+import { Win11Loader } from "./win11-loader"
 
 type FSMState = "INIT" | "PLANNING" | "DRAFTING" | "REVIEWING" | "RENDERING" | "DONE" | "FAILED" | "CANCELLED"
 
@@ -93,12 +94,7 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
       return <CheckCircle2 className="h-5 w-5 text-ape-info-text" />
     }
     if (nodeStatus === "active") {
-      return (
-        <span className="relative flex h-6 w-6 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-ape-primary" />
-          <span className="absolute h-1.5 w-1.5 rounded-full bg-ape-primary" />
-        </span>
-      )
+      return <Win11Loader size="md" className="text-ape-primary" />
     }
     if (nodeStatus === "failed") {
       return <AlertCircle className="h-5 w-5 text-ape-danger-text" />
