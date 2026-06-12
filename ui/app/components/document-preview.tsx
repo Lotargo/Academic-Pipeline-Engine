@@ -40,8 +40,9 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
     (section) => !baseSections.some((known: { id: string }) => known.id === section.id)
   )
   const allSections = [...baseSections, ...extraSections]
+  const hasAnyContent = allSections.some((s) => !!context[s.id])
 
-  const [activeTab, setActiveTab] = useState<string>(allSections[0]?.id || "")
+  const [activeTab, setActiveTab] = useState<string>("__full__")
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportedFilename, setExportedFilename] = useState<string | null>(docxFilename || null)
@@ -55,11 +56,8 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
   const sections = Object.entries(exportableContext).filter(([_, text]) => !!text)
 
   // Ensure an active tab is selected if the tabs list changed
-  if (allSections.length > 0 && (!activeTab || !context[activeTab])) {
-    const firstWithContent = allSections.find((s) => !!context[s.id])
-    if (firstWithContent) {
-      setActiveTab(firstWithContent.id)
-    }
+  if (hasAnyContent && (!activeTab || (activeTab !== "__full__" && !context[activeTab]))) {
+    setActiveTab("__full__")
   }
 
   const handleDownload = () => {
@@ -447,6 +445,18 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
             <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t.document.chapters}</CardTitle>
           </CardHeader>
           <CardContent className="p-0 flex flex-row lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible">
+            {hasAnyContent && (
+              <button
+                onClick={() => setActiveTab("__full__")}
+                className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 capitalize ${
+                  activeTab === "__full__"
+                    ? "border-ape-primary bg-ape-primary-soft text-ape-primary-text font-semibold"
+                    : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                {t.document.fullDocument}
+              </button>
+            )}
             {allSections.filter((s) => !!context[s.id]).map((section) => (
               <button
                 key={section.id}
@@ -539,7 +549,20 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
           <div className="absolute top-4 right-4 bg-muted/40 text-[10px] uppercase font-mono text-muted-foreground px-2 py-1 rounded">
             {t.document.preview}
           </div>
-          {activeTab && context[activeTab] ? (
+          {activeTab === "__full__" ? (
+            renderMarkdown(
+              allSections
+                .filter((s) => !!context[s.id])
+                .map((s) => {
+                  const text = context[s.id]
+                  if (/^\s*#+\s+/.test(text)) {
+                    return text
+                  }
+                  return `# ${s.title}\n\n${text}`
+                })
+                .join("\n\n")
+            )
+          ) : activeTab && context[activeTab] ? (
             renderMarkdown(context[activeTab])
           ) : (
             <div className="flex h-48 w-full items-center justify-center text-muted-foreground text-sm italic">
