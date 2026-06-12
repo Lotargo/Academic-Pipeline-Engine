@@ -121,6 +121,7 @@ class PipelineConfig(BaseModel):
     language: LanguagePolicy = LanguagePolicy.auto
     template_mode: TemplateMode = TemplateMode.custom
     template_id: Optional[str] = None
+    academic_mode: bool = False
 
 
 class AppConfig(BaseModel):

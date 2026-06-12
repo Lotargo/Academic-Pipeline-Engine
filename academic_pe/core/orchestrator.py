@@ -214,18 +214,54 @@ class Orchestrator:
                     },
                 )
                 logger.debug("Drafting section: %s", section.name)
-                draft_parts: List[str] = []
 
-                def on_delta(delta: str, section_name: str = section.name) -> None:
-                    draft_parts.append(delta)
-                    self._emit_section_delta(section_name, delta, "".join(draft_parts))
+                max_sandbox_retries = 3
+                draft_content = ""
+                error_feedback = ""
 
-                draft_content = self._writer.process(
-                    task,
-                    context=self._document_memory(section.name),
-                    on_delta=on_delta,
-                    document_sections=self.context,
-                )
+                for attempt in range(max_sandbox_retries):
+                    self._check_cancelled()
+                    current_task = task
+                    if error_feedback:
+                        current_task += f"\n\n[Sandbox Error Feedback]\nYour previous code failed. {error_feedback}"
+
+                    draft_parts: List[str] = []
+
+                    def on_delta(delta: str, section_name: str = section.name) -> None:
+                        draft_parts.append(delta)
+                        self._emit_section_delta(section_name, delta, "".join(draft_parts))
+
+                    draft_content = self._writer.process(
+                        current_task,
+                        context=self._document_memory(section.name),
+                        on_delta=on_delta,
+                        document_sections=self.context,
+                    )
+
+                    academic_mode = getattr(self._config.pipeline, "academic_mode", False)
+                    if academic_mode:
+                        try:
+                            from academic_pe.core.sandbox import execute_sandbox_blocks
+                            draft_content = execute_sandbox_blocks(draft_content)
+                            break
+                        except Exception as exc:
+                            from academic_pe.core.sandbox import SandboxExecutionError
+                            if isinstance(exc, SandboxExecutionError):
+                                logger.warning(
+                                    "Sandbox execution failed for section %s (attempt %d/%d): %s",
+                                    section.name,
+                                    attempt + 1,
+                                    max_sandbox_retries,
+                                    exc,
+                                )
+                                if attempt == max_sandbox_retries - 1:
+                                    raise PipelineError(f"Failed to generate valid executable code in section {section.name} after {max_sandbox_retries} attempts. Error: {exc}") from exc
+                                error_feedback = f"The code block you wrote:\n```python-run\n{exc.code}\n```\nfailed with error:\n{exc}"
+                            else:
+                                raise
+                    else:
+                        break
+
                 if language_policy == "ru" and not has_cyrillic(draft_content):
                     logger.info("Translating section %s to Russian...", section.name)
                     draft_content = translate_markdown_to_ru(draft_content)
@@ -301,12 +337,18 @@ class Orchestrator:
                         )
                         try:
                             revised_content = apply_line_replace_patch(current_content, patch_text)
-                        except SectionPatchError as exc:
+                            academic_mode = getattr(self._config.pipeline, "academic_mode", False)
+                            if academic_mode:
+                                from academic_pe.core.sandbox import execute_sandbox_blocks
+                                revised_content = execute_sandbox_blocks(revised_content)
+                        except Exception as exc:
                             logger.warning(
                                 "Patch revision failed for section %s: %s. Falling back to full-section revision.",
                                 section.name,
                                 exc,
                             )
+                            max_sandbox_retries = 3
+                            error_feedback = ""
                             fallback_task = render_template(
                                 DEFAULT_REVISION_TEMPLATE,
                                 {
@@ -318,11 +360,42 @@ class Orchestrator:
                                     "user_instructions": self.user_instructions,
                                 },
                             )
-                            revised_content = self._writer.process(
-                                fallback_task,
-                                context=self._document_memory(section.name),
-                                document_sections=self.context,
-                            )
+                            for attempt in range(max_sandbox_retries):
+                                self._check_cancelled()
+                                current_fallback_task = fallback_task
+                                if error_feedback:
+                                    current_fallback_task += f"\n\n[Sandbox Error Feedback]\nYour previous code failed. {error_feedback}"
+
+                                revised_content = self._writer.process(
+                                    current_fallback_task,
+                                    context=self._document_memory(section.name),
+                                    document_sections=self.context,
+                                )
+
+                                academic_mode = getattr(self._config.pipeline, "academic_mode", False)
+                                if academic_mode:
+                                    try:
+                                        from academic_pe.core.sandbox import execute_sandbox_blocks
+                                        revised_content = execute_sandbox_blocks(revised_content)
+                                        break
+                                    except Exception as e_exc:
+                                        from academic_pe.core.sandbox import SandboxExecutionError
+                                        if isinstance(e_exc, SandboxExecutionError):
+                                            logger.warning(
+                                                "Fallback sandbox execution failed for section %s (attempt %d/%d): %s",
+                                                section.name,
+                                                attempt + 1,
+                                                max_sandbox_retries,
+                                                e_exc,
+                                            )
+                                            if attempt == max_sandbox_retries - 1:
+                                                raise PipelineError(f"Failed to generate valid executable code in section {section.name} fallback after {max_sandbox_retries} attempts. Error: {e_exc}") from e_exc
+                                            error_feedback = f"The code block you wrote:\n```python-run\n{e_exc.code}\n```\nfailed with error:\n{e_exc}"
+                                        else:
+                                            raise
+                                else:
+                                    break
+
                         if language_policy == "ru" and not has_cyrillic(revised_content):
                             logger.info("Translating revised section %s to Russian...", section.name)
                             revised_content = translate_markdown_to_ru(revised_content)
@@ -360,6 +433,13 @@ class Orchestrator:
                                         "Section %s verification failed. Writer corrected the text (attempt %d/2).",
                                         section.name, verify_attempt + 1
                                     )
+                                    academic_mode = getattr(self._config.pipeline, "academic_mode", False)
+                                    if academic_mode:
+                                        try:
+                                            from academic_pe.core.sandbox import execute_sandbox_blocks
+                                            response = execute_sandbox_blocks(response)
+                                        except Exception as exc:
+                                            logger.warning("Sandbox run failed during self-verification for %s: %s", section.name, exc)
                                     if language_policy == "ru" and not has_cyrillic(response):
                                         logger.info("Translating verified section %s to Russian...", section.name)
                                         response = translate_markdown_to_ru(response)
