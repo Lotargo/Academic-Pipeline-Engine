@@ -11,6 +11,7 @@ import { ConsolePanel } from "./console-panel"
 import { ArchivedWorksModal } from "./archived-works-modal"
 import { toast } from "sonner"
 import { Sparkles, FileText, ArrowRight, XCircle, Terminal, FileDown, Loader2 } from "lucide-react"
+import { AcademicLogoIcon } from "./academic-logo-icon"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
@@ -528,8 +529,8 @@ export function Search() {
                 
                 {/* Visual Intro */}
                 <div className="text-center space-y-3">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-ape-primary-soft text-ape-primary-text shadow-sm">
-                    <Sparkles className="h-7 w-7 animate-pulse" />
+                  <div className="mx-auto flex items-center justify-center mb-1">
+                    <AcademicLogoIcon className="h-16 w-16" animate={true} />
                   </div>
                   <div className="space-y-1">
                     <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
