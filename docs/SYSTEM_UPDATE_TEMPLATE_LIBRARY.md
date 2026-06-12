@@ -287,7 +287,7 @@ Recommended order before adding external services:
 2. Add file-backed `TemplateLibrary`. **Done: 2026-06-12.** Implemented in `academic_pe/core/template_library.py` with YAML loading and validation tests in `tests/test_template_library.py`.
 3. Move existing `pipeline.sections` into `custom_current` compatibility mode. **Done: 2026-06-12.** Implemented in `academic_pe/core/template_compat.py` with tests in `tests/test_template_compat.py`.
 4. Add built-in templates in `config/document_templates.yaml`. **Done: 2026-06-12.** Added `academic_arxiv`, `academic_report`, `essay`, `school_composition`, `poem`, `freeform_article`, and `technical_note`, with validation in `tests/test_template_library.py`. `custom_current` remains the live compatibility mode from `pipeline.sections`, not a static saved template.
-5. Add `template_mode` and `template_id` to config/API run payload.
+5. Add `template_mode` and `template_id` to config/API run payload. **Done: 2026-06-12.** Added `TemplateMode` and pipeline fields in `academic_pe/core/config.py`, request models in `academic_pe/api_models.py`, server metadata passthrough in `academic_pe/server.py`, and regenerated `config/frontend_schema.json`.
 6. Add `TemplateSelector`.
 7. Add `PromptManifestResolver` to compose base agent prompts with template-specific manifest instructions.
 8. Add `PlannerAgent` for `auto` mode.

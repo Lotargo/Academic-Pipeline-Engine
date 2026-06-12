@@ -57,4 +57,13 @@ def test_config_defaults():
     assert cfg.pipeline.output_filename == "Final_Academic_Paper.docx"
     assert cfg.pipeline.output_dir == "exports"
     assert cfg.pipeline.language == "auto"
+    assert cfg.pipeline.template_mode == "custom"
+    assert cfg.pipeline.template_id is None
     assert cfg.ui.language == "ru"
+
+
+def test_config_has_template_selection_fields():
+    config = load_config("config/agents.yaml")
+
+    assert config.pipeline.template_mode == "custom"
+    assert config.pipeline.template_id is None

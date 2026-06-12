@@ -7,16 +7,47 @@
           "type": "string"
         },
         "model": {
+          "minLength": 1,
           "title": "Model",
           "type": "string"
         },
         "temperature": {
+          "maximum": 2.0,
+          "minimum": 0.0,
           "title": "Temperature",
           "type": "number"
         },
         "system_prompt": {
           "title": "System Prompt",
           "type": "string"
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderEnum",
+          "default": "mock"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Url"
+        },
+        "agent_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Type"
         }
       },
       "required": [
@@ -27,6 +58,292 @@
       ],
       "title": "AgentConfig",
       "type": "object"
+    },
+    "CircuitBreakerConfig": {
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "failure_threshold": {
+          "default": 5,
+          "title": "Failure Threshold",
+          "type": "integer"
+        },
+        "recovery_timeout": {
+          "default": 30.0,
+          "title": "Recovery Timeout",
+          "type": "number"
+        }
+      },
+      "title": "CircuitBreakerConfig",
+      "type": "object"
+    },
+    "FSMConfig": {
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "states": {
+          "items": {
+            "type": "string"
+          },
+          "title": "States",
+          "type": "array"
+        },
+        "transitions": {
+          "items": {
+            "$ref": "#/$defs/TransitionConfig"
+          },
+          "title": "Transitions",
+          "type": "array"
+        }
+      },
+      "title": "FSMConfig",
+      "type": "object"
+    },
+    "LanguagePolicy": {
+      "enum": [
+        "auto",
+        "en",
+        "ru"
+      ],
+      "title": "LanguagePolicy",
+      "type": "string"
+    },
+    "LatexGateConfig": {
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "LatexGateConfig",
+      "type": "object"
+    },
+    "PipelineConfig": {
+      "properties": {
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/SectionPrompt"
+          },
+          "title": "Sections",
+          "type": "array"
+        },
+        "output_filename": {
+          "default": "Final_Academic_Paper.docx",
+          "title": "Output Filename",
+          "type": "string"
+        },
+        "output_dir": {
+          "default": "exports",
+          "title": "Output Dir",
+          "type": "string"
+        },
+        "title": {
+          "default": "GENERATED ACADEMIC PAPER",
+          "title": "Title",
+          "type": "string"
+        },
+        "language": {
+          "$ref": "#/$defs/LanguagePolicy",
+          "default": "auto"
+        },
+        "template_mode": {
+          "$ref": "#/$defs/TemplateMode",
+          "default": "custom"
+        },
+        "template_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Template Id"
+        }
+      },
+      "required": [
+        "sections"
+      ],
+      "title": "PipelineConfig",
+      "type": "object"
+    },
+    "ProviderEnum": {
+      "enum": [
+        "openai",
+        "custom_openai",
+        "anthropic",
+        "google",
+        "lm_studio",
+        "zen",
+        "mock"
+      ],
+      "title": "ProviderEnum",
+      "type": "string"
+    },
+    "QualityGateConfig": {
+      "properties": {
+        "volume": {
+          "$ref": "#/$defs/VolumeGateConfig",
+          "default": {
+            "enabled": true,
+            "min_chars": 200
+          }
+        },
+        "latex": {
+          "$ref": "#/$defs/LatexGateConfig",
+          "default": {
+            "enabled": true
+          }
+        }
+      },
+      "title": "QualityGateConfig",
+      "type": "object"
+    },
+    "RetryConfig": {
+      "properties": {
+        "max_retries": {
+          "default": 3,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "base_delay": {
+          "default": 1.0,
+          "title": "Base Delay",
+          "type": "number"
+        },
+        "max_delay": {
+          "default": 30.0,
+          "title": "Max Delay",
+          "type": "number"
+        }
+      },
+      "title": "RetryConfig",
+      "type": "object"
+    },
+    "SectionPrompt": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "topic": {
+          "title": "Topic",
+          "type": "string"
+        },
+        "instruction": {
+          "title": "Instruction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "topic",
+        "instruction"
+      ],
+      "title": "SectionPrompt",
+      "type": "object"
+    },
+    "StyleConfig": {
+      "properties": {
+        "font_name": {
+          "default": "Times New Roman",
+          "title": "Font Name",
+          "type": "string"
+        },
+        "font_size": {
+          "default": 14,
+          "title": "Font Size",
+          "type": "integer"
+        },
+        "title_font_size": {
+          "default": 20,
+          "title": "Title Font Size",
+          "type": "integer"
+        },
+        "line_spacing": {
+          "default": 1.5,
+          "title": "Line Spacing",
+          "type": "number"
+        },
+        "first_line_indent_cm": {
+          "default": 1.25,
+          "title": "First Line Indent Cm",
+          "type": "number"
+        },
+        "alignment": {
+          "default": "justify",
+          "title": "Alignment",
+          "type": "string"
+        }
+      },
+      "title": "StyleConfig",
+      "type": "object"
+    },
+    "TemplateMode": {
+      "enum": [
+        "fixed",
+        "custom",
+        "auto"
+      ],
+      "title": "TemplateMode",
+      "type": "string"
+    },
+    "TransitionConfig": {
+      "properties": {
+        "from_state": {
+          "title": "From State",
+          "type": "string"
+        },
+        "to_states": {
+          "items": {
+            "type": "string"
+          },
+          "title": "To States",
+          "type": "array"
+        }
+      },
+      "required": [
+        "from_state",
+        "to_states"
+      ],
+      "title": "TransitionConfig",
+      "type": "object"
+    },
+    "UIConfig": {
+      "properties": {
+        "language": {
+          "default": "ru",
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "title": "UIConfig",
+      "type": "object"
+    },
+    "VolumeGateConfig": {
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "min_chars": {
+          "default": 200,
+          "title": "Min Chars",
+          "type": "integer"
+        }
+      },
+      "title": "VolumeGateConfig",
+      "type": "object"
     }
   },
   "properties": {
@@ -36,6 +353,128 @@
       },
       "title": "Agents",
       "type": "object"
+    },
+    "retry": {
+      "$ref": "#/$defs/RetryConfig",
+      "default": {
+        "max_retries": 3,
+        "base_delay": 1.0,
+        "max_delay": 30.0
+      }
+    },
+    "circuit_breaker": {
+      "$ref": "#/$defs/CircuitBreakerConfig",
+      "default": {
+        "enabled": false,
+        "failure_threshold": 5,
+        "recovery_timeout": 30.0
+      }
+    },
+    "quality_gate": {
+      "$ref": "#/$defs/QualityGateConfig",
+      "default": {
+        "volume": {
+          "enabled": true,
+          "min_chars": 200
+        },
+        "latex": {
+          "enabled": true
+        }
+      }
+    },
+    "fsm": {
+      "$ref": "#/$defs/FSMConfig",
+      "default": {
+        "enabled": false,
+        "states": [
+          "INIT",
+          "DRAFTING",
+          "REVIEWING",
+          "RENDERING",
+          "DONE",
+          "FAILED"
+        ],
+        "transitions": [
+          {
+            "from_state": "INIT",
+            "to_states": [
+              "DRAFTING"
+            ]
+          },
+          {
+            "from_state": "DRAFTING",
+            "to_states": [
+              "REVIEWING"
+            ]
+          },
+          {
+            "from_state": "REVIEWING",
+            "to_states": [
+              "DRAFTING",
+              "RENDERING"
+            ]
+          },
+          {
+            "from_state": "RENDERING",
+            "to_states": [
+              "DONE"
+            ]
+          },
+          {
+            "from_state": "DONE",
+            "to_states": []
+          },
+          {
+            "from_state": "FAILED",
+            "to_states": []
+          }
+        ]
+      }
+    },
+    "style": {
+      "$ref": "#/$defs/StyleConfig",
+      "default": {
+        "font_name": "Times New Roman",
+        "font_size": 14,
+        "title_font_size": 20,
+        "line_spacing": 1.5,
+        "first_line_indent_cm": 1.25,
+        "alignment": "justify"
+      }
+    },
+    "ui": {
+      "$ref": "#/$defs/UIConfig",
+      "default": {
+        "language": "ru"
+      }
+    },
+    "pipeline": {
+      "$ref": "#/$defs/PipelineConfig",
+      "default": {
+        "sections": [
+          {
+            "instruction": "Structure it with H2 and H3 headers.",
+            "name": "theory",
+            "topic": "State Machines"
+          },
+          {
+            "instruction": "Include LaTeX formulas (e.g. $O(n)$).",
+            "name": "calculation",
+            "topic": "Algorithmic Complexity"
+          },
+          {
+            "instruction": "Summarize key findings and implications.",
+            "name": "conclusion",
+            "topic": "Efficiency of State Machines"
+          }
+        ],
+        "output_filename": "Final_Academic_Paper.docx",
+        "output_dir": "exports",
+        "title": "GENERATED ACADEMIC PAPER",
+        "language": "auto",
+        "template_mode": "custom",
+        "template_id": null
+      }
     }
   },
   "required": [

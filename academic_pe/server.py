@@ -10,9 +10,9 @@ from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
 
-from academic_pe.core.config import load_config, AppConfig
+from academic_pe.api_models import ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload
+from academic_pe.core.config import TemplateMode, load_config, AppConfig
 from academic_pe.core.orchestrator import create_orchestrator, PipelineState, PipelineCancelled
 from academic_pe.tools.export_qa import export_docx_with_qa
 from academic_pe.tools.libreoffice import discover_soffice
@@ -42,6 +42,8 @@ current_run = {
     "topic": "",
     "timestamp": None,
     "active_section": None,
+    "template_mode": None,
+    "template_id": None,
 }
 
 # Thread lock for safety
@@ -80,20 +82,6 @@ class StatusLogHandler(logging.Handler):
 # Initialize standard logging
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.INFO)
-
-# Request Models
-class RunRequest(BaseModel):
-    topic: str
-    instructions: Optional[str] = None
-
-class ConfigUpdateRequest(BaseModel):
-    config: dict
-
-
-class ExportRequest(BaseModel):
-    filename: Optional[str] = None
-    topic: Optional[str] = None
-    context: Optional[Dict[str, str]] = None
 
 # Routes
 @app.get("/api/config")
@@ -166,7 +154,12 @@ class InterceptingDict(dict):
         super().__setitem__(key, value)
         self.callback(self)
 
-def run_pipeline_thread(topic: str, instructions: Optional[str]):
+def run_pipeline_thread(
+    topic: str,
+    instructions: Optional[str],
+    template_mode: Optional[TemplateMode] = None,
+    template_id: Optional[str] = None,
+):
     global current_run, _current_orchestrator
     
     # Configure logging capturing
@@ -176,6 +169,13 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
     try:
         # Load local configuration
         config = load_config("config/agents.yaml")
+        if template_mode is not None:
+            config.pipeline.template_mode = template_mode
+        if template_id is not None:
+            config.pipeline.template_id = template_id
+        with run_lock:
+            current_run["template_mode"] = config.pipeline.template_mode.value
+            current_run["template_id"] = config.pipeline.template_id
         
         # Apply prompt overrides if topic is provided
         if topic:
@@ -269,6 +269,8 @@ def run_pipeline_thread(topic: str, instructions: Optional[str]):
         metadata = {
             "topic": topic,
             "instructions": instructions,
+            "template_mode": config.pipeline.template_mode.value,
+            "template_id": config.pipeline.template_id,
             "timestamp": current_run["timestamp"],
             "status": "COMPLETED",
             "docx_filename": os.path.basename(output_path) if output_path else None,
@@ -319,8 +321,18 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["topic"] = payload.topic
         current_run["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         current_run["active_section"] = None
+        current_run["template_mode"] = (
+            payload.template_mode.value if payload.template_mode is not None else None
+        )
+        current_run["template_id"] = payload.template_id
 
-    background_tasks.add_task(run_pipeline_thread, payload.topic, payload.instructions)
+    background_tasks.add_task(
+        run_pipeline_thread,
+        payload.topic,
+        payload.instructions,
+        payload.template_mode,
+        payload.template_id,
+    )
     return {"status": "started", "message": "Pipeline execution started in the background"}
 
 
@@ -390,6 +402,8 @@ def export_docx(payload: ExportRequest):
     metadata = {
         "topic": topic,
         "instructions": None,
+        "template_mode": current_run.get("template_mode") or config.pipeline.template_mode.value,
+        "template_id": current_run.get("template_id") or config.pipeline.template_id,
         "timestamp": timestamp,
         "status": "COMPLETED",
         "docx_filename": result.filename,
@@ -440,6 +454,8 @@ def get_history():
                         "logs": data.get("logs", []),
                         "reviewer_feedback": data.get("reviewer_feedback", []),
                         "export_report": data.get("export_report"),
+                        "template_mode": data.get("template_mode"),
+                        "template_id": data.get("template_id"),
                     })
             except Exception as e:
                 logging.getLogger(__name__).warning("Failed to load metadata file %s: %s", f, e)
@@ -452,10 +468,6 @@ def get_history():
 from academic_pe.core.secrets import is_secret_configured, save_secret, get_secret
 import requests  # type: ignore
 from openai import OpenAI
-
-class SecretUpdatePayload(BaseModel):
-    provider: str
-    api_key: str
 
 @app.get("/api/secrets")
 def get_secrets_status():

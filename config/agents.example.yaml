@@ -72,6 +72,10 @@ quality_gate:
 # Pipeline
 # ---------------------------------------------------------------------------
 # Sections define the structure of the generated document.
+# template_mode selects the document template source:
+# - custom: use sections below as the current custom template
+# - fixed: use template_id from config/document_templates.yaml
+# - auto: planner-generated runtime template (planned)
 # output_filename and output_dir control where the final DOCX is saved.
 
 pipeline:
@@ -88,6 +92,8 @@ pipeline:
   output_filename: "Final_Academic_Paper.docx"
   output_dir: "exports"
   language: "auto"
+  template_mode: "custom"
+  template_id: null
 
 ui:
   language: "ru"

@@ -122,3 +122,5 @@ config/secrets.json
 *.png
 exports/_metadata/
 exports_metadata/
+
+docs/PROJECT_STRENGTHS.md*

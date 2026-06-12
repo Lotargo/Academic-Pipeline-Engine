@@ -32,6 +32,12 @@ class LanguagePolicy(str, Enum):
     ru = "ru"
 
 
+class TemplateMode(str, Enum):
+    fixed = "fixed"
+    custom = "custom"
+    auto = "auto"
+
+
 class AgentConfig(BaseModel):
     role: str
     model: str = Field(..., min_length=1)
@@ -113,6 +119,8 @@ class PipelineConfig(BaseModel):
     output_dir: str = "exports"
     title: str = "GENERATED ACADEMIC PAPER"
     language: LanguagePolicy = LanguagePolicy.auto
+    template_mode: TemplateMode = TemplateMode.custom
+    template_id: Optional[str] = None
 
 
 class AppConfig(BaseModel):
