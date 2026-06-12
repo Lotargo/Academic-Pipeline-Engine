@@ -227,8 +227,9 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
     const lines = text.split("\n")
     const elements: React.ReactNode[] = []
     
-    let currentBlockType: "paragraph" | "list" | "table" | "block_math" | null = null
+    let currentBlockType: "paragraph" | "list" | "table" | "block_math" | "code" | null = null
     let accumulatedLines: string[] = []
+    let codeLanguage = ""
     
     const flushBlock = (key: string | number) => {
       if (accumulatedLines.length === 0) return
@@ -253,6 +254,19 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         elements.push(
           <div key={`math-${key}`} className="my-4 rounded-md border border-sky-200/70 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/20 px-4 py-4 text-center font-mono text-sm text-sky-800 dark:text-sky-100">
             {formatMath(mathText)}
+          </div>
+        )
+      } else if (currentBlockType === "code") {
+        elements.push(
+          <div key={`code-${key}`} className="my-4 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-950 shadow-sm">
+            {codeLanguage && (
+              <div className="border-b border-white/10 px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+                {codeLanguage}
+              </div>
+            )}
+            <pre className="overflow-x-auto p-4 text-left font-mono text-[13px] leading-6 text-slate-100 whitespace-pre">
+              <code>{blockText}</code>
+            </pre>
           </div>
         )
       } else if (currentBlockType === "table") {
@@ -299,15 +313,54 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
       
       accumulatedLines = []
       currentBlockType = null
+      codeLanguage = ""
     }
     
     let inMathBlock = false
     let mathDelimiter: "$$" | "\\]" | null = null
+    let inCodeBlock = false
     
     lines.forEach((line, idx) => {
       const stripped = line.trim()
+
+      if (inCodeBlock) {
+        if (stripped.endsWith("```")) {
+          const closingIndex = line.lastIndexOf("```")
+          const beforeFence = line.slice(0, closingIndex)
+          if (beforeFence) {
+            accumulatedLines.push(beforeFence)
+          }
+          inCodeBlock = false
+          flushBlock(idx)
+          return
+        }
+
+        accumulatedLines.push(line)
+        return
+      }
       
       if (!inMathBlock) {
+        if (stripped.startsWith("```")) {
+          flushBlock(idx)
+          currentBlockType = "code"
+          const afterFence = stripped.slice(3).trim()
+          if (afterFence.endsWith("```")) {
+            const singleLineCode = afterFence.slice(0, -3).trimEnd()
+            if (singleLineCode) {
+              accumulatedLines.push(singleLineCode)
+            }
+            flushBlock(idx)
+            return
+          }
+          if (afterFence && /^[a-zA-Z0-9_-]+$/.test(afterFence)) {
+            codeLanguage = afterFence
+          } else if (afterFence) {
+            accumulatedLines.push(afterFence)
+          }
+          inCodeBlock = true
+          return
+        }
+
         if (stripped.startsWith("$$")) {
           flushBlock(idx)
           inMathBlock = true
