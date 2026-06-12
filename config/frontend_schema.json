@@ -125,6 +125,17 @@
       "title": "LatexGateConfig",
       "type": "object"
     },
+    "MarkdownGateConfig": {
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "MarkdownGateConfig",
+      "type": "object"
+    },
     "PipelineConfig": {
       "properties": {
         "sections": {
@@ -168,6 +179,11 @@
           ],
           "default": null,
           "title": "Template Id"
+        },
+        "academic_mode": {
+          "default": false,
+          "title": "Academic Mode",
+          "type": "boolean"
         }
       },
       "required": [
@@ -200,6 +216,12 @@
         },
         "latex": {
           "$ref": "#/$defs/LatexGateConfig",
+          "default": {
+            "enabled": true
+          }
+        },
+        "markdown": {
+          "$ref": "#/$defs/MarkdownGateConfig",
           "default": {
             "enabled": true
           }
@@ -379,6 +401,9 @@
         },
         "latex": {
           "enabled": true
+        },
+        "markdown": {
+          "enabled": true
         }
       }
     },
@@ -473,8 +498,19 @@
         "title": "GENERATED ACADEMIC PAPER",
         "language": "auto",
         "template_mode": "custom",
-        "template_id": null
+        "template_id": null,
+        "academic_mode": false
       }
+    },
+    "dynamic_examples_enabled": {
+      "default": true,
+      "title": "Dynamic Examples Enabled",
+      "type": "boolean"
+    },
+    "dynamic_examples_interval_mins": {
+      "default": 15,
+      "title": "Dynamic Examples Interval Mins",
+      "type": "integer"
     }
   },
   "required": [

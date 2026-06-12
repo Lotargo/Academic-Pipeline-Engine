@@ -4,6 +4,8 @@ import yaml
 import logging
 import threading
 import asyncio
+import time
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Callable
@@ -18,8 +20,27 @@ from academic_pe.core.template_library import TemplateLibrary
 from academic_pe.tools.export_qa import export_docx_with_qa
 from academic_pe.tools.libreoffice import discover_soffice
 
+_background_tasks = set()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start dynamic examples generator loop
+    from academic_pe.core.dynamic_examples import dynamic_examples_loop
+    task = asyncio.create_task(dynamic_examples_loop())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    
+    yield
+    
+    # Cancel the task on shutdown
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
 # Create FastAPI app
-app = FastAPI(title="Academic PE API Server", version="0.1.0")
+app = FastAPI(title="Academic PE API Server", version="0.1.0", lifespan=lifespan)
 
 # CORS middleware for Next.js on port 3000
 app.add_middleware(
@@ -100,6 +121,71 @@ def get_config():
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read config: {str(e)}")
+
+
+@app.get("/api/examples")
+async def get_examples(client_time: Optional[float] = None):
+    """
+    Returns the list of research examples/templates.
+    Optionally aligns generation timestamps and TTL to browser's client_time (millisecond epoch).
+    """
+    config = load_config("config/agents.yaml")
+    lang = config.ui.language
+    
+    if not getattr(config, "dynamic_examples_enabled", True):
+        from academic_pe.core.dynamic_examples import get_default_examples
+        return {
+            "examples": get_default_examples(lang),
+            "last_generated": time.time() * 1000,
+            "ttl": 0,
+            "dynamic": False
+        }
+        
+    from academic_pe.core.dynamic_examples import load_cached_examples, last_generated_at
+    examples = await load_cached_examples(lang)
+    
+    now = time.time()
+    interval_mins = getattr(config, "dynamic_examples_interval_mins", 15)
+    interval_sec = max(interval_mins, 1) * 60
+    
+    elapsed = now - last_generated_at
+    ttl = max(0.0, interval_sec - elapsed)
+    
+    last_generated_client_ms = last_generated_at * 1000
+    if client_time is not None:
+        client_time_sec = client_time / 1000.0
+        drift = client_time_sec - now
+        last_generated_client_ms = (last_generated_at + drift) * 1000
+        
+    return {
+        "examples": examples,
+        "last_generated": last_generated_client_ms,
+        "ttl": int(ttl),
+        "dynamic": True
+    }
+
+
+@app.post("/api/examples/refresh")
+async def refresh_examples():
+    """
+    Manually triggers generation of new dynamic examples and returns them.
+    """
+    try:
+        from academic_pe.core.dynamic_examples import generate_new_examples, load_cached_examples
+        await generate_new_examples()
+        
+        config = load_config("config/agents.yaml")
+        lang = config.ui.language
+        examples = await load_cached_examples(lang)
+        from academic_pe.core.dynamic_examples import last_generated_at
+        return {
+            "examples": examples,
+            "last_generated": last_generated_at * 1000,
+            "ttl": max(getattr(config, "dynamic_examples_interval_mins", 15) * 60, 60),
+            "dynamic": True
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/templates")

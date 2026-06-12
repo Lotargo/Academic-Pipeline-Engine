@@ -86,6 +86,12 @@ agents:
 
       Plan only the runtime document structure and prompt manifest. Do not draft document
       content.'
+  example_generator:
+    role: Example Generator
+    provider: zen
+    model: deepseek-v4-flash-free
+    temperature: 0.8
+    system_prompt: 'You are an academic prompt helper. Generate 3 creative, diverse, and relevant academic paper topics along with clear instructions for each, tailored to the requested interface language. Return ONLY a valid JSON array of objects without markdown code block syntax: [{"topic": "Topic Name", "instructions": "Guideline text"}]'
 retry:
   max_retries: 3
   base_delay: 1
@@ -125,3 +131,5 @@ style:
   alignment: justify
 ui:
   language: ru
+dynamic_examples_enabled: true
+dynamic_examples_interval_mins: 15

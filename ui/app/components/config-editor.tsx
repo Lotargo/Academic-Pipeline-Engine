@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { ArrowUp, ArrowDown, Trash2, Plus, Save, RotateCcw, Sliders, Settings2, AlertTriangle } from "lucide-react"
+import { ArrowUp, ArrowDown, Trash2, Plus, Save, RotateCcw, Sliders, Settings2, AlertTriangle, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 
 type DocumentTemplateSummary = {
@@ -27,8 +27,14 @@ export function ConfigEditor() {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({})
   const [writerModels, setWriterModels] = useState<string[]>([])
   const [reviewerModels, setReviewerModels] = useState<string[]>([])
+  const [exampleGeneratorModels, setExampleGeneratorModels] = useState<string[]>([])
   const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({})
   const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplateSummary[]>([])
+  const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({})
+
+  const toggleShowApiKey = (provider: string) => {
+    setShowApiKeys(prev => ({ ...prev, [provider]: !prev[provider] }))
+  }
 
   // Fetch config and secrets status on mount
   useEffect(() => {
@@ -45,6 +51,9 @@ export function ConfigEditor() {
       }
       if (config.agents.reviewer) {
         fetchModelsForAgent("reviewer", config.agents.reviewer.provider, config.agents.reviewer.base_url)
+      }
+      if (config.agents.example_generator) {
+        fetchModelsForAgent("example_generator", config.agents.example_generator.provider, config.agents.example_generator.base_url)
       }
     }
   }, [config === null])
@@ -77,7 +86,8 @@ export function ConfigEditor() {
     if (!provider || provider === "mock") {
       const defaultModels = ["mock-model-1", "mock-model-2"]
       if (agentKey === "writer") setWriterModels(defaultModels)
-      else setReviewerModels(defaultModels)
+      else if (agentKey === "reviewer") setReviewerModels(defaultModels)
+      else if (agentKey === "example_generator") setExampleGeneratorModels(defaultModels)
       return
     }
     setLoadingModels(prev => ({ ...prev, [agentKey]: true }))
@@ -90,7 +100,8 @@ export function ConfigEditor() {
       if (res.ok) {
         const data = await res.json()
         if (agentKey === "writer") setWriterModels(data)
-        else setReviewerModels(data)
+        else if (agentKey === "reviewer") setReviewerModels(data)
+        else if (agentKey === "example_generator") setExampleGeneratorModels(data)
       }
     } catch (e) {
       console.error(`Error fetching models for ${agentKey}:`, e)
@@ -127,6 +138,9 @@ export function ConfigEditor() {
       if (config?.agents?.reviewer?.provider === provider) {
         fetchModelsForAgent("reviewer", provider, config?.agents?.reviewer?.base_url)
       }
+      if (config?.agents?.example_generator?.provider === provider) {
+        fetchModelsForAgent("example_generator", provider, config?.agents?.example_generator?.base_url)
+      }
     } catch (e: any) {
       toast.error(e.message || "Failed to save secret key")
     }
@@ -151,6 +165,12 @@ export function ConfigEditor() {
       }
       if (!data.ui) {
         data.ui = { language: "ru" }
+      }
+      if (data.dynamic_examples_enabled === undefined) {
+        data.dynamic_examples_enabled = true
+      }
+      if (data.dynamic_examples_interval_mins === undefined) {
+        data.dynamic_examples_interval_mins = 15
       }
       if (!data.pipeline.template_mode) {
         data.pipeline.template_mode = "custom"
@@ -346,7 +366,7 @@ export function ConfigEditor() {
 
   return (
     <div className="h-full w-full overflow-y-auto px-4 py-8 md:px-8">
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
@@ -731,7 +751,46 @@ export function ConfigEditor() {
             </AccordionTrigger>
             <AccordionContent className="px-5 pb-5 pt-1 space-y-5">
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              {/* Dynamic Examples Toggle */}
+              <div className="rounded-lg border p-4 bg-muted/20 flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <label className="text-xs font-semibold">Dynamic Examples Generator</label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Automatically generate fresh academic writing topics and guidelines periodically.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config?.dynamic_examples_enabled ?? true}
+                    onCheckedChange={(val: boolean) => {
+                      setConfig((prev: any) => ({
+                        ...prev,
+                        dynamic_examples_enabled: val,
+                      }))
+                    }}
+                  />
+                </div>
+                {(config?.dynamic_examples_enabled ?? true) && (
+                  <div className="w-48 space-y-1 pt-2 border-t border-border/40">
+                    <label className="text-[11px] font-medium text-muted-foreground">Update Interval (minutes)</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="1440"
+                      value={config?.dynamic_examples_interval_mins ?? 15}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                        setConfig((prev: any) => ({
+                          ...prev,
+                          dynamic_examples_interval_mins: parseInt(e.target.value) || 15,
+                        }))
+                      }}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
                 {/* Writer Agent Config */}
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center justify-between border-b pb-2">
@@ -748,7 +807,7 @@ export function ConfigEditor() {
                         value={config?.agents?.writer?.provider}
                         onValueChange={(val: string) => handleAgentChange("writer", "provider", val)}
                       >
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger className="h-8 text-xs w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -781,16 +840,25 @@ export function ConfigEditor() {
                     <div className="space-y-1">
                       <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
                       <div className="flex gap-1.5">
-                        <Input
-                          type="password"
-                          value={apiKeys[config.agents.writer.provider] || ""}
-                          onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                            const val = e.target.value;
-                            setApiKeys((prev: any) => ({ ...prev, [config.agents.writer.provider]: val }))
-                          }}
-                          placeholder={secretsStatus[config.agents.writer.provider] ? "•••••••• (Saved)" : "Enter API Key"}
-                          className="h-8 text-xs flex-1"
-                        />
+                        <div className="relative flex-1">
+                          <Input
+                            type={showApiKeys[config.agents.writer.provider] ? "text" : "password"}
+                            value={apiKeys[config.agents.writer.provider] || ""}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                              const val = e.target.value;
+                              setApiKeys((prev: any) => ({ ...prev, [config.agents.writer.provider]: val }))
+                            }}
+                            placeholder={secretsStatus[config.agents.writer.provider] ? "•••••••• (Saved)" : "Enter API Key"}
+                            className="h-8 text-xs pr-8 w-full"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowApiKey(config.agents.writer.provider)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                          >
+                            {showApiKeys[config.agents.writer.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
                         <Button
                           variant="outline"
                           size="sm"
@@ -863,7 +931,7 @@ export function ConfigEditor() {
                         value={config?.agents?.reviewer?.provider}
                         onValueChange={(val: string) => handleAgentChange("reviewer", "provider", val)}
                       >
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger className="h-8 text-xs w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -896,16 +964,25 @@ export function ConfigEditor() {
                     <div className="space-y-1">
                       <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
                       <div className="flex gap-1.5">
-                        <Input
-                          type="password"
-                          value={apiKeys[config.agents.reviewer.provider] || ""}
-                          onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                            const val = e.target.value;
-                            setApiKeys((prev: any) => ({ ...prev, [config.agents.reviewer.provider]: val }))
-                          }}
-                          placeholder={secretsStatus[config.agents.reviewer.provider] ? "•••••••• (Saved)" : "Enter API Key"}
-                          className="h-8 text-xs flex-1"
-                        />
+                        <div className="relative flex-1">
+                          <Input
+                            type={showApiKeys[config.agents.reviewer.provider] ? "text" : "password"}
+                            value={apiKeys[config.agents.reviewer.provider] || ""}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                              const val = e.target.value;
+                              setApiKeys((prev: any) => ({ ...prev, [config.agents.reviewer.provider]: val }))
+                            }}
+                            placeholder={secretsStatus[config.agents.reviewer.provider] ? "•••••••• (Saved)" : "Enter API Key"}
+                            className="h-8 text-xs pr-8 w-full"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowApiKey(config.agents.reviewer.provider)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                          >
+                            {showApiKeys[config.agents.reviewer.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
                         <Button
                           variant="outline"
                           size="sm"
@@ -961,6 +1038,131 @@ export function ConfigEditor() {
                     />
                   </div>
                 </div>
+
+                {/* Example Generator Agent Config */}
+                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h3 className="font-semibold text-sm text-foreground">Example Generator Agent</h3>
+                    <span className="rounded bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
+                      Dynamic
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Model Provider</label>
+                      <Select
+                        value={config?.agents?.example_generator?.provider}
+                        onValueChange={(val: string) => handleAgentChange("example_generator", "provider", val)}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mock">Mock Engine</SelectItem>
+                          <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+                          <SelectItem value="google">Google (Gemini)</SelectItem>
+                          <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
+                          <SelectItem value="lm_studio">LM Studio</SelectItem>
+                          <SelectItem value="zen">OpenCode Zen</SelectItem>
+                          <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Temperature</label>
+                      <Input
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="2"
+                        value={config?.agents?.example_generator?.temperature ?? 0.8}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("example_generator", "temperature", parseFloat(e.target.value) || 0.8)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {config?.agents?.example_generator?.provider && config.agents.example_generator.provider !== "mock" && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
+                      <div className="flex gap-1.5">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showApiKeys[config.agents.example_generator.provider] ? "text" : "password"}
+                            value={apiKeys[config.agents.example_generator.provider] || ""}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                              const val = e.target.value;
+                              setApiKeys((prev: any) => ({ ...prev, [config.agents.example_generator.provider]: val }))
+                            }}
+                            placeholder={secretsStatus[config.agents.example_generator.provider] ? "•••••••• (Saved)" : "Enter API Key"}
+                            className="h-8 text-xs pr-8 w-full"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowApiKey(config.agents.example_generator.provider)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                          >
+                            {showApiKeys[config.agents.example_generator.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSaveApiKey(config.agents.example_generator.provider)}
+                          className="h-8 text-[10px] px-2"
+                        >
+                          Save Key
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(config?.agents?.example_generator?.provider === "custom_openai" || config?.agents?.example_generator?.provider === "lm_studio") && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Base URL</label>
+                      <Input
+                        value={config?.agents?.example_generator?.base_url || ""}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("example_generator", "base_url", e.target.value)}
+                        placeholder={config?.agents?.example_generator?.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
+                      {loadingModels["example_generator"] && (
+                        <span className="text-[9px] text-teal-600 animate-pulse">Fetching...</span>
+                      )}
+                    </div>
+                    <Input
+                      list="example_generator-models-list"
+                      value={config?.agents?.example_generator?.model || ""}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("example_generator", "model", e.target.value)}
+                      placeholder="Select or type model name"
+                      className="h-8 text-xs"
+                    />
+                    <datalist id="example_generator-models-list">
+                      {exampleGeneratorModels.map((m: string) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">System Prompt</label>
+                    <Textarea
+                      value={config?.agents?.example_generator?.system_prompt}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleAgentChange("example_generator", "system_prompt", e.target.value)}
+                      rows={6}
+                      className="text-xs leading-normal"
+                    />
+                  </div>
+                </div>
+
               </div>
 
               {/* Quality Gates Config */}

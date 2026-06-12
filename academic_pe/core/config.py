@@ -145,6 +145,8 @@ class AppConfig(BaseModel):
         SectionPrompt(name="conclusion", topic="Efficiency of State Machines",
                       instruction="Summarize key findings and implications."),
     ])
+    dynamic_examples_enabled: bool = True
+    dynamic_examples_interval_mins: int = 15
 
 
 _CONFIG_CACHE: Dict[str, AppConfig] = {}
@@ -156,6 +158,32 @@ def load_config(path: str = "config/agents.yaml") -> AppConfig:
 
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
+
+    if not isinstance(data, dict):
+        data = {}
+
+    if "dynamic_examples_enabled" not in data:
+        data["dynamic_examples_enabled"] = True
+
+    if "dynamic_examples_interval_mins" not in data:
+        data["dynamic_examples_interval_mins"] = 15
+
+    if "agents" not in data:
+        data["agents"] = {}
+
+    if "example_generator" not in data["agents"]:
+        data["agents"]["example_generator"] = {
+            "role": "Example Generator",
+            "provider": "zen",
+            "model": "deepseek-v4-flash-free",
+            "temperature": 0.8,
+            "system_prompt": (
+                "You are an academic prompt helper. Generate 3 creative, diverse, and relevant academic paper topics "
+                "along with clear instructions for each, tailored to the requested interface language. "
+                "Return ONLY a valid JSON array of objects without markdown code block syntax: "
+                '[{"topic": "Topic Name", "instructions": "Guideline text"}]'
+            )
+        }
 
     config = AppConfig(**data)
     _CONFIG_CACHE[path] = config

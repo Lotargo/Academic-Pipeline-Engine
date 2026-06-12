@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Search, Sparkles, BookOpen, ChevronRight, HelpCircle } from "lucide-react"
+import { Search, Sparkles, BookOpen, ChevronRight, HelpCircle, RotateCw } from "lucide-react"
 import type { Messages } from "@/lib/i18n"
+import { toast } from "sonner"
 
 interface SearchBarProps {
   onSearch?: (topic: string, instructions: string, academicMode: boolean) => void
@@ -16,6 +17,83 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
   const [instructions, setInstructions] = useState("")
   const [isFocused, setIsFocused] = useState(false)
   const [academicMode, setAcademicMode] = useState(false)
+  const [examples, setExamples] = useState<{ topic: string; instructions: string }[]>([])
+  const [ttl, setTtl] = useState<number>(0)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleManualRefresh = async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      const res = await fetch("/api/examples/refresh", { method: "POST" })
+      if (res.ok) {
+        const data = await res.json()
+        setExamples(data.examples || [])
+        setTtl(data.ttl || 0)
+        toast.success("Examples refreshed successfully!")
+      } else {
+        toast.error("Failed to refresh examples.")
+      }
+    } catch (e) {
+      console.error("Error refreshing examples manually:", e)
+      toast.error("Failed to refresh examples.")
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const fetchExamples = async () => {
+    try {
+      const res = await fetch(`/api/examples?client_time=${Date.now()}`)
+      if (res.ok) {
+        const data = await res.json()
+        setExamples(data.examples || [])
+        setTtl(data.ttl || 0)
+      }
+    } catch (e) {
+      console.error("Error fetching dynamic examples:", e)
+    }
+  }
+
+  useEffect(() => {
+    fetchExamples()
+
+    const handleConfigSaved = () => {
+      fetchExamples()
+    }
+    window.addEventListener("ape-config-saved", handleConfigSaved)
+
+    return () => {
+      window.removeEventListener("ape-config-saved", handleConfigSaved)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (ttl <= 0) return
+
+    const timer = setInterval(() => {
+      setTtl(prev => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          fetch(`/api/examples?client_time=${Date.now()}`)
+            .then(res => {
+              if (res.ok) return res.json()
+            })
+            .then(data => {
+              if (data) {
+                setExamples(data.examples || [])
+                setTtl(data.ttl || 0)
+              }
+            })
+            .catch(err => console.error("Error refreshing examples:", err))
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [ttl])
 
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,29 +202,38 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
 
       {/* Suggested Templates */}
       <div className="animate-in fade-in slide-in-from-bottom-5 duration-600 space-y-2">
-        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-          <HelpCircle className="h-3 w-3" />
-          {t.search.templates}
+        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 flex-wrap">
+          <HelpCircle className="h-3 w-3 shrink-0" />
+          <span>{t.search.templates}</span>
+          {ttl > 0 && (
+            <span className="px-1.5 py-0.5 text-[8px] bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-full font-mono font-bold uppercase tracking-wider animate-pulse border border-teal-500/15">
+              Refresh in {Math.floor(ttl / 60)}:{(ttl % 60).toString().padStart(2, '0')}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+            className="ml-auto md:ml-2 p-1 text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 rounded transition-all cursor-pointer border-0 bg-transparent flex items-center justify-center disabled:opacity-50"
+            title="Generate new templates now"
+          >
+            <RotateCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
         </h3>
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => loadSuggestion("Finite State Machines", "Structure it with detailed H2/H3 headers. Discuss state transit guards.")}
-            className="px-3 py-1.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer"
-          >
-            {t.search.fsm}
-          </button>
-          <button
-            onClick={() => loadSuggestion("Algorithmic Complexity Metrics", "Include LaTeX inline math e.g. $O(n \\log n)$ and display equations.")}
-            className="px-3 py-1.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer"
-          >
-            {t.search.complexity}
-          </button>
-          <button
-            onClick={() => loadSuggestion("AI Agent Design Principles", "Discuss multi-agent cooperation, writer agents, and quality gates.")}
-            className="px-3 py-1.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer"
-          >
-            {t.search.agents}
-          </button>
+          {examples.map((example, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => loadSuggestion(example.topic, example.instructions)}
+              className="px-3 py-1.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer"
+            >
+              {example.topic}
+            </button>
+          ))}
+          {examples.length === 0 && (
+            <span className="text-xs text-muted-foreground animate-pulse">Loading examples...</span>
+          )}
         </div>
       </div>
     </div>
