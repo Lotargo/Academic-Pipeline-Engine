@@ -486,7 +486,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
   return (
     <div className="w-full h-full flex flex-col space-y-4">
       {/* Document Sheet Container */}
-      <div className={`relative flex-1 bg-[#fbfaf7] dark:bg-[#191b20] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800/80 rounded-xl shadow-sm p-6 md:p-10 font-serif min-h-[650px] overflow-y-auto max-h-[80vh] scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 transition-colors duration-200 ${dimDrafting && isRunning ? "brightness-75" : ""}`}>
+      <div className={`relative flex-1 bg-[#fbfaf7] dark:bg-[#191b20] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800/80 rounded-xl shadow-sm p-6 md:p-10 font-serif min-h-[650px] lg:h-full lg:max-h-none overflow-y-auto max-h-[80vh] scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 transition-colors duration-200 ${dimDrafting && isRunning ? "brightness-75" : ""}`}>
         
         {/* Paper Header / Running Metadata */}
         <div className="sticky top-0 z-20 -mx-6 md:-mx-10 mb-6 flex items-center justify-between border-b border-zinc-200/60 dark:border-zinc-800/60 bg-[#fbfaf7]/95 dark:bg-[#191b20]/95 px-6 md:px-10 py-4 text-[10px] font-mono tracking-widest text-zinc-400 dark:text-zinc-500 uppercase backdrop-blur supports-[backdrop-filter]:bg-[#fbfaf7]/80 dark:supports-[backdrop-filter]:bg-[#191b20]/80">

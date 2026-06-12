@@ -36,9 +36,9 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
   }
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-6 w-full lg:h-full">
       {/* Visual Pipeline Flow */}
-      <div className="rounded-2xl border border-border/80 bg-card/65 backdrop-blur-sm p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+      <div className="rounded-2xl border border-border/80 bg-card/65 backdrop-blur-sm p-6 shadow-sm transition-all duration-300 hover:shadow-md lg:min-h-full">
         <h2 className="text-sm font-semibold mb-6 flex items-center gap-2 text-foreground/90">
           <Layers className="h-4 w-4 text-sky-500 dark:text-sky-400" />
           {t.fsm.title}

@@ -344,14 +344,14 @@ export function Search() {
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start lg:items-stretch">
                   {/* Left Column: FSM Visualizer & Feedbacks */}
-                  <div className="lg:col-span-4 w-full">
+                  <div className="lg:col-span-4 w-full lg:h-full">
                     <FSMMonitor status={status} onRetry={() => setActiveTab("workspace")} t={t} />
                   </div>
                   
                   {/* Right Column: Live Document Paper Canvas */}
-                  <div className="lg:col-span-8 w-full">
+                  <div className="lg:col-span-8 w-full lg:h-full">
                     <LiveDocumentCanvas status={status} onStatusUpdate={setStatus} t={t} />
                   </div>
                 </div>
