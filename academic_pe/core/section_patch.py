@@ -89,7 +89,18 @@ def replace_lines(original: str, start_line: int, end_line: int, replacement: st
 
 
 def apply_line_replace_patch(original: str, patch_text: str) -> str:
-    blocks = parse_line_replace_blocks(patch_text)
+    # Strip markdown fences if the LLM wrapped its response
+    clean_patch_text = patch_text.strip()
+    if clean_patch_text.startswith("```"):
+        lines = clean_patch_text.splitlines()
+        if len(lines) >= 2:
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            clean_patch_text = "\n".join(lines).strip()
+
+    blocks = parse_line_replace_blocks(clean_patch_text)
     if not blocks:
         return original
 

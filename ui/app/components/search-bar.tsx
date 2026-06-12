@@ -236,7 +236,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               key={idx}
               type="button"
               onClick={() => loadSuggestion(example.topic, example.instructions)}
-              className="px-3 py-1.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer"
+              className="px-3 py-1.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-xs text-foreground font-semibold hover:border-teal-500/30 transition-all cursor-pointer text-left"
             >
               {example.topic}
             </button>

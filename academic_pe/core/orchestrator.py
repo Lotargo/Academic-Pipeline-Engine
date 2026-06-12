@@ -72,6 +72,18 @@ def strip_markdown_fences(text: str) -> str:
         return ""
     text_stripped = text.strip()
     
+    # Match starting code fence: 3 or more backticks, followed by optional word characters and a newline
+    start_match = re.match(r"^(`{3,})[a-zA-Z0-9_-]*\s*?\n", text_stripped)
+    if start_match:
+        fence = start_match.group(1)
+        if text_stripped.endswith(fence):
+            content = text_stripped[start_match.end():-len(fence)]
+            return content.strip()
+        else:
+            rest = text_stripped[start_match.end():]
+            if fence not in rest:
+                return rest.strip()
+
     # 1. Check if the entire string is wrapped in a code fence
     pattern_strict = r"^```(?:markdown|latex|html|text|code)?\s*\n(.*?)\n```$"
     match_strict = re.match(pattern_strict, text_stripped, re.DOTALL | re.IGNORECASE)
@@ -441,7 +453,7 @@ class Orchestrator:
                     if isinstance(self._reviewer, ReviewerAgent)
                     else critique
                 )
-                logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, reason[:100])
+                logger.warning("Reviewer rejected (attempt %d/%d): %s", attempt + 1, max_retries, reason)
                 if self.first_attempt_reason is None:
                     self.first_attempt_reason = reason
                 review_focus = reason

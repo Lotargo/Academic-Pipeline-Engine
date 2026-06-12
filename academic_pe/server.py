@@ -51,6 +51,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files for exports directory to serve generated charts and other files
+from fastapi.staticfiles import StaticFiles
+os.makedirs("exports", exist_ok=True)
+app.mount("/api/exports", StaticFiles(directory="exports"), name="exports")
+
+
 # Global status tracking object
 current_run = {
     "status": "IDLE",  # IDLE, RUNNING, COMPLETED, FAILED

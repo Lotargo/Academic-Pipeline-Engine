@@ -342,6 +342,34 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         return
       }
       
+      // Check for standard markdown image: ![alt text](image_path)
+      const imgMatch = stripped.match(/^!\[(.*?)\]\((.*?)\)$/)
+      if (imgMatch) {
+        flushBlock(idx)
+        const altText = imgMatch[1]
+        let imgUrl = imgMatch[2]
+        if (imgUrl.startsWith("exports/")) {
+          imgUrl = `/api/exports/${imgUrl.substring(8)}`
+        } else if (imgUrl.startsWith("./exports/")) {
+          imgUrl = `/api/exports/${imgUrl.substring(10)}`
+        }
+        elements.push(
+          <div key={`img-${idx}`} className="flex flex-col items-center justify-center my-6 space-y-2">
+            <img 
+              src={imgUrl} 
+              alt={altText} 
+              className="max-w-full h-auto rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm object-contain max-h-[450px]"
+            />
+            {altText && (
+              <span className="text-xs text-slate-500 dark:text-slate-400 italic font-sans">
+                Figure: {altText}
+              </span>
+            )}
+          </div>
+        )
+        return
+      }
+      
       if (stripped.startsWith("### ")) {
         flushBlock(idx)
         elements.push(
