@@ -1,9 +1,8 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment } from "react"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, CheckCircle, RefreshCw, Layers, XCircle, MessageSquare } from "lucide-react"
-import { toast } from "sonner"
+import { AlertCircle, CheckCircle2, Circle, Loader2, RefreshCw, Layers, XCircle, MessageSquare } from "lucide-react"
 import type { Messages } from "@/lib/i18n"
 
 type FSMState = "INIT" | "PLANNING" | "DRAFTING" | "REVIEWING" | "RENDERING" | "DONE" | "FAILED" | "CANCELLED"
@@ -19,7 +18,6 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
   const activeState = status?.state || "INIT"
   const isFailed = status?.status === "FAILED" || activeState === "FAILED"
   const isCancelled = status?.status === "CANCELLED" || activeState === "CANCELLED"
-  const [cancelling, setCancelling] = useState(false)
 
   // Get status color for each node
   const getNodeStatus = (state: FSMState) => {
@@ -33,6 +31,75 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
     if (currentIndex === -1 && state === "DONE") return "idle" // if failed, done is idle
     if (nodeIndex < currentIndex) return "completed"
     return "idle"
+  }
+
+  const getStepDetail = (state: FSMState, nodeStatus: string) => {
+    const context = status?.context && typeof status.context === "object" ? status.context : {}
+    const draftedSections = Object.keys(context).filter((key) => key !== "document_plan" && context[key]).length
+    const activeSection = status?.active_section
+      ? humanizeLabel(String(status.active_section))
+      : ""
+    const feedbackCount = Array.isArray(status?.reviewer_feedback) ? status.reviewer_feedback.length : 0
+    const templateLabel = status?.template_id || status?.template_mode || status?.runtime_template?.name
+
+    if (nodeStatus === "failed") {
+      return status?.error || "Check console for the failure details."
+    }
+
+    if (nodeStatus === "idle") {
+      return state === "DONE" ? "Waiting for draft approval." : "Waiting for previous step."
+    }
+
+    if (state === "INIT") {
+      if (nodeStatus === "active") return status?.topic ? `Preparing run for "${status.topic}".` : "Preparing pipeline settings."
+      return templateLabel ? `Template resolved: ${templateLabel}.` : "Run settings initialized."
+    }
+
+    if (state === "PLANNING") {
+      if (nodeStatus === "active") return "Planner is shaping the document outline."
+      return status?.document_plan || context.document_plan ? "Document outline is ready." : "Planning completed."
+    }
+
+    if (state === "DRAFTING") {
+      if (nodeStatus === "active") {
+        return activeSection ? `Writing section: ${activeSection}.` : `${draftedSections} section(s) drafted so far.`
+      }
+      return draftedSections > 0 ? `${draftedSections} section(s) drafted.` : "Draft sections prepared."
+    }
+
+    if (state === "REVIEWING") {
+      if (nodeStatus === "active") return feedbackCount > 0 ? `Reviewer pass ${feedbackCount + 1} in progress.` : "Reviewer is checking quality."
+      return feedbackCount > 0 ? `${feedbackCount} reviewer feedback item(s).` : "Review completed."
+    }
+
+    if (state === "RENDERING") {
+      if (nodeStatus === "active") return "DOCX export stage is available on demand."
+      return status?.export_report ? `Export QA: ${status.export_report.status || "recorded"}.` : "Export stage ready."
+    }
+
+    if (state === "DONE") {
+      return status?.docx_filename ? `DOCX ready: ${status.docx_filename}.` : "Draft ready for preview and export."
+    }
+
+    return ""
+  }
+
+  const getStatusIcon = (nodeStatus: string) => {
+    if (nodeStatus === "completed") {
+      return <CheckCircle2 className="h-5 w-5 text-sky-500 dark:text-sky-400" />
+    }
+    if (nodeStatus === "active") {
+      return (
+        <span className="relative flex h-6 w-6 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
+          <span className="absolute h-1.5 w-1.5 rounded-full bg-cyan-500" />
+        </span>
+      )
+    }
+    if (nodeStatus === "failed") {
+      return <AlertCircle className="h-5 w-5 text-rose-500" />
+    }
+    return <Circle className="h-4 w-4 text-muted-foreground/35" />
   }
 
   return (
@@ -57,32 +124,30 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
               FAILED: t.fsm.failedDesc,
               CANCELLED: ""
             }[state] || ""
+            const stepDetail = getStepDetail(state, nodeStatus)
             
             return (
               <Fragment key={state}>
                 {/* Node Row */}
                 <div className="flex items-center gap-4 w-full relative group">
-                  {/* Status Circle on Left */}
+                  {/* Status Indicator on Left */}
                   <div
-                    className={`flex items-center justify-center rounded-full border-2 w-10 h-10 shrink-0 transition-all duration-300 z-10 ${
+                    className={`flex items-center justify-center rounded-full border w-10 h-10 shrink-0 transition-all duration-300 z-10 ${
                       nodeStatus === "completed"
-                        ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-400 shadow-sm"
-                        : nodeStatus === "active"
-                        ? "border-cyan-500 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.25)] scale-105"
-                        : nodeStatus === "failed"
-                        ? "border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        ? "border-sky-500/35 bg-sky-500/10 text-sky-600 dark:text-sky-400 shadow-sm"
+                      : nodeStatus === "active"
+                        ? "border-cyan-500/45 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-[0_0_18px_rgba(6,182,212,0.18)] scale-105"
+                      : nodeStatus === "failed"
+                        ? "border-rose-500/45 bg-rose-500/10 text-rose-600 dark:text-rose-400"
                         : "border-border/60 bg-muted/20 text-muted-foreground/40"
                     }`}
                   >
-                    {nodeStatus === "completed" && <CheckCircle className="h-5 w-5 text-sky-500 dark:text-sky-400" />}
-                    {nodeStatus === "active" && <span className="h-2.5 w-2.5 rounded-full bg-cyan-500 animate-pulse" />}
-                    {nodeStatus === "failed" && <AlertCircle className="h-5 w-5 text-rose-500" />}
-                    {nodeStatus === "idle" && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />}
+                    {getStatusIcon(nodeStatus)}
                   </div>
 
                   {/* Step Card on Right */}
                   <div
-                    className={`flex-1 h-[84px] flex items-center justify-between gap-3 p-4 rounded-xl border transition-all duration-300 ${
+                    className={`flex-1 min-h-[92px] flex items-center justify-between gap-3 p-4 rounded-xl border transition-all duration-300 ${
                       nodeStatus === "completed"
                         ? "border-sky-500/15 bg-sky-500/5 dark:bg-sky-950/10 text-sky-950 dark:text-sky-100 shadow-xs hover:border-sky-500/25"
                         : nodeStatus === "active"
@@ -99,6 +164,19 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
                       <span className="text-xs font-bold tracking-tight text-foreground">{state}</span>
                       <span className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground font-sans max-w-[320px]">
                         {stateDesc}
+                      </span>
+                      <span
+                        className={`line-clamp-1 text-[10px] leading-relaxed font-sans ${
+                          nodeStatus === "active"
+                            ? "text-cyan-700 dark:text-cyan-300"
+                            : nodeStatus === "completed"
+                            ? "text-sky-700 dark:text-sky-300"
+                            : nodeStatus === "failed"
+                            ? "text-rose-700 dark:text-rose-300"
+                            : "text-muted-foreground/60"
+                        }`}
+                      >
+                        {stepDetail}
                       </span>
                     </div>
                     
@@ -197,4 +275,12 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
       )}
     </div>
   )
+}
+
+function humanizeLabel(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
 }

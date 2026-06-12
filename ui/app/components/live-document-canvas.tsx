@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, FileDown, Eye, PanelTop, Moon, Code2, GitCompare, ChevronDown, ChevronUp } from "lucide-react"
+import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, Eye, PanelTop, Moon, ChevronDown, ChevronUp } from "lucide-react"
 import { toast } from "sonner"
 import type { Messages } from "@/lib/i18n"
 import { useTheme } from "next-themes"
@@ -12,7 +12,6 @@ interface LiveDocumentCanvasProps {
   status: any
   onStatusUpdate?: (status: any) => void
   t: Messages
-  author?: string
 }
 
 type CanvasSection = {
@@ -20,12 +19,11 @@ type CanvasSection = {
   title: string
 }
 
-export function LiveDocumentCanvas({ status, onStatusUpdate, t, author }: LiveDocumentCanvasProps) {
+export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCanvasProps) {
   const { theme } = useTheme()
   const editorTheme = theme === "dark" ? "vs-dark" : "light"
   
   const [copied, setCopied] = useState(false)
-  const [exporting, setExporting] = useState(false)
   const [draftViewMode, setDraftViewMode] = useState<"live" | "banner">("live")
   const [dimDrafting, setDimDrafting] = useState(false)
   const [sectionViewModes, setSectionViewModes] = useState<Record<string, "preview" | "editor" | "diff">>({})
@@ -68,56 +66,6 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t, author }: LiveDo
       }
     } catch (e: any) {
       toast.error(e.message || "Failed to save changes")
-    }
-  }
-
-  const handleDownload = () => {
-    const docxFilename = status?.docx_filename
-    if (!docxFilename) return
-    window.open(`/api/download/${docxFilename}`, "_blank")
-  }
-
-  const handleExport = async () => {
-    setExporting(true)
-    try {
-      const res = await fetch("/api/export/docx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          context: context,
-          topic: status?.topic || "Untitled",
-          runtime_template: status?.runtime_template,
-          author: author?.trim() || undefined,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.detail || "Export failed")
-      }
-      onStatusUpdate?.({
-        ...status,
-        docx_filename: data.filename,
-        export_report: data,
-      })
-      
-      // Auto-trigger browser download
-      const downloadUrl = `/api/download/${data.filename}`
-      const link = document.createElement("a")
-      link.href = downloadUrl
-      link.setAttribute("download", data.filename)
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-
-      if (data.status === "passed") {
-        toast.success("DOCX export passed quality checks")
-      } else {
-        toast.warning("DOCX exported with QA issues")
-      }
-    } catch (e: any) {
-      toast.error(e.message || "Failed to export DOCX")
-    } finally {
-      setExporting(false)
     }
   }
 
@@ -563,24 +511,6 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t, author }: LiveDo
                     </>
                   )}
                 </button>
-                {status?.docx_filename ? (
-                  <button
-                    onClick={handleDownload}
-                    className="px-2 py-1 rounded bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-950/40 transition-colors flex items-center gap-1 text-[10px] font-bold cursor-pointer border-0"
-                  >
-                    <FileDown className="h-3.5 w-3.5" />
-                    {t.document.downloadDocx}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleExport}
-                    disabled={exporting}
-                    className="px-2 py-1 rounded bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-950/40 disabled:opacity-60 transition-colors flex items-center gap-1 text-[10px] font-bold cursor-pointer border-0"
-                  >
-                    {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-                    {t.document.exportDocx}
-                  </button>
-                )}
                 <span className="text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-0.5 ml-1.5">
                   <CheckCircle2 className="h-3 w-3 animate-pulse" /> {t.document.ready}
                 </span>

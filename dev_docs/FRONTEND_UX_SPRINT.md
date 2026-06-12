@@ -136,17 +136,17 @@ Definition of done:
 
 ## Workstream 6: Pipeline Step Icon Redesign
 
-Status: `[!] Needs design decision`
+Status: `[x] Done`
 
 Objective: Modernize the pipeline step icons, inspired by contemporary loading indicators such as Windows-style fluent spinners.
 
 Tasks:
 
-- [ ] Define visual states: idle, active, completed, failed, cancelled.
-- [ ] Choose icon style: lucide-based, CSS spinner, or small custom SVG.
-- [ ] Replace static dots/checks with modern state indicators.
-- [ ] Ensure animations are subtle and not distracting.
-- [ ] Verify dark and light theme contrast.
+- [x] Define visual states: idle, active, completed, failed, cancelled.
+- [x] Choose icon style: lucide-based, CSS spinner, or small custom SVG.
+- [x] Replace static dots/checks with modern state indicators.
+- [x] Ensure animations are subtle and not distracting.
+- [x] Verify dark and light theme contrast.
 
 Definition of done:
 
@@ -156,17 +156,17 @@ Definition of done:
 
 ## Workstream 7: SSE Status Inside Step Blocks
 
-Status: `[ ] Planned`
+Status: `[x] Done`
 
 Objective: Surface live SSE status details directly inside each pipeline step card.
 
 Tasks:
 
-- [ ] Define per-step status fields from existing server status/log data.
-- [ ] Add compact secondary status line inside step cards.
-- [ ] Show active section or current action where available.
-- [ ] Avoid noisy log spam in the card UI.
-- [ ] Keep the console as the detailed source of truth.
+- [x] Define per-step status fields from existing server status/log data.
+- [x] Add compact secondary status line inside step cards.
+- [x] Show active section or current action where available.
+- [x] Avoid noisy log spam in the card UI.
+- [x] Keep the console as the detailed source of truth.
 
 Definition of done:
 
@@ -176,7 +176,7 @@ Definition of done:
 
 ## Workstream 8: DOCX Export Placement
 
-Status: `[!] Needs design decision`
+Status: `[x] Done`
 
 Objective: Move DOCX export to a more discoverable and convenient location.
 
@@ -188,10 +188,10 @@ Options:
 
 Tasks:
 
-- [ ] Choose final placement.
-- [ ] Keep download/export state visible after export.
-- [ ] Avoid duplicating export actions in multiple competing places.
-- [ ] Preserve current export QA feedback.
+- [x] Choose final placement.
+- [x] Keep download/export state visible after export.
+- [x] Avoid duplicating export actions in multiple competing places.
+- [x] Preserve current export QA feedback.
 
 Definition of done:
 
@@ -273,8 +273,8 @@ Definition of done:
 - [x] Theme moved to profile modal.
 - [x] Archived works modal with bulk unarchive.
 - [x] Avatar upload.
-- [ ] Modern pipeline icons.
-- [ ] SSE statuses inside step cards.
-- [ ] Better DOCX export placement.
+- [x] Modern pipeline icons.
+- [x] SSE statuses inside step cards.
+- [x] Better DOCX export placement.
 - [ ] Typography refresh.
 - [ ] Pastel color system refresh.

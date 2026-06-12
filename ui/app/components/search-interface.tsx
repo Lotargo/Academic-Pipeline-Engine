@@ -10,7 +10,7 @@ import { LiveDocumentCanvas } from "./live-document-canvas"
 import { ConsolePanel } from "./console-panel"
 import { ArchivedWorksModal } from "./archived-works-modal"
 import { toast } from "sonner"
-import { Sparkles, FileText, ArrowRight, XCircle, Terminal } from "lucide-react"
+import { Sparkles, FileText, ArrowRight, XCircle, Terminal, FileDown, Loader2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
@@ -26,6 +26,7 @@ export function Search() {
   const [historyList, setHistoryList] = useState<any[]>([])
   const [selectedPaper, setSelectedPaper] = useState<any>(null)
   const [archivedWorksOpen, setArchivedWorksOpen] = useState(false)
+  const [exportingDocx, setExportingDocx] = useState(false)
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const notifiedRef = useRef(false)
@@ -200,6 +201,64 @@ export function Search() {
     }
   }
 
+  const currentExportableContext = Object.fromEntries(
+    Object.entries(status?.context || {}).filter(([key, value]) => key !== "document_plan" && Boolean(value))
+  )
+  const currentDraftReady =
+    !selectedPaper &&
+    (status?.status === "COMPLETED" || status?.state === "DONE") &&
+    Object.keys(currentExportableContext).length > 0
+
+  const handleDownloadCurrentDocx = () => {
+    if (!status?.docx_filename) return
+    window.open(`/api/download/${status.docx_filename}`, "_blank")
+  }
+
+  const handleExportCurrentDocx = async () => {
+    if (!currentDraftReady) return
+    setExportingDocx(true)
+    try {
+      const res = await fetch("/api/export/docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: currentExportableContext,
+          topic: status?.topic || "Untitled",
+          runtime_template: status?.runtime_template,
+          author: nickname.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || "Export failed")
+      }
+      setStatus((prev: any) => ({
+        ...prev,
+        docx_filename: data.filename,
+        export_report: data,
+      }))
+
+      const downloadUrl = `/api/download/${data.filename}`
+      const link = document.createElement("a")
+      link.href = downloadUrl
+      link.setAttribute("download", data.filename)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      if (data.status === "passed") {
+        toast.success("DOCX export passed quality checks")
+      } else {
+        toast.warning("DOCX exported with QA issues")
+      }
+      await fetchHistory()
+    } catch (e: any) {
+      toast.error(e.message || "Failed to export DOCX")
+    } finally {
+      setExportingDocx(false)
+    }
+  }
+
   const handleArchivePaper = async (paper: any) => {
     if (!paper?.id) {
       toast.error("History item is missing metadata id")
@@ -343,6 +402,18 @@ export function Search() {
           </div>
 
           <div className="flex items-center gap-3">
+            {currentDraftReady && (
+              <Button
+                size="sm"
+                onClick={status?.docx_filename ? handleDownloadCurrentDocx : handleExportCurrentDocx}
+                disabled={exportingDocx}
+                className="h-8 gap-1.5 bg-teal-600 px-3 text-[10px] font-bold uppercase text-white hover:bg-teal-700"
+              >
+                {exportingDocx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                {status?.docx_filename ? t.document.downloadDocx : t.document.exportDocx}
+              </Button>
+            )}
+
             {(status.status === "RUNNING" || status.status === "STARTING") && (
               <>
                 <div className="flex items-center gap-2 rounded-full bg-teal-500/10 px-3 py-1 text-[10px] font-bold text-teal-600 dark:text-teal-400 animate-pulse border border-teal-500/20">
@@ -443,7 +514,7 @@ export function Search() {
                   
                   {/* Right Column: Live Document Paper Canvas */}
                   <div className="lg:col-span-8 w-full lg:h-full">
-                    <LiveDocumentCanvas status={status} onStatusUpdate={setStatus} t={t} author={status?.author || nickname} />
+                    <LiveDocumentCanvas status={status} onStatusUpdate={setStatus} t={t} />
                   </div>
                 </div>
               </div>
