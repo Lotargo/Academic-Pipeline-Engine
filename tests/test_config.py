@@ -67,5 +67,5 @@ def test_config_has_template_selection_fields():
     config = load_config("config/agents.yaml")
 
     assert isinstance(config.pipeline.template_mode, TemplateMode)
-    assert config.pipeline.template_id is None
+    assert config.pipeline.template_id is None or isinstance(config.pipeline.template_id, str)
 

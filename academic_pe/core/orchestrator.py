@@ -311,6 +311,7 @@ class Orchestrator:
                     "language_instruction": language_instruction(target_language),
                     "user_topic": self.user_topic,
                     "user_instructions": self.user_instructions,
+                    "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                 },
             )
             logger.info("Creating document plan before drafting sections.")
@@ -326,6 +327,7 @@ class Orchestrator:
                         "language_instruction": language_instruction(target_language),
                         "user_topic": self.user_topic,
                         "user_instructions": self.user_instructions,
+                        "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                     },
                 )
                 logger.debug("Drafting section: %s", section.name)
@@ -419,6 +421,7 @@ class Orchestrator:
                                 "language": target_language,
                                 "review_focus": review_focus,
                                 "sections": self._config.pipeline.sections,
+                                "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                             },
                         ),
                         context=full_text,
@@ -463,6 +466,7 @@ class Orchestrator:
                                 "language_instruction": language_instruction(target_language),
                                 "user_topic": self.user_topic,
                                 "user_instructions": self.user_instructions,
+                                "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                             },
                         )
                         current_content = self.context.get(section.name, "")
@@ -495,6 +499,7 @@ class Orchestrator:
                                     "language_instruction": language_instruction(target_language),
                                     "user_topic": self.user_topic,
                                     "user_instructions": self.user_instructions,
+                                    "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                                 },
                             )
                             for fallback_attempt in range(max_sandbox_retries):
@@ -559,6 +564,7 @@ class Orchestrator:
                                         "language_instruction": language_instruction(target_language),
                                         "user_topic": self.user_topic,
                                         "user_instructions": self.user_instructions,
+                                        "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                                     }
                                 )
                                 response = self._writer.process(

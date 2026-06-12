@@ -64,7 +64,17 @@ class TemplateSelector:
         if mode == TemplateMode.auto:
             if self._planner is None:
                 raise AutoTemplatePlanningRequired("template_mode=auto requires PlannerAgent.")
-            return self._planner.plan(topic=topic, instructions=instructions)
+            planner_instructions = instructions
+            if getattr(config.pipeline, "academic_mode", False):
+                academic_instr = (
+                    "Since the document is in Academic Mode, you MUST structure it to include data visualization/plots. "
+                    "Ensure that at least one section requires generating a plot/chart (e.g. by writing python-run blocks)."
+                )
+                if planner_instructions:
+                    planner_instructions = f"{planner_instructions}\n\n[Academic Mode Constraint]: {academic_instr}"
+                else:
+                    planner_instructions = f"[Academic Mode Constraint]: {academic_instr}"
+            return self._planner.plan(topic=topic, instructions=planner_instructions)
 
         raise TemplateSelectionError(f"Unsupported template mode: {mode}")
 

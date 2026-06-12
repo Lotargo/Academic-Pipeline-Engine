@@ -508,7 +508,18 @@ def export_docx(payload: ExportRequest):
             config.pipeline.sections = new_sections
         config.pipeline.title = topic
 
-    result = export_docx_with_qa(context, config, output_filename=payload.filename)
+    try:
+        result = export_docx_with_qa(context, config, output_filename=payload.filename)
+    except PermissionError:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Не удалось сохранить документ. Файл открыт в другой программе (например, Microsoft Word) "
+                "и заблокирован. Пожалуйста, закройте его и попробуйте снова. / "
+                "Failed to save document. The file is open in another program (like Microsoft Word) and locked. "
+                "Please close it and try again."
+            )
+        )
 
     with run_lock:
         if not payload.context:
