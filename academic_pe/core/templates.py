@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 
 
 class TemplateLanguagePolicy(str, Enum):
@@ -38,6 +38,21 @@ class PromptManifest(BaseModel):
     style_contract: Dict[str, Any] = Field(default_factory=dict)
     review_rubric: Dict[str, List[str]] = Field(default_factory=dict)
     output_constraints: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("review_rubric", mode="before")
+    @classmethod
+    def coerce_rubric_lists(cls, v: Any) -> Any:
+        if isinstance(v, dict):
+            coerced = {}
+            for key, val in v.items():
+                if isinstance(val, str):
+                    coerced[key] = [val]
+                elif isinstance(val, list):
+                    coerced[key] = [str(item) for item in val]
+                else:
+                    coerced[key] = val
+            return coerced
+        return v
 
 
 class DocumentTemplate(BaseModel):

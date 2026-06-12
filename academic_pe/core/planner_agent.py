@@ -55,9 +55,22 @@ Return JSON with this exact shape:
     "reviewer_role": "reviewer role",
     "writer_task": "writer task",
     "reviewer_task": "reviewer task",
-    "style_contract": {{}},
-    "review_rubric": {{}},
-    "output_constraints": {{}}
+    "style_contract": {{
+      "tone": "formal or neutral or creative",
+      "structure": "paragraphs or stanzas or essay etc"
+    }},
+    "review_rubric": {{
+      "required": [
+        "list of mandatory criteria"
+      ],
+      "forbidden": [
+        "list of disallowed elements"
+      ]
+    }},
+    "output_constraints": {{
+      "markdown_allowed": true,
+      "latex_allowed": false
+    }}
   }}
 }}
 
@@ -66,6 +79,7 @@ Rules:
 - every section needs name, title, and instruction;
 - prompt_manifest must define writer_role and reviewer_role;
 - choose a structure that matches the user request, not a hardcoded academic outline;
+- review_rubric values must be lists of strings, not plain strings;
 - do not include document body text.
 """
 

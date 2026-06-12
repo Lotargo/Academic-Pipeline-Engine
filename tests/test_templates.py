@@ -79,3 +79,19 @@ def test_runtime_snapshots_from_document_template():
     assert runtime_template.sections[0].name == "body"
     assert runtime_manifest.source == RuntimeTemplateSource.saved
     assert runtime_manifest.prompt_manifest.writer_role == "General document writer"
+
+
+def test_prompt_manifest_coerces_string_rubric():
+    manifest = PromptManifest(
+        writer_role="Writer",
+        reviewer_role="Reviewer",
+        review_rubric={
+            "required": "coherent flow",
+            "forbidden": ["broken link"],
+            "custom_item": "some string values"
+        }
+    )
+    assert manifest.review_rubric["required"] == ["coherent flow"]
+    assert manifest.review_rubric["forbidden"] == ["broken link"]
+    assert manifest.review_rubric["custom_item"] == ["some string values"]
+

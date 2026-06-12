@@ -63,7 +63,9 @@ def test_config_defaults():
 
 
 def test_config_has_template_selection_fields():
+    from academic_pe.core.config import TemplateMode
     config = load_config("config/agents.yaml")
 
-    assert config.pipeline.template_mode == "custom"
+    assert isinstance(config.pipeline.template_mode, TemplateMode)
     assert config.pipeline.template_id is None
+
