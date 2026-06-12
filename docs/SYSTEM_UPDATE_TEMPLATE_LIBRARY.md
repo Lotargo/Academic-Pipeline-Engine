@@ -283,7 +283,7 @@ User prompt
 
 Recommended order before adding external services:
 
-1. Add `DocumentTemplate`, `PromptManifest`, `RuntimeTemplate`, and `RuntimePromptManifest` Pydantic models.
+1. Add `DocumentTemplate`, `PromptManifest`, `RuntimeTemplate`, and `RuntimePromptManifest` Pydantic models. **Done: 2026-06-12.** Implemented in `academic_pe/core/templates.py` with validation tests in `tests/test_templates.py`.
 2. Add file-backed `TemplateLibrary`.
 3. Move existing `pipeline.sections` into `custom_current` compatibility mode.
 4. Add built-in templates in `config/document_templates.yaml`.
