@@ -24,6 +24,9 @@ _background_tasks = set()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Clean up empty run directories on startup
+    cleanup_empty_run_directories()
+    
     # Start dynamic examples generator loop
     from academic_pe.core.dynamic_examples import dynamic_examples_loop
     task = asyncio.create_task(dynamic_examples_loop())
@@ -92,6 +95,62 @@ run_lock = threading.Lock()
 # Current orchestrator instance for cancellation
 _current_orchestrator = None
 _orchestrator_lock = threading.Lock()
+
+
+def _delete_run_directory(run_id: str) -> None:
+    import re
+    import shutil
+    if not run_id:
+        return
+    # Validate run_id to prevent directory traversal or accidental deletion of important directories
+    if not re.match(r"^run_\d{8}_\d{6}$", run_id):
+        return
+    run_dir = os.path.join("exports", run_id)
+    if os.path.exists(run_dir) and os.path.isdir(run_dir):
+        try:
+            shutil.rmtree(run_dir)
+            logging.getLogger(__name__).info("Deleted run directory: %s", run_dir)
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to delete run directory %s: %s", run_dir, e)
+
+
+def _cleanup_run_directory(run_id: str, success: bool) -> None:
+    import re
+    import shutil
+    if not run_id or not re.match(r"^run_\d{8}_\d{6}$", run_id):
+        return
+    run_dir = os.path.join("exports", run_id)
+    if os.path.exists(run_dir) and os.path.isdir(run_dir):
+        try:
+            if not success:
+                shutil.rmtree(run_dir)
+                logging.getLogger(__name__).info("Cleaned up failed/cancelled run directory: %s", run_dir)
+            else:
+                # If successful, delete only if it is empty
+                if not os.listdir(run_dir):
+                    os.rmdir(run_dir)
+                    logging.getLogger(__name__).info("Cleaned up empty successful run directory: %s", run_dir)
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to clean up run directory %s: %s", run_dir, e)
+
+
+def cleanup_empty_run_directories() -> None:
+    import re
+    exports_dir = "exports"
+    if not os.path.exists(exports_dir) or not os.path.isdir(exports_dir):
+        return
+    try:
+        cleaned_count = 0
+        for name in os.listdir(exports_dir):
+            path = os.path.join(exports_dir, name)
+            if os.path.isdir(path) and re.match(r"^run_\d{8}_\d{6}$", name):
+                if not os.listdir(path):
+                    os.rmdir(path)
+                    cleaned_count += 1
+        if cleaned_count > 0:
+            logging.getLogger(__name__).info("Cleaned up %d empty run directories on startup.", cleaned_count)
+    except Exception as e:
+        logging.getLogger(__name__).warning("Failed to run startup cleanup of run directories: %s", e)
 
 
 def _pipeline_output_dir() -> str:
@@ -364,6 +423,7 @@ def run_pipeline_thread(
     status_handler = StatusLogHandler(current_run["logs"])
     root_logger.addHandler(status_handler)
     
+    success = False
     try:
         # Load local configuration
         config = load_config("config/agents.yaml")
@@ -531,6 +591,7 @@ def run_pipeline_thread(
         }
         with open(metadata_filename, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
+        success = True
             
     except PipelineCancelled:
         with run_lock:
@@ -548,6 +609,8 @@ def run_pipeline_thread(
             current_run["active_section"] = None
         logging.getLogger(__name__).exception("Pipeline background execution failed")
     finally:
+        if run_id:
+            _cleanup_run_directory(run_id, success)
         with _orchestrator_lock:
             _current_orchestrator = None
         root_logger.removeHandler(status_handler)
@@ -860,6 +923,9 @@ def bulk_unarchive_history_items(payload: BulkHistoryPayload):
 def delete_history_item(metadata_id: str):
     metadata_path, data = _load_history_metadata(metadata_id)
     _delete_export_asset(data.get("docx_filename"))
+    if metadata_id.startswith("run_"):
+        run_id = metadata_id.split(".")[0]
+        _delete_run_directory(run_id)
     os.remove(metadata_path)
     return {"status": "deleted", "id": metadata_id}
 

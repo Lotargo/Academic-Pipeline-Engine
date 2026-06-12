@@ -344,7 +344,6 @@ export function Search() {
     // Switch to FSM visualization tab immediately; the backend status becomes
     // the source of truth after /api/run accepts the job.
     setActiveTab("fsm")
-    setIsConsoleOpen(true)
     setStatus({
       status: "STARTING",
       state: "INIT",

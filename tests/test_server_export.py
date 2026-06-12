@@ -232,3 +232,99 @@ def test_history_delete_removes_metadata_and_docx(monkeypatch, tmp_path):
     assert response.json()["status"] == "deleted"
     assert not metadata_path.exists()
     assert not docx_path.exists()
+
+
+def test_history_delete_removes_run_directory(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    export_dir = tmp_path / "exports"
+    metadata_dir = export_dir / "_metadata"
+    metadata_dir.mkdir(parents=True)
+    
+    # Create run directory
+    run_dir = export_dir / "run_20260613_120000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "plot.png").write_bytes(b"plot")
+    (run_dir / "Final_Academic_Paper.docx").write_bytes(b"docx")
+    
+    metadata_path = metadata_dir / "run_20260613_120000.20260613120000.metadata.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "topic": "Delete Run Dir",
+                "timestamp": "2026-06-13 12:00:00",
+                "author": "Lotargo",
+                "status": "COMPLETED",
+                "docx_filename": "run_20260613_120000/Final_Academic_Paper.docx",
+                "context": {"intro": "Hello"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(app)
+    response = client.delete(f"/api/history/{metadata_path.name}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "deleted"
+    assert not metadata_path.exists()
+    assert not run_dir.exists()
+
+
+def test_cleanup_run_directory_on_failure_and_success(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    export_dir = tmp_path / "exports"
+    export_dir.mkdir(parents=True)
+    
+    from academic_pe.server import _cleanup_run_directory
+    
+    # 1. Test success=False deletes directory completely
+    run_dir_fail = export_dir / "run_20260613_111111"
+    run_dir_fail.mkdir(parents=True)
+    (run_dir_fail / "temp.png").write_bytes(b"temp")
+    
+    _cleanup_run_directory("run_20260613_111111", success=False)
+    assert not run_dir_fail.exists()
+    
+    # 2. Test success=True on empty directory deletes it
+    run_dir_empty = export_dir / "run_20260613_222222"
+    run_dir_empty.mkdir(parents=True)
+    
+    _cleanup_run_directory("run_20260613_222222", success=True)
+    assert not run_dir_empty.exists()
+    
+    # 3. Test success=True on non-empty directory keeps it
+    run_dir_nonempty = export_dir / "run_20260613_333333"
+    run_dir_nonempty.mkdir(parents=True)
+    (run_dir_nonempty / "plot.png").write_bytes(b"plot")
+    
+    _cleanup_run_directory("run_20260613_333333", success=True)
+    assert run_dir_nonempty.exists()
+    assert (run_dir_nonempty / "plot.png").exists()
+
+
+def test_startup_cleanup_empty_run_directories(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    export_dir = tmp_path / "exports"
+    export_dir.mkdir(parents=True)
+    
+    from academic_pe.server import cleanup_empty_run_directories
+    
+    # Create empty run directory
+    run_empty = export_dir / "run_20260613_444444"
+    run_empty.mkdir(parents=True)
+    
+    # Create non-empty run directory
+    run_nonempty = export_dir / "run_20260613_555555"
+    run_nonempty.mkdir(parents=True)
+    (run_nonempty / "keep.txt").write_text("keep")
+    
+    # Create non-matching directory
+    other_dir = export_dir / "some_other_directory"
+    other_dir.mkdir(parents=True)
+    
+    cleanup_empty_run_directories()
+    
+    assert not run_empty.exists()
+    assert run_nonempty.exists()
+    assert other_dir.exists()
+
