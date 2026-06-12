@@ -133,3 +133,19 @@ class TestRunAll:
         )
         assert result.passed
         assert result.issues == []
+
+
+class TestMarkdownCheck:
+    def test_passes_clean_content(self):
+        cfg = _full_cfg()
+        from academic_pe.core.quality_gate import check_markdown_artifacts
+        result = check_markdown_artifacts({"theory": "1. Introduction\nSome clean paragraph."}, cfg)
+        assert result.passed
+
+    def test_fails_on_raw_code_fence(self):
+        cfg = _full_cfg()
+        from academic_pe.core.quality_gate import check_markdown_artifacts
+        result = check_markdown_artifacts({"theory": "```markdown\n1. Introduction\n```"}, cfg)
+        assert not result.passed
+        assert len(result.issues) == 2
+        assert "raw code block formatting delimiter" in result.issues[0]

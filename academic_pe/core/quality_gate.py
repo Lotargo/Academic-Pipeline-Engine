@@ -86,13 +86,32 @@ def check_latex(context: Dict[str, str], cfg: QualityGateConfig) -> GateResult:
                 issues.append(
                     f"Section '{name}' has unmatched \\begin/\\end in: {block[:40]}..."
                 )
+    return GateResult(passed=len(issues) == 0, issues=issues)
 
+def check_markdown_artifacts(context: Dict[str, str], cfg: QualityGateConfig) -> GateResult:
+    markdown_cfg = getattr(cfg, "markdown", None)
+    if markdown_cfg is not None and not markdown_cfg.enabled:
+        return GateResult(passed=True)
+
+    issues: List[str] = []
+    for name, text in context.items():
+        text = text or ""
+        lines = text.splitlines()
+        for idx, line in enumerate(lines, 1):
+            if line.strip().startswith("```"):
+                issues.append(
+                    f"Section '{name}' contains raw code block formatting delimiter '{line.strip()}' at line {idx}."
+                )
     return GateResult(passed=len(issues) == 0, issues=issues)
 
 
 def run_all(context: Dict[str, str], cfg: QualityGateConfig) -> GateResult:
     combined: List[str] = []
-    for check_name, check_fn in [("volume", check_volume), ("latex", check_latex)]:
+    for check_name, check_fn in [
+        ("volume", check_volume),
+        ("latex", check_latex),
+        ("markdown", check_markdown_artifacts),
+    ]:
         result = check_fn(context, cfg)
         if not result.passed:
             combined.extend(result.issues)

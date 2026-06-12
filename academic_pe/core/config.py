@@ -75,9 +75,14 @@ class LatexGateConfig(BaseModel):
     enabled: bool = True
 
 
+class MarkdownGateConfig(BaseModel):
+    enabled: bool = True
+
+
 class QualityGateConfig(BaseModel):
     volume: VolumeGateConfig = VolumeGateConfig()
     latex: LatexGateConfig = LatexGateConfig()
+    markdown: MarkdownGateConfig = MarkdownGateConfig()
 
 
 class TransitionConfig(BaseModel):

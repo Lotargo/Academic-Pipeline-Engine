@@ -615,3 +615,126 @@ def test_reviewer_receives_line_numbers_and_section_headers():
     assert llm.review_context is not None
     assert "=== Section: theory ===" in llm.review_context
     assert "1: Section content." in llm.review_context
+
+
+def test_should_preserve_topic():
+    from academic_pe.core.orchestrator import should_preserve_topic
+    assert should_preserve_topic("Do not change topic") is True
+    assert should_preserve_topic("do not rename the topic please") is True
+    assert should_preserve_topic("Use latex and formulas") is False
+    assert should_preserve_topic("") is False
+
+
+def test_rewrite_document_topic_preserves_on_constraint():
+    from academic_pe.core.orchestrator import rewrite_document_topic
+    
+    class FakeWriter(DefaultAgent):
+        def process(self, task_description, context=None, on_delta=None, document_sections=None):
+            return "Refined Title"
+
+    writer = FakeWriter(AgentConfig(role="Writer", model="mock", temperature=0.0, system_prompt=""), MockProvider())
+    
+    # constraint present
+    res = rewrite_document_topic("FSM", "do not rename", writer)
+    assert res == "FSM"
+
+
+def test_rewrite_document_topic_refines_title():
+    from academic_pe.core.orchestrator import rewrite_document_topic
+    
+    class FakeWriter(DefaultAgent):
+        def process(self, task_description, context=None, on_delta=None, document_sections=None):
+            return "Advanced FSM Design Pattern"
+
+    writer = FakeWriter(AgentConfig(role="Writer", model="mock", temperature=0.0, system_prompt=""), MockProvider())
+    
+    # no constraint present
+    res = rewrite_document_topic("FSM", "Use latex", writer)
+    assert res == "Advanced FSM Design Pattern"
+
+
+def test_create_orchestrator_from_config_does_not_refine_topic_for_mock_provider():
+    config = _make_config()
+    # provider is mock by default
+    orch = create_orchestrator_from_config(config, user_topic="FSM", user_instructions="Use latex")
+    assert orch.user_topic == "FSM"
+
+
+def test_strip_markdown_fences():
+    from academic_pe.core.orchestrator import strip_markdown_fences
+    
+    # Strict wrapped
+    assert strip_markdown_fences("```markdown\nHello\n```") == "Hello"
+    assert strip_markdown_fences("```\nHello\n```") == "Hello"
+    
+    # Wrapped with language info and whitespace
+    assert strip_markdown_fences("   ```latex\nHello\n```   ") == "Hello"
+    
+    # Single code block inside text
+    assert strip_markdown_fences("Intro\n```\nContent text here\n```") == "Content text here"
+    
+    # Normal text remains same
+    assert strip_markdown_fences("Normal paragraph.") == "Normal paragraph."
+
+
+def test_quality_gate_automated_rejection_in_loop():
+    from academic_pe.agents.writer import WriterAgent, ReviewerAgent
+    
+    # Mock LLM provider that starts with a code block, quality gate triggers auto-rejection,
+    # then next turn it returns clean text which gets approved.
+    class QualityGateTestMock(MockProvider):
+        def __init__(self):
+            self.draft_calls = 0
+            self.review_calls = 0
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            if "Check the provided text for material academic quality issues" in user_prompt:
+                self.review_calls += 1
+                return "APPROVED" # LLM reviewer is lenient and approves
+
+            if "verify" in user_prompt.lower():
+                return "VERIFIED"
+
+            # Writer calls
+            if "Revise the section" in user_prompt or "minimal patch" in user_prompt:
+                self.draft_calls += 1
+                if "Quality Gate issue" in user_prompt:
+                    # Clean up code fence because of quality gate rejection
+                    return "Clean section content."
+                return "Some prefix text\n```markdown\nSection with code block.\n```"
+
+            return "Some prefix text\n```markdown\nSection with code block.\n```"
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(
+                role="Writer", model="mock", temperature=0.0,
+                system_prompt="Writer prompt.",
+            ),
+            "reviewer": AgentConfig(
+                role="Reviewer", model="mock", temperature=0.0,
+                system_prompt="Reviewer prompt.",
+            ),
+        },
+        quality_gate=QualityGateConfig(
+            volume=VolumeGateConfig(enabled=False),
+            latex=LatexGateConfig(enabled=False),
+        ),
+    )
+    
+    llm = QualityGateTestMock()
+    writer = WriterAgent(config.agents["writer"], llm)
+    reviewer = ReviewerAgent(config.agents["reviewer"], llm)
+    
+    orch = Orchestrator(writer=writer, reviewer=reviewer, config=config)
+    # Put raw backticks in context so Quality Gate fails initially
+    orch.context = {"theory": "```markdown\nSection with code block.\n```"}
+    
+    # Run the pipeline
+    result = orch.run_pipeline(render_artifact=False)
+    
+    assert orch.state == PipelineState.DONE
+    # LLM reviewer should NOT be called during the first iteration because Quality Gate rejected it programmatically
+    # But after revision to "Clean section content." Quality Gate passes, and LLM reviewer is called and approves.
+    assert llm.review_calls == 1
+    assert orch.context["theory"] == "Clean section content."

@@ -232,6 +232,7 @@ def run_pipeline_thread(
             user_instructions=instructions or "",
         )
         with run_lock:
+            current_run["topic"] = orch.user_topic
             current_run["runtime_template"] = (
                 orch.runtime_template.model_dump(mode="json")
                 if orch.runtime_template is not None

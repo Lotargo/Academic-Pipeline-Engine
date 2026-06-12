@@ -67,6 +67,38 @@ HookFn = Callable[[PipelineState, PipelineState], None]
 SectionDeltaFn = Callable[[str, str, str], None]
 
 
+def strip_markdown_fences(text: str) -> str:
+    if not text:
+        return ""
+    text_stripped = text.strip()
+    
+    # 1. Check if the entire string is wrapped in a code fence
+    pattern_strict = r"^```(?:markdown|latex|html|text|code)?\s*\n(.*?)\n```$"
+    match_strict = re.match(pattern_strict, text_stripped, re.DOTALL | re.IGNORECASE)
+    if match_strict:
+        return match_strict.group(1).strip()
+        
+    # 2. Check if there is a code block inside containing the majority of the text
+    pattern_search = r"```(?:markdown|latex|html|text|code)?\s*\n(.*?)\n```"
+    matches = list(re.finditer(pattern_search, text_stripped, re.DOTALL | re.IGNORECASE))
+    if len(matches) == 1:
+        content = matches[0].group(1).strip()
+        if len(content) > len(text_stripped) * 0.5:
+            return content
+            
+    # 3. Simple fallback for starts/ends with triple backticks
+    if text_stripped.startswith("```") and text_stripped.endswith("```"):
+        lines = text_stripped.splitlines()
+        if len(lines) >= 2:
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1] == "```":
+                lines = lines[:-1]
+            return "\n".join(lines).strip()
+            
+    return text
+
+
 def parse_rejection_reasons(reason: str, sections: List[SectionPrompt]) -> Dict[str, str]:
     reasons_by_section: Dict[str, List[str]] = {s.name: [] for s in sections}
     general_reasons = []
@@ -214,8 +246,9 @@ class Orchestrator:
             hook(section_name, delta, accumulated)
 
     def _set_section_content(self, section_name: str, content: str) -> None:
-        self.context[section_name] = content
-        self._emit_section_delta(section_name, content, content)
+        cleaned_content = strip_markdown_fences(content)
+        self.context[section_name] = cleaned_content
+        self._emit_section_delta(section_name, cleaned_content, cleaned_content)
 
     def _document_memory(self, current_section_name: str = "", with_line_numbers: bool = False) -> str:
         parts: List[str] = []
@@ -344,10 +377,11 @@ class Orchestrator:
                     else:
                         break
 
+                draft_content = strip_markdown_fences(draft_content)
                 if language_policy == "ru" and not has_cyrillic(draft_content):
                     logger.info("Translating section %s to Russian...", section.name)
                     draft_content = translate_markdown_to_ru(draft_content)
-                self.context[section.name] = draft_content
+                self.context[section.name] = strip_markdown_fences(draft_content)
 
             # --- REVIEWING ---
             self.transition_to(PipelineState.REVIEWING)
@@ -370,17 +404,25 @@ class Orchestrator:
                         f"=== Section: {s.name} ===\n{numbered_content}"
                     )
                 full_text = "\n\n".join(full_text_parts)
-                critique = self._reviewer.process(
-                    render_template(
-                        DEFAULT_REVIEW_TEMPLATE,
-                        {
-                            "language": target_language,
-                            "review_focus": review_focus,
-                            "sections": self._config.pipeline.sections,
-                        },
-                    ),
-                    context=full_text,
-                )
+                # --- Programmatic Quality Gate Validation ---
+                from academic_pe.core.quality_gate import run_all as run_quality_gate
+                qg_result = run_quality_gate(self.context, self._config.quality_gate)
+                if not qg_result.passed:
+                    # Quality gate failed, bypass LLM reviewer and auto-generate rejection
+                    logger.warning("Quality Gate failed during review loop: %s", qg_result.issues)
+                    critique = "REJECTED\n" + "\n".join(f"- [general]: Quality Gate issue: {issue}" for issue in qg_result.issues)
+                else:
+                    critique = self._reviewer.process(
+                        render_template(
+                            DEFAULT_REVIEW_TEMPLATE,
+                            {
+                                "language": target_language,
+                                "review_focus": review_focus,
+                                "sections": self._config.pipeline.sections,
+                            },
+                        ),
+                        context=full_text,
+                    )
 
                 approved = (
                     self._reviewer.is_approved(critique)
@@ -431,6 +473,7 @@ class Orchestrator:
                         )
                         try:
                             revised_content = apply_line_replace_patch(current_content, patch_text)
+                            revised_content = strip_markdown_fences(revised_content)
                             academic_mode = getattr(self._config.pipeline, "academic_mode", False)
                             if academic_mode:
                                 from academic_pe.core.sandbox import execute_sandbox_blocks
@@ -465,6 +508,7 @@ class Orchestrator:
                                     context=self._document_memory(section.name),
                                     document_sections=self.context,
                                 )
+                                revised_content = strip_markdown_fences(revised_content)
 
                                 academic_mode = getattr(self._config.pipeline, "academic_mode", False)
                                 if academic_mode:
@@ -612,6 +656,53 @@ def _apply_runtime_template(
     return resolved_config
 
 
+def should_preserve_topic(instructions: str) -> bool:
+    if not instructions:
+        return False
+    instr_lower = instructions.lower()
+    preserve_phrases = [
+        "не переименовывать тему",
+        "не переименовывай тему",
+        "не менять тему",
+        "тему не менять",
+        "тему не переименовывать",
+        "keep the topic as is",
+        "do not rename the topic",
+        "do not rename",
+        "do not change the topic",
+        "do not change topic",
+        "keep topic",
+    ]
+    return any(phrase in instr_lower for phrase in preserve_phrases)
+
+
+def rewrite_document_topic(
+    topic: str,
+    instructions: str,
+    writer_agent: BaseAgent,
+) -> str:
+    if not topic:
+        return ""
+
+    if should_preserve_topic(instructions):
+        return topic
+
+    prompt = f"""You are an expert academic editor.
+Your task is to refine the document topic into a highly professional, academic, and stylized title.
+
+User Topic: "{topic}"
+User Instructions/Constraints: "{instructions or '(none)'}"
+
+Rules:
+1. If the User Instructions explicitly state that the topic/title must not be changed, must remain exactly as is, or must not be renamed (e.g. "не переименовывать тему", "do not rename", etc.), you MUST return the User Topic exactly as is.
+2. Otherwise, write a more correct, suitable, and stylistically refined academic title for the paper based on the topic.
+3. The title must be in the same language as the User Topic.
+4. Return ONLY the final title. Do not include any explanations, quotes, or introductory text.
+"""
+    refined = writer_agent.process(prompt)
+    return refined.strip().strip('"\'')
+
+
 def create_orchestrator_from_config(
     config: AppConfig,
     renderer: Optional[Renderer] = None,
@@ -622,19 +713,40 @@ def create_orchestrator_from_config(
 ) -> Orchestrator:
     from academic_pe.agents.factory import create_agent
 
-    selector = template_selector or _create_template_selector(config)
-    runtime_template, runtime_prompt_manifest = selector.select(
-        config,
-        topic=user_topic,
-        instructions=user_instructions,
-    )
-    resolved_config = _apply_runtime_template(config, runtime_template)
-    resolver = prompt_manifest_resolver or PromptManifestResolver()
-    resolved_config = resolver.resolve_app_config(resolved_config, runtime_prompt_manifest)
-
     writer_cfg = config.agents.get("writer")
     if not writer_cfg:
         raise ValueError("Writer agent configuration is missing")
+
+    # Refine topic using writer agent if provider is not mock
+    refined_topic = user_topic
+    if user_topic and getattr(writer_cfg.provider, "value", writer_cfg.provider) != "mock":
+        if should_preserve_topic(user_instructions):
+            logger.info("Preserving original topic due to user instructions constraint: '%s'", user_topic)
+        else:
+            temp_writer = create_agent("writer", writer_cfg, retry_cfg=config.retry)
+            refined_topic = rewrite_document_topic(user_topic, user_instructions, temp_writer)
+            logger.info("Refined topic: '%s' -> '%s'", user_topic, refined_topic)
+
+            # Update section topics to use refined topic
+            for sec in config.pipeline.sections:
+                if sec.topic.startswith(user_topic + ":"):
+                    sec.topic = sec.topic.replace(user_topic + ":", refined_topic + ":", 1)
+                elif sec.topic == user_topic:
+                    sec.topic = refined_topic
+
+    selector = template_selector or _create_template_selector(config)
+    runtime_template, runtime_prompt_manifest = selector.select(
+        config,
+        topic=refined_topic,
+        instructions=user_instructions,
+    )
+    resolved_config = _apply_runtime_template(config, runtime_template)
+    
+    # Set resolved config pipeline title to refined topic
+    resolved_config.pipeline.title = refined_topic
+
+    resolver = prompt_manifest_resolver or PromptManifestResolver()
+    resolved_config = resolver.resolve_app_config(resolved_config, runtime_prompt_manifest)
 
     writer = create_agent("writer", resolved_config.agents["writer"], retry_cfg=resolved_config.retry)
     reviewer = None
@@ -649,7 +761,7 @@ def create_orchestrator_from_config(
         runtime_template=runtime_template,
         runtime_prompt_manifest=runtime_prompt_manifest,
     )
-    orchestrator.user_topic = user_topic
+    orchestrator.user_topic = refined_topic
     orchestrator.user_instructions = user_instructions
     return orchestrator
 
