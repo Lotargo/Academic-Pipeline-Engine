@@ -10,7 +10,7 @@ from typing import Callable, Dict, List, Optional, Protocol
 
 from academic_pe.core.config import AppConfig, TemplateMode, load_config, SectionPrompt
 from academic_pe.agents.base import BaseAgent
-from academic_pe.core.language import detect_language, language_instruction
+from academic_pe.core.language import language_instruction, resolve_output_language
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_line_replace_patch, add_line_numbers
@@ -312,7 +312,7 @@ class Orchestrator:
         raw_language_policy = getattr(self._config.pipeline, "language", "auto")
         language_policy = getattr(raw_language_policy, "value", raw_language_policy)
         prompt_text = " ".join(x for x in [self.user_topic, self.user_instructions] if x)
-        target_language = detect_language(prompt_text) if language_policy == "auto" else str(language_policy)
+        target_language = resolve_output_language(prompt_text, str(language_policy))
 
         try:
             # --- PLANNING ---
@@ -400,7 +400,7 @@ class Orchestrator:
                         break
 
                 draft_content = strip_markdown_fences(draft_content)
-                if language_policy == "ru" and not has_cyrillic(draft_content):
+                if target_language == "ru" and not has_cyrillic(draft_content):
                     logger.info("Translating section %s to Russian...", section.name)
                     draft_content = translate_markdown_to_ru(draft_content)
                 self.context[section.name] = strip_markdown_fences(draft_content)
@@ -562,7 +562,7 @@ class Orchestrator:
                                 else:
                                     break
 
-                        if language_policy == "ru" and not has_cyrillic(revised_content):
+                        if target_language == "ru" and not has_cyrillic(revised_content):
                             logger.info("Translating revised section %s to Russian...", section.name)
                             revised_content = translate_markdown_to_ru(revised_content)
                         self._set_section_content(section.name, revised_content)
@@ -612,7 +612,7 @@ class Orchestrator:
                                             response = execute_sandbox_blocks(response)
                                         except Exception as exc:
                                             logger.warning("Sandbox run failed during self-verification for %s: %s", section.name, exc)
-                                    if language_policy == "ru" and not has_cyrillic(response):
+                                    if target_language == "ru" and not has_cyrillic(response):
                                         logger.info("Translating verified section %s to Russian...", section.name)
                                         response = translate_markdown_to_ru(response)
                                     self._set_section_content(section.name, response)

@@ -109,7 +109,8 @@
       "enum": [
         "auto",
         "en",
-        "ru"
+        "ru",
+        "zh"
       ],
       "title": "LanguagePolicy",
       "type": "string"

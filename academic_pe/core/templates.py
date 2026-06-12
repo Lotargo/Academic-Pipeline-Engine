@@ -10,6 +10,7 @@ class TemplateLanguagePolicy(str, Enum):
     auto = "auto"
     en = "en"
     ru = "ru"
+    zh = "zh"
 
 
 class RuntimeTemplateSource(str, Enum):

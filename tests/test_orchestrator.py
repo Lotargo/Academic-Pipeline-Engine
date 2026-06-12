@@ -228,8 +228,8 @@ def test_auto_language_uses_user_prompt_language_for_drafting():
     orch.user_topic = "AI Agent Design Principles"
     orch.run_pipeline(render_artifact=False)
 
-    assert any("Write the final section in English." in prompt for prompt in llm.prompts)
-    assert not any("Write the final section in Russian." in prompt for prompt in llm.prompts)
+    assert any("Write the entire document in English." in prompt for prompt in llm.prompts)
+    assert not any("Write the entire document in Russian." in prompt for prompt in llm.prompts)
 
 
 def test_auto_language_detects_russian_user_prompt():
@@ -250,7 +250,52 @@ def test_auto_language_detects_russian_user_prompt():
     orch.user_topic = "Принципы проектирования AI агентов"
     orch.run_pipeline(render_artifact=False)
 
-    assert any("Write the final section in Russian." in prompt for prompt in llm.prompts)
+    assert any("Write the entire document in Russian." in prompt for prompt in llm.prompts)
+
+
+def test_auto_language_uses_explicit_language_request_over_prompt_language():
+    config = _make_config()
+    config.pipeline.language = LanguagePolicy.auto
+
+    class CapturingProvider(MockProvider):
+        def __init__(self):
+            self.prompts = []
+
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
+            self.prompts.append(user_prompt)
+            return "English draft content for the section."
+
+    llm = CapturingProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, config=config)
+    orch.user_topic = "Реферат про бабочек для 3 класса"
+    orch.user_instructions = "Написать текст на английском языке."
+    orch.run_pipeline(render_artifact=False)
+
+    assert any("Write the entire document in English." in prompt for prompt in llm.prompts)
+    assert not any("Write the entire document in Russian." in prompt for prompt in llm.prompts)
+
+
+def test_auto_language_supports_explicit_chinese_request():
+    config = _make_config()
+    config.pipeline.language = LanguagePolicy.auto
+
+    class CapturingProvider(MockProvider):
+        def __init__(self):
+            self.prompts = []
+
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
+            self.prompts.append(user_prompt)
+            return "中文内容。"
+
+    llm = CapturingProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, config=config)
+    orch.user_topic = "Реферат про бабочек для 3 класса"
+    orch.user_instructions = "Написать на китайском."
+    orch.run_pipeline(render_artifact=False)
+
+    assert any("Write the entire document in Chinese." in prompt for prompt in llm.prompts)
 
 
 def test_reviewer_loop_approves():

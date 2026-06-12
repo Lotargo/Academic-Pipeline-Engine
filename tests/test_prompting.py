@@ -7,7 +7,7 @@ def test_draft_template_uses_section_not_chapter():
         DEFAULT_DRAFT_TEMPLATE,
         {
             "section": SectionPrompt(name="theory", topic="Finite State Machines", instruction="Use H2/H3."),
-            "language_instruction": "Write the final section in English.",
+            "language_instruction": "Write the entire document in English.",
             "user_topic": "FSM",
             "user_instructions": "",
         },

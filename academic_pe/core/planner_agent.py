@@ -40,7 +40,7 @@ Return JSON with this exact shape:
   "name": "human readable template name",
   "description": "one sentence",
   "category": "academic | general | creative | technical | writing | education",
-  "language_policy": "auto | en | ru",
+  "language_policy": "auto | en | ru | zh",
   "sections": [
     {{
       "name": "stable_snake_case",

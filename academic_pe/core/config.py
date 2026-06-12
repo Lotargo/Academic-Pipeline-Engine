@@ -30,6 +30,7 @@ class LanguagePolicy(str, Enum):
     auto = "auto"
     en = "en"
     ru = "ru"
+    zh = "zh"
 
 
 class TemplateMode(str, Enum):

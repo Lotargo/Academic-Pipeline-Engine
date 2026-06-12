@@ -641,6 +641,7 @@ export function ConfigEditor() {
                       <SelectItem value="auto">Auto (prompt language)</SelectItem>
                       <SelectItem value="en">English</SelectItem>
                       <SelectItem value="ru">Russian</SelectItem>
+                      <SelectItem value="zh">Chinese</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
