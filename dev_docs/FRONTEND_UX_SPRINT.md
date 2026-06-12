@@ -94,16 +94,16 @@ Definition of done:
 
 ## Workstream 4: Author Metadata
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Bind user nickname to generated document metadata.
 
 Tasks:
 
-- [ ] Include nickname in run request or current user profile payload.
-- [ ] Store nickname in draft metadata.
-- [ ] Store nickname in exported DOCX metadata JSON.
-- [ ] Show author/nickname in history detail view.
+- [x] Include nickname in run request or current user profile payload.
+- [x] Store nickname in draft metadata.
+- [x] Store nickname in exported DOCX metadata JSON.
+- [x] Show author/nickname in history detail view.
 - [ ] Preserve author metadata when archiving/unarchiving.
 
 Definition of done:
@@ -269,7 +269,7 @@ Definition of done:
 - [x] User profile modal.
 - [x] Interface language moved to profile modal.
 - [x] User nickname.
-- [ ] Nickname stored in document metadata.
+- [x] Nickname stored in document metadata.
 - [x] Theme moved to profile modal.
 - [ ] Archived works modal with bulk unarchive.
 - [x] Avatar upload.

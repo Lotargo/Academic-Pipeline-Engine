@@ -70,6 +70,7 @@ current_run = {
     "error": None,
     "topic": "",
     "timestamp": None,
+    "author": None,
     "active_section": None,
     "template_mode": None,
     "template_id": None,
@@ -285,6 +286,7 @@ def run_pipeline_thread(
     template_id: Optional[str] = None,
     academic_mode: Optional[bool] = None,
     run_id: Optional[str] = None,
+    author: Optional[str] = None,
 ):
     global current_run, _current_orchestrator
     
@@ -434,6 +436,7 @@ def run_pipeline_thread(
         metadata = {
             "topic": topic,
             "instructions": instructions,
+            "author": author,
             "template_mode": config.pipeline.template_mode.value,
             "template_id": config.pipeline.template_id,
             "runtime_template": (
@@ -502,6 +505,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["error"] = None
         current_run["topic"] = payload.topic
         current_run["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_run["author"] = payload.author
         current_run["active_section"] = None
         current_run["template_mode"] = (
             payload.template_mode.value if payload.template_mode is not None else None
@@ -523,6 +527,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         payload.template_id,
         payload.academic_mode,
         run_id,
+        payload.author,
     )
     return {"status": "started", "message": "Pipeline execution started in the background"}
 
@@ -558,12 +563,16 @@ def export_docx(payload: ExportRequest):
     global current_run
     run_id = None
     source_document_plan = None
+    author = payload.author
     if payload.context:
         context = dict(payload.context)
         source_document_plan = context.get("document_plan")
         topic = payload.topic or "Untitled"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with run_lock:
+            if author is None:
+                current_author = current_run.get("author")
+                author = current_author if isinstance(current_author, str) else None
             val = current_run.get("run_id")
             if isinstance(val, str):
                 run_id = val
@@ -576,6 +585,9 @@ def export_docx(payload: ExportRequest):
             source_document_plan = current_run.get("document_plan") or context.get("document_plan")
             topic = str(current_run.get("topic") or "Untitled")
             timestamp = str(current_run.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            if author is None:
+                current_author = current_run.get("author")
+                author = current_author if isinstance(current_author, str) else None
             val = current_run.get("run_id")
             if isinstance(val, str):
                 run_id = val
@@ -676,6 +688,7 @@ def export_docx(payload: ExportRequest):
     metadata = {
         "topic": topic,
         "instructions": None,
+        "author": author,
         "template_mode": current_run.get("template_mode") or config.pipeline.template_mode.value,
         "template_id": current_run.get("template_id") or config.pipeline.template_id,
         "runtime_template": current_run.get("runtime_template"),
@@ -733,6 +746,7 @@ def get_history():
                         "filename": docx_name,
                         "topic": data.get("topic", "Unknown"),
                         "timestamp": data.get("timestamp", ""),
+                        "author": data.get("author"),
                         "status": data.get("status", "COMPLETED"),
                         "context": data.get("context", {}),
                         "original_context": data.get("original_context", {}),

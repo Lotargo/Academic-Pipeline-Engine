@@ -7,6 +7,7 @@ def test_export_request_validation():
     req = ExportRequest(
         filename="test.docx",
         topic="Dynamic Topic",
+        author="Lotargo",
         context={"intro": "Introduction text"},
         runtime_template={
             "source": "auto",
@@ -19,6 +20,7 @@ def test_export_request_validation():
     )
     assert req.runtime_template is not None
     assert req.runtime_template["name"] == "Dynamic Schema"
+    assert req.author == "Lotargo"
 
 def test_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
     # Mock export_docx_with_qa to avoid actual LibreOffice call or file rendering

@@ -13,6 +13,7 @@ class RunRequest(BaseModel):
     template_mode: Optional[TemplateMode] = None
     template_id: Optional[str] = None
     academic_mode: Optional[bool] = None
+    author: Optional[str] = None
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -24,6 +25,7 @@ class ExportRequest(BaseModel):
     topic: Optional[str] = None
     context: Optional[Dict[str, str]] = None
     runtime_template: Optional[dict] = None
+    author: Optional[str] = None
 
 
 class SecretUpdatePayload(BaseModel):

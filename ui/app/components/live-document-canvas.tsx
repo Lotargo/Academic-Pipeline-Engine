@@ -12,6 +12,7 @@ interface LiveDocumentCanvasProps {
   status: any
   onStatusUpdate?: (status: any) => void
   t: Messages
+  author?: string
 }
 
 type CanvasSection = {
@@ -19,7 +20,7 @@ type CanvasSection = {
   title: string
 }
 
-export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCanvasProps) {
+export function LiveDocumentCanvas({ status, onStatusUpdate, t, author }: LiveDocumentCanvasProps) {
   const { theme } = useTheme()
   const editorTheme = theme === "dark" ? "vs-dark" : "light"
   
@@ -85,7 +86,8 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         body: JSON.stringify({
           context: context,
           topic: status?.topic || "Untitled",
-          runtime_template: status?.runtime_template
+          runtime_template: status?.runtime_template,
+          author: author?.trim() || undefined,
         }),
       })
       const data = await res.json()

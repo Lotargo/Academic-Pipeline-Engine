@@ -13,9 +13,10 @@ interface DocumentPreviewProps {
   docxFilename?: string | null
   runtimeTemplate?: any
   t: Messages
+  author?: string | null
 }
 
-export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate, t }: DocumentPreviewProps) {
+export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate, t, author }: DocumentPreviewProps) {
   const runtimeSections = Array.isArray(runtimeTemplate?.sections)
     ? runtimeTemplate.sections
         .filter((section: any) => section?.name)
@@ -75,7 +76,8 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
         body: JSON.stringify({
           topic,
           context: exportableContext,
-          runtime_template: runtimeTemplate
+          runtime_template: runtimeTemplate,
+          author: author?.trim() || undefined,
         }),
       })
       const data = await res.json()

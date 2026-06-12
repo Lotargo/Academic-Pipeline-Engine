@@ -216,6 +216,7 @@ export function Search() {
       export_report: null,
       error: null,
       topic: topic,
+      author: nickname.trim() || null,
       active_section: null
     })
     
@@ -223,7 +224,12 @@ export function Search() {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, instructions, academic_mode: academicMode })
+        body: JSON.stringify({
+          topic,
+          instructions,
+          academic_mode: academicMode,
+          author: nickname.trim() || undefined,
+        })
       })
       if (!res.ok) {
         const err = await res.json()
@@ -348,6 +354,7 @@ export function Search() {
                   </h1>
                   <p className="text-xs text-muted-foreground mt-1">
                     Generated on {selectedPaper.timestamp} · Status: COMPLETED
+                    {selectedPaper.author ? ` · Author: ${selectedPaper.author}` : ""}
                   </p>
                 </div>
                 
@@ -356,6 +363,7 @@ export function Search() {
                   context={selectedPaper.context}
                   docxFilename={selectedPaper.filename}
                   runtimeTemplate={selectedPaper?.runtime_template}
+                  author={selectedPaper?.author}
                   t={t}
                 />
               </div>
@@ -386,7 +394,7 @@ export function Search() {
                   
                   {/* Right Column: Live Document Paper Canvas */}
                   <div className="lg:col-span-8 w-full lg:h-full">
-                    <LiveDocumentCanvas status={status} onStatusUpdate={setStatus} t={t} />
+                    <LiveDocumentCanvas status={status} onStatusUpdate={setStatus} t={t} author={status?.author || nickname} />
                   </div>
                 </div>
               </div>
