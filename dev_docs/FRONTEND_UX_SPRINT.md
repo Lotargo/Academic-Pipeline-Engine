@@ -1,7 +1,7 @@
 # Frontend UX Sprint
 
 Date: 2026-06-13  
-Status: Planned  
+Status: In progress  
 Scope: UI layout, workspace ergonomics, user profile controls, history management, visual polish, and pipeline status clarity.
 
 ## Sprint Goal
@@ -47,18 +47,18 @@ Definition of done:
 
 ## Workstream 2: Work History Management
 
-Status: `[ ] Planned`
+Status: `[x] Done`
 
 Objective: Add deletion and archiving for generated works.
 
 Tasks:
 
-- [ ] Extend metadata model with archived/deleted state.
-- [ ] Add server endpoints for archive, unarchive, delete, and bulk unarchive.
-- [ ] Add UI actions for each history item.
-- [ ] Add confirmation for destructive deletion.
-- [ ] Hide archived works from the default recent list.
-- [ ] Preserve document metadata and export references when archiving.
+- [x] Extend metadata model with archived/deleted state.
+- [x] Add server endpoints for archive, unarchive, delete, and bulk unarchive.
+- [x] Add UI actions for each history item.
+- [x] Add confirmation for destructive deletion.
+- [x] Hide archived works from the default recent list.
+- [x] Preserve document metadata and export references when archiving.
 
 Definition of done:
 
@@ -94,7 +94,7 @@ Definition of done:
 
 ## Workstream 4: Author Metadata
 
-Status: `[~] In progress`
+Status: `[x] Done`
 
 Objective: Bind user nickname to generated document metadata.
 
@@ -104,7 +104,7 @@ Tasks:
 - [x] Store nickname in draft metadata.
 - [x] Store nickname in exported DOCX metadata JSON.
 - [x] Show author/nickname in history detail view.
-- [ ] Preserve author metadata when archiving/unarchiving.
+- [x] Preserve author metadata when archiving/unarchiving.
 
 Definition of done:
 
@@ -114,19 +114,19 @@ Definition of done:
 
 ## Workstream 5: Archived Works Modal
 
-Status: `[ ] Planned`
+Status: `[x] Done`
 
 Objective: Add a dedicated modal for viewing archived works with richer metadata and bulk unarchive.
 
 Tasks:
 
-- [ ] Add "Archived works" entry in profile modal or history controls.
-- [ ] Create archived works modal.
-- [ ] Display extended metadata: topic, author, template, language, status, timestamps, export filename.
-- [ ] Add multi-select mode.
-- [ ] Add bulk unarchive action.
-- [ ] Add empty state.
-- [ ] Add loading and error states.
+- [x] Add "Archived works" entry in profile modal or history controls.
+- [x] Create archived works modal.
+- [x] Display extended metadata: topic, author, template, language, status, timestamps, export filename.
+- [x] Add multi-select mode.
+- [x] Add bulk unarchive action.
+- [x] Add empty state.
+- [x] Add loading and error states.
 
 Definition of done:
 
@@ -265,13 +265,13 @@ Definition of done:
 ## Current Backlog Summary
 
 - [x] Resizable left sidebar.
-- [ ] Work archive/delete actions.
+- [x] Work archive/delete actions.
 - [x] User profile modal.
 - [x] Interface language moved to profile modal.
 - [x] User nickname.
 - [x] Nickname stored in document metadata.
 - [x] Theme moved to profile modal.
-- [ ] Archived works modal with bulk unarchive.
+- [x] Archived works modal with bulk unarchive.
 - [x] Avatar upload.
 - [ ] Modern pipeline icons.
 - [ ] SSE statuses inside step cards.

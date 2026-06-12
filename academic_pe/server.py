@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
-from academic_pe.api_models import ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload
+from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
 from academic_pe.core.orchestrator import create_orchestrator_from_config, PipelineState, PipelineCancelled
 from academic_pe.core.template_library import TemplateLibrary
@@ -104,6 +104,76 @@ def _pipeline_output_dir() -> str:
 
 def _metadata_dir(output_dir: str) -> str:
     return os.path.join(output_dir, "_metadata")
+
+
+def _history_metadata_dir() -> str:
+    return os.path.join("exports", "_metadata")
+
+
+def _safe_metadata_path(metadata_id: str) -> str:
+    if not metadata_id or metadata_id != os.path.basename(metadata_id):
+        raise HTTPException(status_code=400, detail="Invalid history metadata id")
+    if not metadata_id.endswith(".metadata.json"):
+        raise HTTPException(status_code=400, detail="Invalid history metadata id")
+
+    metadata_dir = os.path.abspath(_history_metadata_dir())
+    metadata_path = os.path.abspath(os.path.join(metadata_dir, metadata_id))
+    if not metadata_path.startswith(metadata_dir + os.sep):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not os.path.exists(metadata_path):
+        raise HTTPException(status_code=404, detail="History item not found")
+    return metadata_path
+
+
+def _load_history_metadata(metadata_id: str) -> tuple[str, dict]:
+    metadata_path = _safe_metadata_path(metadata_id)
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="History metadata is not valid JSON")
+    return metadata_path, data
+
+
+def _write_history_metadata(metadata_path: str, data: dict) -> None:
+    data["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    with open(metadata_path, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
+
+
+def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
+    return {
+        "id": metadata_id,
+        "filename": data.get("docx_filename"),
+        "topic": data.get("topic", "Unknown"),
+        "timestamp": data.get("timestamp", ""),
+        "author": data.get("author"),
+        "status": data.get("status", "COMPLETED"),
+        "archived": bool(data.get("archived", False)),
+        "archived_at": data.get("archived_at"),
+        "context": data.get("context", {}),
+        "original_context": data.get("original_context", {}),
+        "academic_mode": data.get("academic_mode", False),
+        "logs": data.get("logs", []),
+        "reviewer_feedback": data.get("reviewer_feedback", []),
+        "export_report": data.get("export_report"),
+        "template_mode": data.get("template_mode"),
+        "template_id": data.get("template_id"),
+        "runtime_template": data.get("runtime_template"),
+        "runtime_prompt_manifest": data.get("runtime_prompt_manifest"),
+    }
+
+
+def _delete_export_asset(docx_name: Optional[str]) -> None:
+    if not docx_name:
+        return
+
+    output_dir = os.path.abspath(_pipeline_output_dir())
+    file_path = os.path.abspath(os.path.join(output_dir, docx_name))
+    if not file_path.startswith(output_dir + os.sep):
+        raise HTTPException(status_code=403, detail="Export path is outside the output directory")
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        os.remove(file_path)
 
 # Custom logger handler
 class StatusLogHandler(logging.Handler):
@@ -725,9 +795,9 @@ def download_file(filename: str):
     return FileResponse(file_path, filename=download_name, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 @app.get("/api/history")
-def get_history():
+def get_history(archived: Optional[bool] = None, include_archived: bool = False):
     output_dir = _pipeline_output_dir()
-    metadata_dir = os.path.join("exports", "_metadata")
+    metadata_dir = _history_metadata_dir()
         
     if not os.path.exists(metadata_dir):
         return []
@@ -739,32 +809,59 @@ def get_history():
             try:
                 with open(metadata_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
+                is_archived = bool(data.get("archived", False))
+                if archived is not None and is_archived != archived:
+                    continue
+                if archived is None and is_archived and not include_archived:
+                    continue
                 # Include draft records and exported DOCX records.
                 docx_name = data.get("docx_filename")
                 if not docx_name or os.path.exists(os.path.join(output_dir, docx_name)):
-                    history.append({
-                        "filename": docx_name,
-                        "topic": data.get("topic", "Unknown"),
-                        "timestamp": data.get("timestamp", ""),
-                        "author": data.get("author"),
-                        "status": data.get("status", "COMPLETED"),
-                        "context": data.get("context", {}),
-                        "original_context": data.get("original_context", {}),
-                        "academic_mode": data.get("academic_mode", False),
-                        "logs": data.get("logs", []),
-                        "reviewer_feedback": data.get("reviewer_feedback", []),
-                        "export_report": data.get("export_report"),
-                        "template_mode": data.get("template_mode"),
-                        "template_id": data.get("template_id"),
-                        "runtime_template": data.get("runtime_template"),
-                        "runtime_prompt_manifest": data.get("runtime_prompt_manifest"),
-                    })
+                    history.append(_history_item_from_metadata(f, data))
             except Exception as e:
                 logging.getLogger(__name__).warning("Failed to load metadata file %s: %s", f, e)
                 
     # Sort by timestamp desc
     history.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     return history
+
+
+@app.post("/api/history/{metadata_id}/archive")
+def archive_history_item(metadata_id: str):
+    metadata_path, data = _load_history_metadata(metadata_id)
+    data["archived"] = True
+    data["archived_at"] = datetime.now().isoformat(timespec="seconds")
+    _write_history_metadata(metadata_path, data)
+    return _history_item_from_metadata(metadata_id, data)
+
+
+@app.post("/api/history/{metadata_id}/unarchive")
+def unarchive_history_item(metadata_id: str):
+    metadata_path, data = _load_history_metadata(metadata_id)
+    data["archived"] = False
+    data["archived_at"] = None
+    _write_history_metadata(metadata_path, data)
+    return _history_item_from_metadata(metadata_id, data)
+
+
+@app.post("/api/history/unarchive")
+def bulk_unarchive_history_items(payload: BulkHistoryPayload):
+    restored = []
+    for metadata_id in payload.ids:
+        metadata_path, data = _load_history_metadata(metadata_id)
+        data["archived"] = False
+        data["archived_at"] = None
+        _write_history_metadata(metadata_path, data)
+        restored.append(_history_item_from_metadata(metadata_id, data))
+    return {"restored": restored}
+
+
+@app.delete("/api/history/{metadata_id}")
+def delete_history_item(metadata_id: str):
+    metadata_path, data = _load_history_metadata(metadata_id)
+    _delete_export_asset(data.get("docx_filename"))
+    os.remove(metadata_path)
+    return {"status": "deleted", "id": metadata_id}
 
 # New Routes for Secrets and Models Manager
 from academic_pe.core.secrets import is_secret_configured, save_secret, get_secret

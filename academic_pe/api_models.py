@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -31,3 +31,7 @@ class ExportRequest(BaseModel):
 class SecretUpdatePayload(BaseModel):
     provider: str
     api_key: str
+
+
+class BulkHistoryPayload(BaseModel):
+    ids: List[str]

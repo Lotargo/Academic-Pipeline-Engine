@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import type { ChangeEvent, ReactNode } from "react"
-import { Camera, Moon, Sun, UserRound } from "lucide-react"
+import { Archive, Camera, Moon, Sun, UserRound } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -38,6 +38,7 @@ interface ProfileModalProps {
   onNicknameChange: (nickname: string) => void
   avatarUrl: string | null
   onAvatarChange: (avatarUrl: string | null) => void
+  onOpenArchivedWorks?: () => void
 }
 
 const labels = {
@@ -60,6 +61,7 @@ const labels = {
     languageSaved: "Language updated",
     avatarTooLarge: "Avatar must be 512 KB or smaller.",
     avatarType: "Use png, jpg, ico, or svg.",
+    archivedWorks: "Archived works",
   },
   ru: {
     title: "Профиль",
@@ -80,6 +82,7 @@ const labels = {
     languageSaved: "Язык обновлен",
     avatarTooLarge: "Аватар должен быть не больше 512 КБ.",
     avatarType: "Используйте png, jpg, ico или svg.",
+    archivedWorks: "Архивные работы",
   },
 } as const
 
@@ -93,6 +96,7 @@ export function ProfileModal({
   onNicknameChange,
   avatarUrl,
   onAvatarChange,
+  onOpenArchivedWorks,
 }: ProfileModalProps) {
   const [open, setOpen] = useState(false)
   const [savingLanguage, setSavingLanguage] = useState(false)
@@ -247,6 +251,23 @@ export function ProfileModal({
               </div>
             </div>
           </section>
+
+          {onOpenArchivedWorks && (
+            <section className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setOpen(false)
+                  onOpenArchivedWorks()
+                }}
+              >
+                <Archive className="h-3.5 w-3.5" />
+                {t.archivedWorks}
+              </Button>
+            </section>
+          )}
         </div>
       </DialogContent>
     </Dialog>

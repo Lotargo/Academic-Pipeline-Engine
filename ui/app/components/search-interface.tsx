@@ -8,6 +8,7 @@ import { FSMMonitor } from "./fsm-monitor"
 import { DocumentPreview } from "./document-preview"
 import { LiveDocumentCanvas } from "./live-document-canvas"
 import { ConsolePanel } from "./console-panel"
+import { ArchivedWorksModal } from "./archived-works-modal"
 import { toast } from "sonner"
 import { Sparkles, FileText, ArrowRight, XCircle, Terminal } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -24,6 +25,7 @@ export function Search() {
   const [activeTab, setActiveTab] = useState<string>("workspace")
   const [historyList, setHistoryList] = useState<any[]>([])
   const [selectedPaper, setSelectedPaper] = useState<any>(null)
+  const [archivedWorksOpen, setArchivedWorksOpen] = useState(false)
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const notifiedRef = useRef(false)
@@ -198,6 +200,50 @@ export function Search() {
     }
   }
 
+  const handleArchivePaper = async (paper: any) => {
+    if (!paper?.id) {
+      toast.error("History item is missing metadata id")
+      return
+    }
+    try {
+      const res = await fetch(`/api/history/${encodeURIComponent(paper.id)}/archive`, { method: "POST" })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || "Failed to archive work")
+      }
+      if (selectedPaper?.id === paper.id) {
+        setSelectedPaper(null)
+        setActiveTab("workspace")
+      }
+      await fetchHistory()
+      toast.success(language === "ru" ? "Работа перемещена в архив" : "Work archived")
+    } catch (e: any) {
+      toast.error(e.message || "Failed to archive work")
+    }
+  }
+
+  const handleDeletePaper = async (paper: any) => {
+    if (!paper?.id) {
+      toast.error("History item is missing metadata id")
+      return
+    }
+    try {
+      const res = await fetch(`/api/history/${encodeURIComponent(paper.id)}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || "Failed to delete work")
+      }
+      if (selectedPaper?.id === paper.id) {
+        setSelectedPaper(null)
+        setActiveTab("workspace")
+      }
+      await fetchHistory()
+      toast.success(language === "ru" ? "Работа удалена" : "Work deleted")
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete work")
+    }
+  }
+
   const handleStartGeneration = async (topic: string, instructions: string, academicMode: boolean) => {
     notifiedRef.current = false
     
@@ -273,6 +319,9 @@ export function Search() {
         onNicknameChange={setNickname}
         avatarUrl={avatarUrl}
         onAvatarChange={setAvatarUrl}
+        onArchivePaper={handleArchivePaper}
+        onDeletePaper={handleDeletePaper}
+        onOpenArchivedWorks={() => setArchivedWorksOpen(true)}
       />
 
       {/* Main Workspace Frame */}
@@ -493,6 +542,12 @@ export function Search() {
           height={consoleHeight}
           setHeight={setConsoleHeight}
           t={t}
+        />
+        <ArchivedWorksModal
+          open={archivedWorksOpen}
+          onOpenChange={setArchivedWorksOpen}
+          language={language}
+          onRestored={fetchHistory}
         />
       </main>
     </div>

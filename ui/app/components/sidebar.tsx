@@ -11,12 +11,31 @@ import {
   Workflow,
   Sparkles,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MoreHorizontal,
+  Archive,
+  Trash2
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ProfileModal } from "./profile-modal"
 import type { Messages, UiLanguage } from "@/lib/i18n"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface SidebarProps {
   activeTab: string
@@ -33,6 +52,9 @@ interface SidebarProps {
   onNicknameChange: (nickname: string) => void
   avatarUrl: string | null
   onAvatarChange: (avatarUrl: string | null) => void
+  onArchivePaper: (paper: any) => Promise<void> | void
+  onDeletePaper: (paper: any) => Promise<void> | void
+  onOpenArchivedWorks: () => void
 }
 
 const SIDEBAR_WIDTH_KEY = "ape.sidebar.width"
@@ -58,11 +80,15 @@ export function Sidebar({
   nickname,
   onNicknameChange,
   avatarUrl,
-  onAvatarChange
+  onAvatarChange,
+  onArchivePaper,
+  onDeletePaper,
+  onOpenArchivedWorks
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
   const [isResizing, setIsResizing] = useState(false)
+  const [paperPendingDelete, setPaperPendingDelete] = useState<any>(null)
   const sidebarRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -134,6 +160,14 @@ export function Sidebar({
 
   const displayName = nickname.trim() || t.nav.user
   const initials = displayName.slice(0, 2).toUpperCase()
+  const archiveLabel = language === "ru" ? "Архивировать" : "Archive"
+  const deleteLabel = language === "ru" ? "Удалить" : "Delete"
+  const cancelLabel = language === "ru" ? "Отмена" : "Cancel"
+  const deleteTitle = language === "ru" ? "Удалить работу?" : "Delete this work?"
+  const deleteDescription =
+    language === "ru"
+      ? "Это навсегда удалит metadata и связанный DOCX-файл, если он есть."
+      : "This permanently removes the metadata record and its DOCX export when present."
   const profileCaption = language === "ru" ? "Локальный профиль" : "Local profile"
 
   return (
@@ -274,28 +308,88 @@ export function Sidebar({
           {historyList.map((paper, index) => {
             const isSelected = selectedPaper === paper
             return (
-              <button
+              <div
                 key={`${historyKey(paper)}|${index}`}
-                onClick={() => handleSelectPaper(paper)}
-                className={`group w-full text-left px-3 py-2 text-xs leading-tight rounded-lg border transition-all relative flex items-center gap-2 cursor-pointer ${
+                className={`group w-full text-left text-xs leading-tight rounded-lg border transition-all relative flex items-center gap-1 ${
                   isSelected
                     ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
                     : "border-transparent text-foreground hover:bg-accent"
                 }`}
-                title={paper.topic}
               >
-                <FileText className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-teal-500" />
-                {!collapsed ? (
-                  <div className="flex flex-col truncate pr-2">
-                    <span className="font-semibold truncate text-[11px]">{paper.topic}</span>
-                    <span className="text-[9px] text-muted-foreground">{paper.timestamp}</span>
-                  </div>
-                ) : (
-                  <div className="w-1.5 h-1.5 rounded-full bg-teal-500 absolute bottom-1 right-1" />
+                <button
+                  onClick={() => handleSelectPaper(paper)}
+                  className={`flex min-w-0 flex-1 items-center gap-2 bg-transparent px-3 py-2 text-left cursor-pointer border-0 ${
+                    collapsed ? "justify-center px-0" : ""
+                  }`}
+                  title={paper.topic}
+                >
+                  <FileText className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-teal-500" />
+                  {!collapsed ? (
+                    <div className="flex min-w-0 flex-col truncate pr-1">
+                      <span className="font-semibold truncate text-[11px]">{paper.topic}</span>
+                      <span className="text-[9px] text-muted-foreground">{paper.timestamp}</span>
+                    </div>
+                  ) : (
+                    <div className="w-1.5 h-1.5 rounded-full bg-teal-500 absolute bottom-1 right-1" />
+                  )}
+                </button>
+                {!collapsed && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="History item actions"
+                        className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-background/80 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                      >
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem onSelect={() => onArchivePaper(paper)}>
+                        <Archive className="h-3.5 w-3.5" />
+                        {archiveLabel}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={(event) => {
+                          event.preventDefault()
+                          setPaperPendingDelete(paper)
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {deleteLabel}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
-              </button>
+              </div>
             )
           })}
+
+          <AlertDialog open={Boolean(paperPendingDelete)} onOpenChange={(open) => !open && setPaperPendingDelete(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{deleteTitle}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {deleteDescription}
+                  {paperPendingDelete?.topic ? ` "${paperPendingDelete.topic}"` : ""}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={async () => {
+                    const target = paperPendingDelete
+                    setPaperPendingDelete(null)
+                    if (target) await onDeletePaper(target)
+                  }}
+                >
+                  {deleteLabel}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           
           {historyList.length === 0 && !collapsed && (
             <div className="px-3 py-4 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg border-border/60 mx-1">
@@ -316,6 +410,7 @@ export function Sidebar({
           onNicknameChange={onNicknameChange}
           avatarUrl={avatarUrl}
           onAvatarChange={onAvatarChange}
+          onOpenArchivedWorks={onOpenArchivedWorks}
         >
           <button
             type="button"

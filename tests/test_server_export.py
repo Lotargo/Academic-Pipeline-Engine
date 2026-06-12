@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from academic_pe.server import app, current_run, run_lock
 from academic_pe.api_models import ExportRequest
+import json
 
 def test_export_request_validation():
     # Verify that ExportRequest accepts runtime_template
@@ -156,3 +157,78 @@ def test_export_endpoint_excludes_document_plan_from_export(monkeypatch, tmp_pat
         "introduction_dynamic",
         "results_dynamic",
     ]
+
+
+def test_history_archive_unarchive_preserves_author(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    metadata_dir = tmp_path / "exports" / "_metadata"
+    metadata_dir.mkdir(parents=True)
+    metadata_path = metadata_dir / "paper.20260613120000.metadata.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "topic": "Archive Me",
+                "timestamp": "2026-06-13 12:00:00",
+                "author": "Lotargo",
+                "status": "COMPLETED",
+                "docx_filename": None,
+                "context": {"intro": "Hello"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(app)
+
+    archive_response = client.post(f"/api/history/{metadata_path.name}/archive")
+    assert archive_response.status_code == 200
+    archived_item = archive_response.json()
+    assert archived_item["archived"] is True
+    assert archived_item["author"] == "Lotargo"
+
+    visible_response = client.get("/api/history")
+    assert visible_response.status_code == 200
+    assert visible_response.json() == []
+
+    archived_response = client.get("/api/history?archived=true")
+    assert archived_response.status_code == 200
+    assert archived_response.json()[0]["author"] == "Lotargo"
+
+    unarchive_response = client.post(f"/api/history/{metadata_path.name}/unarchive")
+    assert unarchive_response.status_code == 200
+    assert unarchive_response.json()["author"] == "Lotargo"
+
+    restored_response = client.get("/api/history")
+    assert restored_response.status_code == 200
+    assert restored_response.json()[0]["author"] == "Lotargo"
+
+
+def test_history_delete_removes_metadata_and_docx(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    export_dir = tmp_path / "exports"
+    metadata_dir = export_dir / "_metadata"
+    metadata_dir.mkdir(parents=True)
+    docx_path = export_dir / "paper.docx"
+    docx_path.write_bytes(b"docx")
+    metadata_path = metadata_dir / "paper.20260613120000.metadata.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "topic": "Delete Me",
+                "timestamp": "2026-06-13 12:00:00",
+                "author": "Lotargo",
+                "status": "COMPLETED",
+                "docx_filename": "paper.docx",
+                "context": {"intro": "Hello"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(app)
+    response = client.delete(f"/api/history/{metadata_path.name}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "deleted"
+    assert not metadata_path.exists()
+    assert not docx_path.exists()
