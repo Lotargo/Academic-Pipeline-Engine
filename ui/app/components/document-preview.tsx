@@ -11,11 +11,32 @@ interface DocumentPreviewProps {
   topic: string
   context: Record<string, string>
   docxFilename?: string | null
+  runtimeTemplate?: any
   t: Messages
 }
 
-export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPreviewProps) {
-  const [activeTab, setActiveTab] = useState<string>(Object.keys(context)[0] || "")
+export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate, t }: DocumentPreviewProps) {
+  const runtimeSections = Array.isArray(runtimeTemplate?.sections)
+    ? runtimeTemplate.sections
+        .filter((section: any) => section?.name)
+        .map((section: any) => ({
+          id: section.name,
+          title: section.title || section.topic || humanizeSectionName(section.name),
+        }))
+    : []
+
+  const contextSections = Object.keys(context).map((key) => ({
+    id: key,
+    title: humanizeSectionName(key),
+  }))
+
+  const baseSections = runtimeSections.length > 0 ? runtimeSections : contextSections
+  const extraSections = contextSections.filter(
+    (section) => !baseSections.some((known: { id: string }) => known.id === section.id)
+  )
+  const allSections = [...baseSections, ...extraSections]
+
+  const [activeTab, setActiveTab] = useState<string>(allSections[0]?.id || "")
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportedFilename, setExportedFilename] = useState<string | null>(docxFilename || null)
@@ -29,8 +50,11 @@ export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPre
   const sections = Object.entries(context).filter(([_, text]) => !!text)
 
   // Ensure an active tab is selected if the tabs list changed
-  if (sections.length > 0 && (!activeTab || !context[activeTab])) {
-    setActiveTab(sections[0][0])
+  if (allSections.length > 0 && (!activeTab || !context[activeTab])) {
+    const firstWithContent = allSections.find((s) => !!context[s.id])
+    if (firstWithContent) {
+      setActiveTab(firstWithContent.id)
+    }
   }
 
   const handleDownload = () => {
@@ -44,7 +68,11 @@ export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPre
       const res = await fetch("/api/export/docx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, context }),
+        body: JSON.stringify({
+          topic,
+          context,
+          runtime_template: runtimeTemplate
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -313,7 +341,10 @@ export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPre
   }
 
   const copyToClipboard = () => {
-    const fullText = sections.map(([name, text]) => `## ${name.toUpperCase()}\n\n${text}`).join("\n\n")
+    const fullText = allSections
+      .filter((s) => !!context[s.id])
+      .map((s) => `## ${s.title.toUpperCase()}\n\n${context[s.id]}`)
+      .join("\n\n")
     navigator.clipboard.writeText(fullText)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -329,17 +360,17 @@ export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPre
             <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t.document.chapters}</CardTitle>
           </CardHeader>
           <CardContent className="p-0 flex flex-row lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible">
-            {sections.map(([name]) => (
+            {allSections.filter((s) => !!context[s.id]).map((section) => (
               <button
-                key={name}
-                onClick={() => setActiveTab(name)}
+                key={section.id}
+                onClick={() => setActiveTab(section.id)}
                 className={`w-full text-left px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 capitalize ${
-                  activeTab === name
+                  activeTab === section.id
                     ? "border-teal-500 bg-teal-500/5 text-teal-600 dark:text-teal-400 font-semibold"
                     : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
               >
-                {name}
+                {section.title}
               </button>
             ))}
           </CardContent>
@@ -432,4 +463,12 @@ export function DocumentPreview({ topic, context, docxFilename, t }: DocumentPre
       </div>
     </div>
   )
+}
+
+function humanizeSectionName(name: string) {
+  return name
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
 }

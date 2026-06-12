@@ -281,6 +281,7 @@ export function Search() {
                   topic={selectedPaper.topic}
                   context={selectedPaper.context}
                   docxFilename={selectedPaper.filename}
+                  runtimeTemplate={selectedPaper?.runtime_template}
                   t={t}
                 />
               </div>

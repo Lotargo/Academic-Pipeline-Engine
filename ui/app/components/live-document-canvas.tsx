@@ -83,7 +83,8 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           context: context,
-          topic: status?.topic || "Untitled"
+          topic: status?.topic || "Untitled",
+          runtime_template: status?.runtime_template
         }),
       })
       const data = await res.json()

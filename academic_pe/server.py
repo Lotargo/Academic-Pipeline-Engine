@@ -6,7 +6,7 @@ import threading
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -255,7 +255,8 @@ def run_pipeline_thread(
 
         def on_section_delta(section_name: str, delta: str, accumulated: str):
             with run_lock:
-                context = dict(current_run.get("context") or {})
+                current_context = current_run.get("context")
+                context = dict(current_context) if isinstance(current_context, dict) else {}
                 context[section_name] = accumulated
                 current_run["context"] = context
                 current_run["active_section"] = section_name
@@ -267,7 +268,8 @@ def run_pipeline_thread(
                 current_run["state"] = new_state.name
                 current_run["logs"].append(f"[FSM] Entering state: {new_state.name}")
                 if new_state.name == "REVIEWING" and not current_run.get("original_context"):
-                    current_run["original_context"] = dict(current_run.get("context") or {})
+                    current_context = current_run.get("context")
+                    current_run["original_context"] = dict(current_context) if isinstance(current_context, dict) else {}
             
         def on_exit_hook(old_state, new_state):
             with run_lock:
@@ -281,8 +283,18 @@ def run_pipeline_thread(
         orig_reviewer_process = None
         if orch._reviewer:
             orig_process = orch._reviewer.process
-            def logged_reviewer_process(task_description: str, context: Optional[str] = None) -> str:
-                res = orig_process(task_description, context)
+            def logged_reviewer_process(
+                task_description: str,
+                context: Optional[str] = None,
+                on_delta: Optional[Callable[[str], None]] = None,
+                document_sections: Optional[Dict[str, str]] = None,
+            ) -> str:
+                res = orig_process(
+                    task_description,
+                    context=context,
+                    on_delta=on_delta,
+                    document_sections=document_sections,
+                )
                 with run_lock:
                     current_run["reviewer_feedback"].append(res)
                     current_run["logs"].append(f"[Reviewer Feedback]: {res}")
@@ -435,9 +447,10 @@ def export_docx(payload: ExportRequest):
         with run_lock:
             if current_run["status"] == "RUNNING":
                 raise HTTPException(status_code=400, detail="Cannot export while generation is still running")
-            context = dict(current_run.get("context") or {})
-            topic = current_run.get("topic") or "Untitled"
-            timestamp = current_run.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            current_context = current_run.get("context")
+            context = dict(current_context) if isinstance(current_context, dict) else {}
+            topic = str(current_run.get("topic") or "Untitled")
+            timestamp = str(current_run.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
     with run_lock:
         if not payload.context and current_run["status"] == "RUNNING":
@@ -447,13 +460,63 @@ def export_docx(payload: ExportRequest):
         raise HTTPException(status_code=400, detail="No draft content is available to export")
 
     config = load_config("config/agents.yaml")
+
+    # Resolve runtime template from payload or current run
+    rt_data: Optional[dict] = None
+    if payload.runtime_template:
+        rt_data = payload.runtime_template
+    else:
+        with run_lock:
+            current_rt = current_run.get("runtime_template")
+            if isinstance(current_rt, dict):
+                rt_sections = current_rt.get("sections")
+                if isinstance(rt_sections, list):
+                    # Fallback to current_run's template if context matches or is not payload-supplied
+                    if not payload.context or any(
+                        isinstance(sec, dict) and sec.get("name") in context
+                        for sec in rt_sections
+                    ):
+                        rt_data = current_rt
+
+    if isinstance(rt_data, dict):
+        try:
+            from academic_pe.core.templates import RuntimeTemplate
+            from academic_pe.core.orchestrator import _apply_runtime_template
+            runtime_template = RuntimeTemplate(**rt_data)
+            config = _apply_runtime_template(config, runtime_template)
+            config.pipeline.title = topic
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to apply runtime template in export: %s", e)
+    else:
+        # Dynamic fallback: if no template is provided, but context contains different keys,
+        # create section prompts dynamically so they are not ignored.
+        default_section_names = {sec.name for sec in config.pipeline.sections}
+        context_keys = list(context.keys())
+        if not all(key in default_section_names for key in context_keys):
+            from academic_pe.core.config import SectionPrompt
+            new_sections: List[SectionPrompt] = []
+            for key in context_keys:
+                existing = next((sec for sec in config.pipeline.sections if sec.name == key), None)
+                if existing:
+                    new_sections.append(existing)
+                else:
+                    new_sections.append(SectionPrompt(
+                        name=key,
+                        topic=key.replace("_", " ").title(),
+                        instruction=""
+                    ))
+            config.pipeline.sections = new_sections
+        config.pipeline.title = topic
+
     result = export_docx_with_qa(context, config, output_filename=payload.filename)
 
     with run_lock:
         if not payload.context:
             current_run["docx_filename"] = result.filename
             current_run["export_report"] = result.to_dict()
-        current_run["logs"].append(f"[Export QA]: {result.status.upper()} for {result.filename}")
+        logs_list = current_run.get("logs")
+        if isinstance(logs_list, list):
+            logs_list.append(f"[Export QA]: {result.status.upper()} for {result.filename}")
 
     metadata_dir = _metadata_dir(config.pipeline.output_dir)
     os.makedirs(metadata_dir, exist_ok=True)

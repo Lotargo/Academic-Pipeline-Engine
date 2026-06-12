@@ -23,6 +23,7 @@ class ExportRequest(BaseModel):
     filename: Optional[str] = None
     topic: Optional[str] = None
     context: Optional[Dict[str, str]] = None
+    runtime_template: Optional[dict] = None
 
 
 class SecretUpdatePayload(BaseModel):
