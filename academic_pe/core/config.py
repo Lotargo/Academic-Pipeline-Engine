@@ -93,10 +93,11 @@ class TransitionConfig(BaseModel):
 class FSMConfig(BaseModel):
     enabled: bool = False
     states: List[str] = Field(default_factory=lambda: [
-        "INIT", "DRAFTING", "REVIEWING", "RENDERING", "DONE", "FAILED",
+        "INIT", "PLANNING", "DRAFTING", "REVIEWING", "RENDERING", "DONE", "FAILED",
     ])
     transitions: List[TransitionConfig] = Field(default_factory=lambda: [
-        TransitionConfig(from_state="INIT", to_states=["DRAFTING"]),
+        TransitionConfig(from_state="INIT", to_states=["PLANNING", "DRAFTING"]),
+        TransitionConfig(from_state="PLANNING", to_states=["DRAFTING"]),
         TransitionConfig(from_state="DRAFTING", to_states=["REVIEWING"]),
         TransitionConfig(from_state="REVIEWING", to_states=["DRAFTING", "RENDERING"]),
         TransitionConfig(from_state="RENDERING", to_states=["DONE"]),
@@ -170,6 +171,18 @@ def load_config(path: str = "config/agents.yaml") -> AppConfig:
 
     if "agents" not in data:
         data["agents"] = {}
+
+    if "planner" not in data["agents"]:
+        data["agents"]["planner"] = {
+            "role": "Planner",
+            "provider": "zen",
+            "model": "mimo-v2.5-free",
+            "temperature": 0.2,
+            "system_prompt": (
+                "You are a professional Academic Document template planner. Plan only the runtime "
+                "document structure and prompt manifest. Do not draft document content."
+            )
+        }
 
     if "example_generator" not in data["agents"]:
         data["agents"]["example_generator"] = {

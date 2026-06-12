@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, FileDown, Eye, PanelTop, Moon, Code2, GitCompare } from "lucide-react"
+import { FileText, Loader2, CheckCircle2, PenTool, Check, Copy, FileDown, Eye, PanelTop, Moon, Code2, GitCompare, ChevronDown, ChevronUp } from "lucide-react"
 import { toast } from "sonner"
 import type { Messages } from "@/lib/i18n"
 import { useTheme } from "next-themes"
@@ -29,6 +29,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
   const [dimDrafting, setDimDrafting] = useState(false)
   const [sectionViewModes, setSectionViewModes] = useState<Record<string, "preview" | "editor" | "diff">>({})
   const [editedContent, setEditedContent] = useState<Record<string, string>>({})
+  const [showPlan, setShowPlan] = useState(true)
 
   const context = status?.context || {}
   const activeState = status?.state || "INIT"
@@ -137,10 +138,12 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
         }))
     : []
 
-  const contextSections: CanvasSection[] = Object.keys(context).map((key) => ({
-    id: key,
-    title: humanizeSectionName(key),
-  }))
+  const contextSections: CanvasSection[] = Object.keys(context)
+    .filter((key) => key !== "document_plan")
+    .map((key) => ({
+      id: key,
+      title: humanizeSectionName(key),
+    }))
 
   const baseSections = runtimeSections.length > 0 ? runtimeSections : contextSections
   const extraSections = contextSections.filter(
@@ -542,6 +545,41 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
           </div>
           <div className="w-20 h-0.5 bg-teal-500/30 mx-auto rounded-full mt-4" />
         </div>
+
+        {/* Document Plan / Outline Card */}
+        {context.document_plan && (
+          <div className="mb-8 rounded-xl border border-teal-500/20 bg-teal-500/[0.02] dark:bg-teal-500/[0.01] p-5 shadow-xs transition-all duration-300">
+            <div className="flex items-center justify-between border-b border-teal-500/10 pb-2 mb-3">
+              <h3 className="text-xs font-sans font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400 flex items-center gap-2 select-none">
+                <FileText className="h-4 w-4 text-teal-500" />
+                {t.document.documentPlanTitle}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowPlan(!showPlan)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded bg-teal-500/10 hover:bg-teal-500/15 text-teal-700 dark:text-teal-400 text-[10px] font-bold uppercase tracking-wider select-none cursor-pointer border-0 transition-colors"
+              >
+                {showPlan ? (
+                  <>
+                    <ChevronUp className="h-3 w-3" />
+                    {t.document.hidePlan}
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3" />
+                    {t.document.showPlan}
+                  </>
+                )}
+              </button>
+            </div>
+
+            {showPlan && (
+              <div className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-300 font-sans border-l-2 border-teal-500/30 pl-4 py-0.5 select-text overflow-x-auto">
+                {renderContent(context.document_plan)}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Sections Content Output */}
         <div className="space-y-8 select-text">

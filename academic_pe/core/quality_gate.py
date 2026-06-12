@@ -106,13 +106,14 @@ def check_markdown_artifacts(context: Dict[str, str], cfg: QualityGateConfig) ->
 
 
 def run_all(context: Dict[str, str], cfg: QualityGateConfig) -> GateResult:
+    filtered_context = {k: v for k, v in context.items() if k != "document_plan"}
     combined: List[str] = []
     for check_name, check_fn in [
         ("volume", check_volume),
         ("latex", check_latex),
         ("markdown", check_markdown_artifacts),
     ]:
-        result = check_fn(context, cfg)
+        result = check_fn(filtered_context, cfg)
         if not result.passed:
             combined.extend(result.issues)
     return GateResult(passed=len(combined) == 0, issues=combined)

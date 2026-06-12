@@ -77,7 +77,13 @@ current_run = {
     "runtime_prompt_manifest": None,
     "academic_mode": False,
     "run_id": None,
+    "document_plan": None,
 }
+
+
+def _exportable_context(context: Dict[str, str]) -> Dict[str, str]:
+    return {key: value for key, value in context.items() if key != "document_plan"}
+
 
 # Thread lock for safety
 run_lock = threading.Lock()
@@ -302,6 +308,7 @@ def run_pipeline_thread(
             current_run["template_mode"] = config.pipeline.template_mode.value
             current_run["template_id"] = config.pipeline.template_id
             current_run["academic_mode"] = config.pipeline.academic_mode
+            current_run["document_plan"] = None
         
         # Apply legacy section-topic overrides only for the current custom structure.
         # Fixed templates must remain structurally bound to the selected template.
@@ -349,6 +356,8 @@ def run_pipeline_thread(
         def on_context_change(d):
             with run_lock:
                 current_run["context"] = dict(d)
+                if "document_plan" in d:
+                    current_run["document_plan"] = d["document_plan"]
 
         def on_section_delta(section_name: str, delta: str, accumulated: str):
             with run_lock:
@@ -357,6 +366,8 @@ def run_pipeline_thread(
                 context[section_name] = accumulated
                 current_run["context"] = context
                 current_run["active_section"] = section_name
+                if section_name == "document_plan":
+                    current_run["document_plan"] = accumulated
         orch.context = InterceptingDict(on_context_change)
         
         # Set transition hooks
@@ -439,6 +450,7 @@ def run_pipeline_thread(
             "status": "COMPLETED",
             "docx_filename": os.path.basename(output_path) if output_path else None,
             "context": orch.context,
+            "document_plan": current_run.get("document_plan"),
             "original_context": current_run.get("original_context", {}),
             "academic_mode": config.pipeline.academic_mode,
             "logs": current_run["logs"],
@@ -501,6 +513,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
             payload.academic_mode if payload.academic_mode is not None else False
         )
         current_run["run_id"] = run_id
+        current_run["document_plan"] = None
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -544,8 +557,10 @@ def export_prerequisites():
 def export_docx(payload: ExportRequest):
     global current_run
     run_id = None
+    source_document_plan = None
     if payload.context:
         context = dict(payload.context)
+        source_document_plan = context.get("document_plan")
         topic = payload.topic or "Untitled"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with run_lock:
@@ -558,6 +573,7 @@ def export_docx(payload: ExportRequest):
                 raise HTTPException(status_code=400, detail="Cannot export while generation is still running")
             current_context = current_run.get("context")
             context = dict(current_context) if isinstance(current_context, dict) else {}
+            source_document_plan = current_run.get("document_plan") or context.get("document_plan")
             topic = str(current_run.get("topic") or "Untitled")
             timestamp = str(current_run.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             val = current_run.get("run_id")
@@ -570,6 +586,10 @@ def export_docx(payload: ExportRequest):
 
     if not context:
         raise HTTPException(status_code=400, detail="No draft content is available to export")
+
+    export_context = _exportable_context(context)
+    if not export_context:
+        raise HTTPException(status_code=400, detail="No exportable draft sections are available")
 
     config = load_config("config/agents.yaml")
     if isinstance(run_id, str):
@@ -588,7 +608,7 @@ def export_docx(payload: ExportRequest):
                 if isinstance(rt_sections, list):
                     # Fallback to current_run's template if context matches or is not payload-supplied
                     if not payload.context or any(
-                        isinstance(sec, dict) and sec.get("name") in context
+                        isinstance(sec, dict) and sec.get("name") in export_context
                         for sec in rt_sections
                     ):
                         rt_data = current_rt
@@ -606,7 +626,7 @@ def export_docx(payload: ExportRequest):
         # Dynamic fallback: if no template is provided, but context contains different keys,
         # create section prompts dynamically so they are not ignored.
         default_section_names = {sec.name for sec in config.pipeline.sections}
-        context_keys = list(context.keys())
+        context_keys = list(export_context.keys())
         if not all(key in default_section_names for key in context_keys):
             from academic_pe.core.config import SectionPrompt
             new_sections: List[SectionPrompt] = []
@@ -624,7 +644,7 @@ def export_docx(payload: ExportRequest):
         config.pipeline.title = topic
 
     try:
-        result = export_docx_with_qa(context, config, output_filename=payload.filename)
+        result = export_docx_with_qa(export_context, config, output_filename=payload.filename)
     except PermissionError:
         raise HTTPException(
             status_code=400,
@@ -663,7 +683,8 @@ def export_docx(payload: ExportRequest):
         "timestamp": timestamp,
         "status": "COMPLETED",
         "docx_filename": result.filename,
-        "context": context,
+        "context": export_context,
+        "document_plan": current_run.get("document_plan") or source_document_plan,
         "original_context": current_run.get("original_context", {}),
         "academic_mode": current_run.get("academic_mode") or config.pipeline.academic_mode,
         "logs": current_run.get("logs", []),

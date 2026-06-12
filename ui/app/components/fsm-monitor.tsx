@@ -6,7 +6,7 @@ import { AlertCircle, CheckCircle, RefreshCw, Layers, XCircle, MessageSquare } f
 import { toast } from "sonner"
 import type { Messages } from "@/lib/i18n"
 
-type FSMState = "INIT" | "DRAFTING" | "REVIEWING" | "RENDERING" | "DONE" | "FAILED" | "CANCELLED"
+type FSMState = "INIT" | "PLANNING" | "DRAFTING" | "REVIEWING" | "RENDERING" | "DONE" | "FAILED" | "CANCELLED"
 
 interface FSMMonitorProps {
   status: any
@@ -15,7 +15,7 @@ interface FSMMonitorProps {
 }
 
 export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
-  const statesList: FSMState[] = ["INIT", "DRAFTING", "REVIEWING", "RENDERING", "DONE"]
+  const statesList: FSMState[] = ["INIT", "PLANNING", "DRAFTING", "REVIEWING", "RENDERING", "DONE"]
   const activeState = status?.state || "INIT"
   const isFailed = status?.status === "FAILED" || activeState === "FAILED"
   const isCancelled = status?.status === "CANCELLED" || activeState === "CANCELLED"
@@ -49,6 +49,7 @@ export function FSMMonitor({ status, onRetry, t }: FSMMonitorProps) {
             const nodeStatus = getNodeStatus(state)
             const stateDesc = {
               INIT: t.fsm.initDesc,
+              PLANNING: t.fsm.planningDesc,
               DRAFTING: t.fsm.draftingDesc,
               REVIEWING: t.fsm.reviewingDesc,
               RENDERING: t.fsm.renderingDesc,

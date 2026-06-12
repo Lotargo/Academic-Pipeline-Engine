@@ -28,6 +28,7 @@ class PipelineCancelled(Exception):
 
 class PipelineState(Enum):
     INIT = auto()
+    PLANNING = auto()
     DRAFTING = auto()
     REVIEWING = auto()
     RENDERING = auto()
@@ -36,7 +37,8 @@ class PipelineState(Enum):
 
 
 _DEFAULT_TRANSITIONS: Dict[PipelineState, List[PipelineState]] = {
-    PipelineState.INIT: [PipelineState.DRAFTING],
+    PipelineState.INIT: [PipelineState.PLANNING, PipelineState.DRAFTING],
+    PipelineState.PLANNING: [PipelineState.DRAFTING],
     PipelineState.DRAFTING: [PipelineState.REVIEWING],
     PipelineState.REVIEWING: [PipelineState.DRAFTING, PipelineState.RENDERING],
     PipelineState.RENDERING: [PipelineState.DONE],
@@ -313,8 +315,8 @@ class Orchestrator:
         target_language = detect_language(prompt_text) if language_policy == "auto" else str(language_policy)
 
         try:
-            # --- DRAFTING ---
-            self.transition_to(PipelineState.DRAFTING)
+            # --- PLANNING ---
+            self.transition_to(PipelineState.PLANNING)
             plan_task = render_template(
                 DEFAULT_PLAN_TEMPLATE,
                 {
@@ -329,6 +331,10 @@ class Orchestrator:
             )
             logger.info("Creating document plan before drafting sections.")
             self._draft_plan = self._writer.process(plan_task)
+            self._set_section_content("document_plan", self._draft_plan)
+
+            # --- DRAFTING ---
+            self.transition_to(PipelineState.DRAFTING)
 
             for section in self._config.pipeline.sections:
                 self._check_cancelled()

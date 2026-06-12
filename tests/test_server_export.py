@@ -113,3 +113,44 @@ def test_export_endpoint_with_dynamic_fallback(monkeypatch, tmp_path):
     assert sections[1].name == "results_dynamic"
     assert sections[1].topic == "Results Dynamic"
     assert resolved_config.pipeline.title == "Dynamic Fallback Paper"
+
+
+def test_export_endpoint_excludes_document_plan_from_export(monkeypatch, tmp_path):
+    mock_called = []
+
+    def mock_export_docx_with_qa(context, config, output_filename=None):
+        mock_called.append((context, config, output_filename))
+        from academic_pe.tools.export_qa import ExportResult, RenderResult
+        return ExportResult(
+            status="passed",
+            filename="paper.docx",
+            path=str(tmp_path / "paper.docx"),
+            issues=[],
+            render=RenderResult(status="skipped", message="QA skipped")
+        )
+
+    monkeypatch.setattr("academic_pe.server.export_docx_with_qa", mock_export_docx_with_qa)
+
+    client = TestClient(app)
+
+    payload = {
+        "filename": "paper.docx",
+        "topic": "Paper With Plan",
+        "context": {
+            "document_plan": "# Outline\n\n- Internal planning only",
+            "introduction_dynamic": "Intro",
+            "results_dynamic": "Results"
+        }
+    }
+
+    response = client.post("/api/export/docx", json=payload)
+
+    assert response.status_code == 200
+    assert len(mock_called) == 1
+
+    exported_context, resolved_config, _ = mock_called[0]
+    assert "document_plan" not in exported_context
+    assert [section.name for section in resolved_config.pipeline.sections] == [
+        "introduction_dynamic",
+        "results_dynamic",
+    ]

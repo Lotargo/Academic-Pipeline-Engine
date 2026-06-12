@@ -413,6 +413,7 @@
         "enabled": false,
         "states": [
           "INIT",
+          "PLANNING",
           "DRAFTING",
           "REVIEWING",
           "RENDERING",
@@ -422,6 +423,13 @@
         "transitions": [
           {
             "from_state": "INIT",
+            "to_states": [
+              "PLANNING",
+              "DRAFTING"
+            ]
+          },
+          {
+            "from_state": "PLANNING",
             "to_states": [
               "DRAFTING"
             ]

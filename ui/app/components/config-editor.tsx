@@ -27,6 +27,7 @@ export function ConfigEditor() {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({})
   const [writerModels, setWriterModels] = useState<string[]>([])
   const [reviewerModels, setReviewerModels] = useState<string[]>([])
+  const [plannerModels, setPlannerModels] = useState<string[]>([])
   const [exampleGeneratorModels, setExampleGeneratorModels] = useState<string[]>([])
   const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({})
   const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplateSummary[]>([])
@@ -51,6 +52,9 @@ export function ConfigEditor() {
       }
       if (config.agents.reviewer) {
         fetchModelsForAgent("reviewer", config.agents.reviewer.provider, config.agents.reviewer.base_url)
+      }
+      if (config.agents.planner) {
+        fetchModelsForAgent("planner", config.agents.planner.provider, config.agents.planner.base_url)
       }
       if (config.agents.example_generator) {
         fetchModelsForAgent("example_generator", config.agents.example_generator.provider, config.agents.example_generator.base_url)
@@ -87,6 +91,7 @@ export function ConfigEditor() {
       const defaultModels = ["mock-model-1", "mock-model-2"]
       if (agentKey === "writer") setWriterModels(defaultModels)
       else if (agentKey === "reviewer") setReviewerModels(defaultModels)
+      else if (agentKey === "planner") setPlannerModels(defaultModels)
       else if (agentKey === "example_generator") setExampleGeneratorModels(defaultModels)
       return
     }
@@ -101,6 +106,7 @@ export function ConfigEditor() {
         const data = await res.json()
         if (agentKey === "writer") setWriterModels(data)
         else if (agentKey === "reviewer") setReviewerModels(data)
+        else if (agentKey === "planner") setPlannerModels(data)
         else if (agentKey === "example_generator") setExampleGeneratorModels(data)
       }
     } catch (e) {
@@ -137,6 +143,9 @@ export function ConfigEditor() {
       }
       if (config?.agents?.reviewer?.provider === provider) {
         fetchModelsForAgent("reviewer", provider, config?.agents?.reviewer?.base_url)
+      }
+      if (config?.agents?.planner?.provider === provider) {
+        fetchModelsForAgent("planner", provider, config?.agents?.planner?.base_url)
       }
       if (config?.agents?.example_generator?.provider === provider) {
         fetchModelsForAgent("example_generator", provider, config?.agents?.example_generator?.base_url)
@@ -790,7 +799,7 @@ export function ConfigEditor() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pt-2">
                 {/* Writer Agent Config */}
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center justify-between border-b pb-2">
@@ -1033,6 +1042,130 @@ export function ConfigEditor() {
                     <Textarea
                       value={config?.agents?.reviewer?.system_prompt}
                       onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleAgentChange("reviewer", "system_prompt", e.target.value)}
+                      rows={6}
+                      className="text-xs leading-normal"
+                    />
+                  </div>
+                </div>
+
+                {/* Planner Agent Config */}
+                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h3 className="font-semibold text-sm text-foreground">Planner Agent</h3>
+                    <span className="rounded bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400">
+                      Planner
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Model Provider</label>
+                      <Select
+                        value={config?.agents?.planner?.provider}
+                        onValueChange={(val: string) => handleAgentChange("planner", "provider", val)}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mock">Mock Engine</SelectItem>
+                          <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+                          <SelectItem value="google">Google (Gemini)</SelectItem>
+                          <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
+                          <SelectItem value="lm_studio">LM Studio</SelectItem>
+                          <SelectItem value="zen">OpenCode Zen</SelectItem>
+                          <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Temperature</label>
+                      <Input
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="2"
+                        value={config?.agents?.planner?.temperature ?? 0.2}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("planner", "temperature", parseFloat(e.target.value) || 0.2)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {config?.agents?.planner?.provider && config.agents.planner.provider !== "mock" && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
+                      <div className="flex gap-1.5">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showApiKeys[config.agents.planner.provider] ? "text" : "password"}
+                            value={apiKeys[config.agents.planner.provider] || ""}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                              const val = e.target.value;
+                              setApiKeys((prev: any) => ({ ...prev, [config.agents.planner.provider]: val }))
+                            }}
+                            placeholder={secretsStatus[config.agents.planner.provider] ? "•••••••• (Saved)" : "Enter API Key"}
+                            className="h-8 text-xs pr-8 w-full"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowApiKey(config.agents.planner.provider)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                          >
+                            {showApiKeys[config.agents.planner.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSaveApiKey(config.agents.planner.provider)}
+                          className="h-8 text-[10px] px-2"
+                        >
+                          Save Key
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(config?.agents?.planner?.provider === "custom_openai" || config?.agents?.planner?.provider === "lm_studio") && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Base URL</label>
+                      <Input
+                        value={config?.agents?.planner?.base_url || ""}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("planner", "base_url", e.target.value)}
+                        placeholder={config?.agents?.planner?.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
+                      {loadingModels["planner"] && (
+                        <span className="text-[9px] text-teal-600 animate-pulse">Fetching...</span>
+                      )}
+                    </div>
+                    <Input
+                      list="planner-models-list"
+                      value={config?.agents?.planner?.model || ""}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("planner", "model", e.target.value)}
+                      placeholder="Select or type model name"
+                      className="h-8 text-xs"
+                    />
+                    <datalist id="planner-models-list">
+                      {plannerModels.map((m: string) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">System Prompt</label>
+                    <Textarea
+                      value={config?.agents?.planner?.system_prompt}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleAgentChange("planner", "system_prompt", e.target.value)}
                       rows={6}
                       className="text-xs leading-normal"
                     />

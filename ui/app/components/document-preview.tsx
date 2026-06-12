@@ -25,7 +25,11 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
         }))
     : []
 
-  const contextSections = Object.keys(context).map((key) => ({
+  const exportableContext = Object.fromEntries(
+    Object.entries(context).filter(([key]) => key !== "document_plan")
+  )
+
+  const contextSections = Object.keys(exportableContext).map((key) => ({
     id: key,
     title: humanizeSectionName(key),
   }))
@@ -47,7 +51,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
     setExportReport(null)
   }, [docxFilename, topic])
 
-  const sections = Object.entries(context).filter(([_, text]) => !!text)
+  const sections = Object.entries(exportableContext).filter(([_, text]) => !!text)
 
   // Ensure an active tab is selected if the tabs list changed
   if (allSections.length > 0 && (!activeTab || !context[activeTab])) {
@@ -70,7 +74,7 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic,
-          context,
+          context: exportableContext,
           runtime_template: runtimeTemplate
         }),
       })
