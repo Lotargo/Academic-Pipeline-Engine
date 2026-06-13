@@ -10,10 +10,20 @@ import { LiveDocumentCanvas } from "./live-document-canvas"
 import { ConsolePanel } from "./console-panel"
 import { ArchivedWorksModal } from "./archived-works-modal"
 import { toast } from "sonner"
-import { Sparkles, FileText, ArrowRight, XCircle, Terminal, FileDown, Loader2 } from "lucide-react"
+import { Archive, Sparkles, FileText, ArrowRight, XCircle, Terminal, FileDown, Loader2, Trash2 } from "lucide-react"
 import { AcademicLogoIcon } from "./academic-logo-icon"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useTheme } from "next-themes"
 import { messages, normalizeLanguage, type Messages, type UiLanguage } from "@/lib/i18n"
 
@@ -30,6 +40,7 @@ export function Search() {
   const [archivedWorksOpen, setArchivedWorksOpen] = useState(false)
   const [exportingDocx, setExportingDocx] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [paperPendingDelete, setPaperPendingDelete] = useState<any>(null)
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const notifiedRef = useRef(false)
@@ -486,6 +497,29 @@ export function Search() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {selectedPaper && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleArchivePaper(selectedPaper)}
+                  className="h-8 gap-1.5 px-3 text-[11px] font-bold uppercase"
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                  {language === "ru" ? "Архивировать" : "Archive"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPaperPendingDelete(selectedPaper)}
+                  className="h-8 gap-1.5 border-destructive/30 px-3 text-[11px] font-bold uppercase text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {language === "ru" ? "Удалить" : "Delete"}
+                </Button>
+              </>
+            )}
+
             {currentDraftReady && (
               <>
                 <Button
@@ -718,6 +752,32 @@ export function Search() {
           language={language}
           onRestored={fetchHistory}
         />
+        <AlertDialog open={Boolean(paperPendingDelete)} onOpenChange={(open) => !open && setPaperPendingDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{language === "ru" ? "Удалить работу?" : "Delete this work?"}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {language === "ru"
+                  ? "Это действие навсегда удалит запись и связанные файлы экспорта."
+                  : "This permanently removes the history record and related export files."}
+                {paperPendingDelete?.topic ? ` "${paperPendingDelete.topic}"` : ""}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{language === "ru" ? "Отмена" : "Cancel"}</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={async () => {
+                  const target = paperPendingDelete
+                  setPaperPendingDelete(null)
+                  if (target) await handleDeletePaper(target)
+                }}
+              >
+                {language === "ru" ? "Удалить" : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   )

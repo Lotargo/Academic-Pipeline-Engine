@@ -1,10 +1,20 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ArchiveRestore, FileText, Loader2 } from "lucide-react"
+import { ArchiveRestore, FileText, Loader2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -64,7 +74,16 @@ export function ArchivedWorksModal({ open, onOpenChange, language, onRestored }:
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
+  const [itemPendingDelete, setItemPendingDelete] = useState<any>(null)
   const t = labels[language]
+  const deleteLabel = language === "ru" ? "Удалить" : "Delete"
+  const deleteTitle = language === "ru" ? "Удалить архивную работу?" : "Delete archived work?"
+  const deleteDescription =
+    language === "ru"
+      ? "Это действие навсегда удалит архивную запись и связанные файлы экспорта."
+      : "This permanently removes the archived record and related export files."
+  const cancelLabel = language === "ru" ? "Отмена" : "Cancel"
+  const deletedLabel = language === "ru" ? "Архивная работа удалена" : "Archived work deleted"
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
@@ -113,6 +132,23 @@ export function ArchivedWorksModal({ open, onOpenChange, language, onRestored }:
       toast.error(e.message || t.error)
     } finally {
       setRestoring(false)
+    }
+  }
+
+  const deleteItem = async (item: any) => {
+    if (!item?.id) return
+    try {
+      const res = await fetch(`/api/history/${encodeURIComponent(item.id)}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || t.error)
+      }
+      toast.success(deletedLabel)
+      setSelectedIds((ids) => ids.filter((id) => id !== item.id))
+      await loadArchived()
+      onRestored()
+    } catch (e: any) {
+      toast.error(e.message || t.error)
     }
   }
 
@@ -174,12 +210,45 @@ export function ArchivedWorksModal({ open, onOpenChange, language, onRestored }:
                       <span>{t.timestamp}: {item.timestamp || "-"}</span>
                     </div>
                   </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setItemPendingDelete(item)}
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    title={deleteLabel}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
             </div>
           )}
         </div>
       </DialogContent>
+      <AlertDialog open={Boolean(itemPendingDelete)} onOpenChange={(open) => !open && setItemPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDescription}
+              {itemPendingDelete?.topic ? ` "${itemPendingDelete.topic}"` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                const target = itemPendingDelete
+                setItemPendingDelete(null)
+                if (target) await deleteItem(target)
+              }}
+            >
+              {deleteLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

@@ -304,23 +304,23 @@ export function Sidebar({
               >
                 <button
                   onClick={() => handleSelectPaper(paper)}
-                  className={`flex min-w-0 flex-1 items-center gap-2 bg-transparent px-3 py-2 text-left cursor-pointer border-0 ${
+                  className={`flex min-w-0 flex-1 items-start gap-2 bg-transparent px-3 py-2 text-left cursor-pointer border-0 ${
                     collapsed ? "justify-center px-0" : ""
                   }`}
                   title={paper.topic}
                 >
-                  <FileText className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-ape-primary" />
+                  <FileText className="mt-0.5 h-4 w-4 text-muted-foreground shrink-0 group-hover:text-ape-primary" />
                   {!collapsed ? (
-                    <div className="flex min-w-0 flex-col truncate pr-1">
-                      <span className={`truncate text-[12px] leading-snug ${isUnviewed ? "font-bold text-foreground" : "font-semibold text-foreground/90"}`}>{paper.topic}</span>
-                      <span className="ape-micro">{paper.timestamp}</span>
+                    <div className="flex min-w-0 flex-1 flex-col pr-1">
+                      <span className={`line-clamp-2 break-words text-[12px] leading-snug ${isUnviewed ? "font-bold text-foreground" : "font-semibold text-foreground/90"}`}>{paper.topic}</span>
+                      <span className="ape-micro mt-0.5 truncate">{paper.timestamp}</span>
                     </div>
                   ) : (
                     isUnviewed && <div className="w-1.5 h-1.5 rounded-full bg-ape-primary absolute bottom-1 right-1" />
                   )}
                 </button>
                 {isUnviewed && !collapsed && (
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-ape-primary pointer-events-none group-hover:hidden" />
+                  <div className="absolute right-10 top-3 h-1.5 w-1.5 rounded-full bg-ape-primary pointer-events-none" />
                 )}
                 {!collapsed && (
                   <DropdownMenu>
@@ -328,7 +328,7 @@ export function Sidebar({
                       <button
                         type="button"
                         aria-label="History item actions"
-                        className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-background/80 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                        className="mr-1 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
