@@ -29,6 +29,7 @@ export function Search() {
   const [viewedPaperIds, setViewedPaperIds] = useState<string[]>([])
   const [archivedWorksOpen, setArchivedWorksOpen] = useState(false)
   const [exportingDocx, setExportingDocx] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const notifiedRef = useRef(false)
@@ -43,6 +44,7 @@ export function Search() {
     context: {},
     reviewer_feedback: [],
     docx_filename: null,
+    pdf_filename: null,
     export_report: null,
     error: null,
     topic: "",
@@ -249,6 +251,11 @@ export function Search() {
     window.open(`/api/download/${status.docx_filename}`, "_blank")
   }
 
+  const handleDownloadCurrentPdf = () => {
+    if (!status?.pdf_filename) return
+    window.open(`/api/download/${status.pdf_filename}`, "_blank")
+  }
+
   const handleExportCurrentDocx = async () => {
     if (!currentDraftReady) return
     setExportingDocx(true)
@@ -291,6 +298,47 @@ export function Search() {
       toast.error(e.message || "Failed to export DOCX")
     } finally {
       setExportingDocx(false)
+    }
+  }
+
+  const handleExportCurrentPdf = async () => {
+    if (!currentDraftReady) return
+    setExportingPdf(true)
+    try {
+      const res = await fetch("/api/export/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: currentExportableContext,
+          topic: status?.topic || "Untitled",
+          runtime_template: status?.runtime_template,
+          author: nickname.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || "PDF export failed")
+      }
+      setStatus((prev: any) => ({
+        ...prev,
+        pdf_filename: data.filename,
+        export_report: data,
+      }))
+
+      const downloadUrl = `/api/download/${data.filename}`
+      const link = document.createElement("a")
+      link.href = downloadUrl
+      link.setAttribute("download", data.filename)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast.success("PDF export completed")
+      await fetchHistory()
+    } catch (e: any) {
+      toast.error(e.message || "Failed to export PDF")
+    } finally {
+      setExportingPdf(false)
     }
   }
 
@@ -352,6 +400,7 @@ export function Search() {
       original_context: {},
       reviewer_feedback: [],
       docx_filename: null,
+      pdf_filename: null,
       export_report: null,
       error: null,
       topic: topic,
@@ -438,15 +487,29 @@ export function Search() {
 
           <div className="flex items-center gap-3">
             {currentDraftReady && (
-              <Button
-                size="sm"
-                onClick={status?.docx_filename ? handleDownloadCurrentDocx : handleExportCurrentDocx}
-                disabled={exportingDocx}
-                className="h-8 gap-1.5 bg-ape-primary px-3 text-[11px] font-bold uppercase text-white hover:bg-ape-primary/90"
-              >
-                {exportingDocx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-                {status?.docx_filename ? t.document.downloadDocx : t.document.exportDocx}
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={status?.pdf_filename ? handleDownloadCurrentPdf : handleExportCurrentPdf}
+                  disabled={exportingPdf}
+                  className="h-8 gap-1.5 px-3 text-[11px] font-bold uppercase"
+                >
+                  {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                  {status?.pdf_filename
+                    ? ((t.document as any).downloadPdf || t.document.downloadDocx.replace("DOCX", "PDF"))
+                    : ((t.document as any).exportPdf || t.document.exportDocx.replace("DOCX", "PDF"))}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={status?.docx_filename ? handleDownloadCurrentDocx : handleExportCurrentDocx}
+                  disabled={exportingDocx}
+                  className="h-8 gap-1.5 bg-ape-primary px-3 text-[11px] font-bold uppercase text-white hover:bg-ape-primary/90"
+                >
+                  {exportingDocx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                  {status?.docx_filename ? t.document.downloadDocx : t.document.exportDocx}
+                </Button>
+              </>
             )}
 
             {(status.status === "RUNNING" || status.status === "STARTING") && (

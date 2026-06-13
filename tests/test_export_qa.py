@@ -1,5 +1,5 @@
 from academic_pe.core.config import AgentConfig, AppConfig, PipelineConfig, SectionPrompt
-from academic_pe.tools.export_qa import export_docx_with_qa, render_docx_pages, resolve_export_filename, sanitize_filename
+from academic_pe.tools.export_qa import export_docx_with_qa, export_pdf_with_qa, render_docx_pages, resolve_export_filename, sanitize_filename
 from academic_pe.tools.libreoffice import discover_soffice
 
 
@@ -95,4 +95,36 @@ def test_export_docx_with_qa_uses_title_for_default_filename(monkeypatch, tmp_pa
     result = export_docx_with_qa({"theory": "## Heading\n\nBody text."}, config)
 
     assert result.filename == "Количественный анализ - A-B C.docx"
+    assert (tmp_path / result.filename).exists()
+
+
+def test_export_pdf_with_qa_uses_local_docx_conversion(monkeypatch, tmp_path):
+    import fitz
+    from academic_pe.tools.export_qa import RenderResult
+
+    def fake_convert(docx_path, output_dir, output_filename=None):
+        pdf_path = tmp_path / (output_filename or "paper.pdf")
+        pdf_doc = fitz.open()
+        pdf_doc.new_page()
+        pdf_doc.save(pdf_path)
+        pdf_doc.close()
+        return RenderResult(status="passed", soffice_path="soffice", pdf_path=str(pdf_path), message="ok")
+
+    monkeypatch.setattr("academic_pe.tools.export_qa.convert_docx_to_pdf", fake_convert)
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(role="Writer", model="mock", temperature=0, system_prompt="test"),
+        },
+        pipeline=PipelineConfig(
+            sections=[SectionPrompt(name="theory", topic="Theory", instruction="")],
+            output_dir=str(tmp_path),
+            title="Local PDF Experiment",
+        ),
+    )
+
+    result = export_pdf_with_qa({"theory": "## Heading\n\nBody text."}, config)
+
+    assert result.status == "passed"
+    assert result.filename == "Local PDF Experiment.pdf"
     assert (tmp_path / result.filename).exists()

@@ -17,7 +17,7 @@ from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, Expo
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
 from academic_pe.core.orchestrator import create_orchestrator_from_config, PipelineState, PipelineCancelled
 from academic_pe.core.template_library import TemplateLibrary
-from academic_pe.tools.export_qa import export_docx_with_qa
+from academic_pe.tools.export_qa import export_docx_with_qa, export_pdf_with_qa
 from academic_pe.tools.libreoffice import discover_soffice
 
 _background_tasks = set()
@@ -69,6 +69,7 @@ current_run = {
     "original_context": {},
     "reviewer_feedback": [],
     "docx_filename": None,
+    "pdf_filename": None,
     "export_report": None,
     "error": None,
     "topic": "",
@@ -204,6 +205,7 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
     return {
         "id": metadata_id,
         "filename": data.get("docx_filename"),
+        "pdf_filename": data.get("pdf_filename"),
         "topic": data.get("topic", "Unknown"),
         "timestamp": data.get("timestamp", ""),
         "author": data.get("author"),
@@ -724,6 +726,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["original_context"] = {}
         current_run["reviewer_feedback"] = []
         current_run["docx_filename"] = None
+        current_run["pdf_filename"] = None
         current_run["export_report"] = None
         current_run["error"] = None
         current_run["topic"] = payload.topic
@@ -781,8 +784,7 @@ def export_prerequisites():
     }
 
 
-@app.post("/api/export/docx")
-def export_docx(payload: ExportRequest):
+def _prepare_export(payload: ExportRequest):
     global current_run
     run_id = None
     source_document_plan = None
@@ -878,6 +880,53 @@ def export_docx(payload: ExportRequest):
             config.pipeline.sections = new_sections
         config.pipeline.title = topic
 
+    return export_context, config, topic, timestamp, author, run_id, source_document_plan
+
+
+def _write_export_metadata(
+    result,
+    config,
+    topic: str,
+    timestamp: str,
+    author: Optional[str],
+    source_document_plan,
+    export_context,
+) -> None:
+    metadata_dir = os.path.join("exports", "_metadata")
+    os.makedirs(metadata_dir, exist_ok=True)
+    metadata_filename = os.path.join(
+        metadata_dir,
+        f"{Path(result.filename).stem}.{datetime.now().strftime('%Y%m%d%H%M%S')}.metadata.json",
+    )
+    metadata = {
+        "topic": topic,
+        "instructions": None,
+        "author": author,
+        "template_mode": current_run.get("template_mode") or config.pipeline.template_mode.value,
+        "template_id": current_run.get("template_id") or config.pipeline.template_id,
+        "runtime_template": current_run.get("runtime_template"),
+        "runtime_prompt_manifest": current_run.get("runtime_prompt_manifest"),
+        "timestamp": timestamp,
+        "status": "COMPLETED",
+        "docx_filename": result.filename if result.filename.lower().endswith(".docx") else current_run.get("docx_filename"),
+        "pdf_filename": result.filename if result.filename.lower().endswith(".pdf") else current_run.get("pdf_filename"),
+        "context": export_context,
+        "document_plan": current_run.get("document_plan") or source_document_plan,
+        "original_context": current_run.get("original_context", {}),
+        "academic_mode": current_run.get("academic_mode") or config.pipeline.academic_mode,
+        "logs": current_run.get("logs", []),
+        "reviewer_feedback": current_run.get("reviewer_feedback", []),
+        "export_report": result.to_dict(),
+    }
+    with open(metadata_filename, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+
+@app.post("/api/export/docx")
+def export_docx(payload: ExportRequest):
+    global current_run
+    export_context, config, topic, timestamp, author, run_id, source_document_plan = _prepare_export(payload)
+
     try:
         result = export_docx_with_qa(export_context, config, output_filename=payload.filename)
     except PermissionError:
@@ -902,33 +951,33 @@ def export_docx(payload: ExportRequest):
         if isinstance(logs_list, list):
             logs_list.append(f"[Export QA]: {result.status.upper()} for {result.filename}")
 
-    metadata_dir = os.path.join("exports", "_metadata")
-    os.makedirs(metadata_dir, exist_ok=True)
-    metadata_filename = os.path.join(
-        metadata_dir,
-        f"{Path(result.filename).stem}.{datetime.now().strftime('%Y%m%d%H%M%S')}.metadata.json",
-    )
-    metadata = {
-        "topic": topic,
-        "instructions": None,
-        "author": author,
-        "template_mode": current_run.get("template_mode") or config.pipeline.template_mode.value,
-        "template_id": current_run.get("template_id") or config.pipeline.template_id,
-        "runtime_template": current_run.get("runtime_template"),
-        "runtime_prompt_manifest": current_run.get("runtime_prompt_manifest"),
-        "timestamp": timestamp,
-        "status": "COMPLETED",
-        "docx_filename": result.filename,
-        "context": export_context,
-        "document_plan": current_run.get("document_plan") or source_document_plan,
-        "original_context": current_run.get("original_context", {}),
-        "academic_mode": current_run.get("academic_mode") or config.pipeline.academic_mode,
-        "logs": current_run.get("logs", []),
-        "reviewer_feedback": current_run.get("reviewer_feedback", []),
-        "export_report": result.to_dict(),
-    }
-    with open(metadata_filename, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, ensure_ascii=False, indent=2)
+    _write_export_metadata(result, config, topic, timestamp, author, source_document_plan, export_context)
+
+    return result.to_dict()
+
+
+@app.post("/api/export/pdf")
+def export_pdf(payload: ExportRequest):
+    global current_run
+    export_context, config, topic, timestamp, author, run_id, source_document_plan = _prepare_export(payload)
+
+    result = export_pdf_with_qa(export_context, config, output_filename=payload.filename)
+    if result.status == "failed":
+        detail = result.issues[0].message if result.issues else "PDF export failed"
+        raise HTTPException(status_code=503, detail=detail)
+
+    if run_id:
+        result.filename = f"{run_id}/{result.filename}"
+
+    with run_lock:
+        if not payload.context:
+            current_run["pdf_filename"] = result.filename
+            current_run["export_report"] = result.to_dict()
+        logs_list = current_run.get("logs")
+        if isinstance(logs_list, list):
+            logs_list.append(f"[PDF Export]: {result.status.upper()} for {result.filename}")
+
+    _write_export_metadata(result, config, topic, timestamp, author, source_document_plan, export_context)
 
     return result.to_dict()
 
@@ -945,7 +994,12 @@ def download_file(filename: str):
         raise HTTPException(status_code=404, detail=f"File {filename} not found")
         
     download_name = os.path.basename(file_path)
-    return FileResponse(file_path, filename=download_name, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    media_type = (
+        "application/pdf"
+        if download_name.lower().endswith(".pdf")
+        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    return FileResponse(file_path, filename=download_name, media_type=media_type)
 
 @app.get("/api/history")
 def get_history(archived: Optional[bool] = None, include_archived: bool = False):
@@ -1013,6 +1067,7 @@ def bulk_unarchive_history_items(payload: BulkHistoryPayload):
 def delete_history_item(metadata_id: str):
     metadata_path, data = _load_history_metadata(metadata_id)
     _delete_export_asset(data.get("docx_filename"))
+    _delete_export_asset(data.get("pdf_filename"))
     if metadata_id.startswith("run_"):
         run_id = metadata_id.split(".")[0]
         _delete_run_directory(run_id)

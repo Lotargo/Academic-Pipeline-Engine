@@ -78,15 +78,66 @@ def sanitize_filename(title: str) -> str:
     return filename
 
 
-def resolve_export_filename(title: str, output_filename: Optional[str] = None) -> str:
+def resolve_export_filename(title: str, output_filename: Optional[str] = None, extension: str = ".docx") -> str:
+    if not extension.startswith("."):
+        extension = f".{extension}"
     filename = ntpath.basename(output_filename or DEFAULT_EXPORT_FILENAME)
     if filename == DEFAULT_EXPORT_FILENAME:
         filename = sanitize_filename(title)
     else:
         filename = sanitize_filename(filename)
-    if not filename.lower().endswith(".docx"):
-        filename = f"{filename}.docx"
+    if not filename.lower().endswith(extension.lower()):
+        stem, suffix = os.path.splitext(filename)
+        filename = f"{stem or filename}{extension}" if suffix else f"{filename}{extension}"
     return filename
+
+
+def convert_docx_to_pdf(docx_path: str, output_dir: str, output_filename: Optional[str] = None) -> RenderResult:
+    discovery = discover_soffice()
+    if not discovery.available or not discovery.executable:
+        return RenderResult(
+            status="skipped",
+            message=f"LibreOffice/soffice not found. {discovery.install_hint}",
+        )
+
+    os.makedirs(output_dir, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cmd = [
+            discovery.executable,
+            "--headless",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            tmp_dir,
+            docx_path,
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, errors="replace")
+        if proc.returncode != 0:
+            return RenderResult(
+                status="failed",
+                soffice_path=discovery.executable,
+                message=(proc.stderr or proc.stdout or "LibreOffice conversion failed.").strip(),
+            )
+
+        pdf_candidates = list(Path(tmp_dir).glob("*.pdf"))
+        if not pdf_candidates:
+            return RenderResult(
+                status="failed",
+                soffice_path=discovery.executable,
+                message="LibreOffice conversion did not produce a PDF.",
+            )
+
+        pdf_src = pdf_candidates[0]
+        pdf_name = output_filename or pdf_src.name
+        pdf_path = os.path.join(output_dir, os.path.basename(pdf_name))
+        shutil.copyfile(pdf_src, pdf_path)
+
+    return RenderResult(
+        status="passed",
+        soffice_path=discovery.executable,
+        pdf_path=pdf_path,
+        message="Converted DOCX to PDF with LibreOffice.",
+    )
 
 
 def inspect_docx_artifacts(docx_path: str, required_sections: List[str]) -> List[ExportIssue]:
@@ -115,50 +166,18 @@ def inspect_docx_artifacts(docx_path: str, required_sections: List[str]) -> List
 
 
 def render_docx_pages(docx_path: str, qa_dir: str) -> RenderResult:
-    discovery = discover_soffice()
-    if not discovery.available or not discovery.executable:
-        return RenderResult(
-            status="skipped",
-            message=f"LibreOffice/soffice not found. {discovery.install_hint}",
-        )
+    convert_result = convert_docx_to_pdf(docx_path, qa_dir)
+    if convert_result.status != "passed" or not convert_result.pdf_path:
+        return convert_result
 
-    os.makedirs(qa_dir, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        cmd = [
-            discovery.executable,
-            "--headless",
-            "--convert-to",
-            "pdf",
-            "--outdir",
-            tmp_dir,
-            docx_path,
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, errors="replace")
-        if proc.returncode != 0:
-            return RenderResult(
-                status="failed",
-                soffice_path=discovery.executable,
-                message=(proc.stderr or proc.stdout or "LibreOffice conversion failed.").strip(),
-            )
-
-        pdf_candidates = list(Path(tmp_dir).glob("*.pdf"))
-        if not pdf_candidates:
-            return RenderResult(
-                status="failed",
-                soffice_path=discovery.executable,
-                message="LibreOffice conversion did not produce a PDF.",
-            )
-
-        pdf_src = pdf_candidates[0]
-        pdf_path = os.path.join(qa_dir, pdf_src.name)
-        shutil.copyfile(pdf_src, pdf_path)
+    pdf_path = convert_result.pdf_path
 
     try:
         import fitz  # type: ignore
     except ImportError:
         return RenderResult(
             status="partial",
-            soffice_path=discovery.executable,
+            soffice_path=convert_result.soffice_path,
             pdf_path=pdf_path,
             message="PDF rendered, but PyMuPDF is not installed, so PNG page rendering was skipped.",
         )
@@ -177,7 +196,7 @@ def render_docx_pages(docx_path: str, qa_dir: str) -> RenderResult:
 
     return RenderResult(
         status="passed" if png_paths else "failed",
-        soffice_path=discovery.executable,
+        soffice_path=convert_result.soffice_path,
         pdf_path=pdf_path,
         png_paths=png_paths,
         message="Rendered DOCX to PNG pages." if png_paths else "PDF had no pages to render.",
@@ -207,3 +226,48 @@ def export_docx_with_qa(content: Dict[str, str], config: AppConfig, output_filen
 
     status = "failed" if any(issue.severity == "error" for issue in issues) else "passed"
     return ExportResult(status=status, filename=filename, path=docx_path, issues=issues, render=render_result)
+
+
+def export_pdf_with_qa(content: Dict[str, str], config: AppConfig, output_filename: Optional[str] = None) -> ExportResult:
+    output_dir = config.pipeline.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+
+    requested_filename = output_filename or config.pipeline.output_filename
+    filename = resolve_export_filename(config.pipeline.title, requested_filename, extension=".pdf")
+    pdf_path = os.path.join(output_dir, filename)
+
+    issues: List[ExportIssue] = []
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        docx_filename = resolve_export_filename(config.pipeline.title, requested_filename, extension=".docx")
+        docx_path = os.path.join(tmp_dir, docx_filename)
+        render_paper(content, output_filename=docx_path, config=config)
+
+        issues.extend(
+            inspect_docx_artifacts(
+                docx_path,
+                required_sections=[section.name for section in config.pipeline.sections],
+            )
+        )
+
+        render_result = convert_docx_to_pdf(docx_path, output_dir, output_filename=filename)
+
+    if render_result.status == "failed":
+        issues.append(ExportIssue("error", f"PDF conversion failed: {render_result.message}"))
+    elif render_result.status == "skipped":
+        issues.append(ExportIssue("error", render_result.message))
+    elif render_result.status == "passed":
+        try:
+            import fitz  # type: ignore
+        except ImportError:
+            issues.append(ExportIssue("warning", "PyMuPDF is not installed, so PDF structure validation was skipped."))
+        else:
+            if render_result.pdf_path:
+                pdf_doc = fitz.open(render_result.pdf_path)
+                try:
+                    if pdf_doc.page_count == 0:
+                        issues.append(ExportIssue("error", "PDF contains no pages."))
+                finally:
+                    pdf_doc.close()
+
+    status = "failed" if any(issue.severity == "error" for issue in issues) else "passed"
+    return ExportResult(status=status, filename=filename, path=pdf_path, issues=issues, render=render_result)

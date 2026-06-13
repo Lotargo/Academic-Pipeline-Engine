@@ -45,11 +45,14 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
   const [activeTab, setActiveTab] = useState<string>("__full__")
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [exportedFilename, setExportedFilename] = useState<string | null>(docxFilename || null)
+  const [exportedPdfFilename, setExportedPdfFilename] = useState<string | null>(null)
   const [exportReport, setExportReport] = useState<any>(null)
 
   useEffect(() => {
     setExportedFilename(docxFilename || null)
+    setExportedPdfFilename(null)
     setExportReport(null)
   }, [docxFilename, topic])
 
@@ -63,6 +66,11 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
   const handleDownload = () => {
     if (!exportedFilename) return
     window.open(`/api/download/${exportedFilename}`, "_blank")
+  }
+
+  const handleDownloadPdf = () => {
+    if (!exportedPdfFilename) return
+    window.open(`/api/download/${exportedPdfFilename}`, "_blank")
   }
 
   const handleExport = async () => {
@@ -103,6 +111,41 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
       toast.error(e.message || "Failed to export DOCX")
     } finally {
       setExporting(false)
+    }
+  }
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true)
+    try {
+      const res = await fetch("/api/export/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic,
+          context: exportableContext,
+          runtime_template: runtimeTemplate,
+          author: author?.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || "PDF export failed")
+      }
+      setExportedPdfFilename(data.filename)
+
+      const downloadUrl = `/api/download/${data.filename}`
+      const link = document.createElement("a")
+      link.href = downloadUrl
+      link.setAttribute("download", data.filename)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast.success("PDF export completed")
+    } catch (e: any) {
+      toast.error(e.message || "Failed to export PDF")
+    } finally {
+      setExportingPdf(false)
     }
   }
 
@@ -519,6 +562,23 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
+            {(() => {
+              const documentLabels = t.document as any
+              const exportPdfLabel = documentLabels.exportPdf || t.document.exportDocx.replace("DOCX", "PDF")
+              const downloadPdfLabel = documentLabels.downloadPdf || t.document.downloadDocx.replace("DOCX", "PDF")
+              return exportedPdfFilename ? (
+                <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="text-xs h-9 gap-1.5">
+                  <FileDown className="h-3.5 w-3.5" />
+                  {downloadPdfLabel}
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exportingPdf} className="text-xs h-9 gap-1.5">
+                  {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                  {exportPdfLabel}
+                </Button>
+              )
+            })()}
+
             <Button variant="outline" size="sm" onClick={copyToClipboard} className="text-xs h-9">
               {copied ? (
                 <>

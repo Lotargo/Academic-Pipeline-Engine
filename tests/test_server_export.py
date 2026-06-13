@@ -159,6 +159,71 @@ def test_export_endpoint_excludes_document_plan_from_export(monkeypatch, tmp_pat
     ]
 
 
+def test_pdf_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
+    mock_called = []
+
+    def mock_export_pdf_with_qa(context, config, output_filename=None):
+        mock_called.append((context, config, output_filename))
+        from academic_pe.tools.export_qa import ExportResult, RenderResult
+        return ExportResult(
+            status="passed",
+            filename="paper.pdf",
+            path=str(tmp_path / "paper.pdf"),
+            issues=[],
+            render=RenderResult(status="passed", pdf_path=str(tmp_path / "paper.pdf"), message="PDF exported")
+        )
+
+    monkeypatch.setattr("academic_pe.server.export_pdf_with_qa", mock_export_pdf_with_qa)
+
+    client = TestClient(app)
+    payload = {
+        "topic": "My PDF Paper",
+        "context": {
+            "custom_intro": "Hello custom intro",
+        },
+        "runtime_template": {
+            "source": "auto",
+            "name": "PDF Outline",
+            "category": "science",
+            "sections": [
+                {"name": "custom_intro", "title": "Custom Intro", "instruction": ""},
+            ]
+        }
+    }
+
+    response = client.post("/api/export/pdf", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "paper.pdf"
+    assert len(mock_called) == 1
+    _, resolved_config, output_filename = mock_called[0]
+    assert output_filename is None
+    assert resolved_config.pipeline.title == "My PDF Paper"
+
+
+def test_pdf_export_endpoint_reports_missing_converter(monkeypatch):
+    def mock_export_pdf_with_qa(context, config, output_filename=None):
+        from academic_pe.tools.export_qa import ExportIssue, ExportResult, RenderResult
+        return ExportResult(
+            status="failed",
+            filename="paper.pdf",
+            path="exports/paper.pdf",
+            issues=[ExportIssue("error", "LibreOffice/soffice not found.")],
+            render=RenderResult(status="skipped", message="LibreOffice/soffice not found.")
+        )
+
+    monkeypatch.setattr("academic_pe.server.export_pdf_with_qa", mock_export_pdf_with_qa)
+
+    client = TestClient(app)
+    response = client.post("/api/export/pdf", json={
+        "topic": "Missing Converter",
+        "context": {"intro": "Intro"},
+    })
+
+    assert response.status_code == 503
+    assert "LibreOffice" in response.json()["detail"]
+
+
 def test_history_archive_unarchive_preserves_author(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     metadata_dir = tmp_path / "exports" / "_metadata"
@@ -327,4 +392,3 @@ def test_startup_cleanup_empty_run_directories(monkeypatch, tmp_path):
     assert not run_empty.exists()
     assert run_nonempty.exists()
     assert other_dir.exists()
-
