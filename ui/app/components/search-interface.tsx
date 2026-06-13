@@ -471,12 +471,12 @@ export function Search() {
       <main className="flex-1 min-w-0 flex flex-col h-full bg-background overflow-hidden relative">
         {/* Top Navbar */}
         <header className="h-14 border-b border-border/80 bg-card/60 flex items-center justify-between px-6 shrink-0 z-30 select-none backdrop-blur">
-          <div className="flex items-center gap-2">
-            <span className="ape-control-text font-bold text-muted-foreground capitalize">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="ape-control-text shrink-0 font-bold text-muted-foreground capitalize">
               {selectedPaper ? t.nav.archiveViewer : activeTab}
             </span>
-            <span className="text-muted-foreground/30 text-xs">/</span>
-            <span className="text-[13px] font-black text-foreground truncate max-w-[200px] md:max-w-md">
+            <span className="shrink-0 text-xs text-muted-foreground/30">/</span>
+            <span className="min-w-0 max-w-[200px] truncate text-[13px] font-black text-foreground md:max-w-md">
               {selectedPaper
                 ? selectedPaper.topic
                 : status.status === "RUNNING" || status.status === "STARTING"
@@ -485,7 +485,7 @@ export function Search() {
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             {currentDraftReady && (
               <>
                 <Button

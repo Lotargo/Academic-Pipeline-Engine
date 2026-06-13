@@ -117,7 +117,9 @@ desktop.ini
 *.user
 
 # Project specific rules (from original .gitignore)
+config/agents.yaml
 config/secrets.json
+ui/next-env.d.ts
 *.docx
 *.png
 exports/_metadata/

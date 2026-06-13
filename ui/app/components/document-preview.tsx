@@ -543,14 +543,14 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
 
       {/* Preview Workspace */}
       <div className="lg:col-span-3 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-border bg-card shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-ape-primary-soft flex items-center justify-center text-ape-primary-text">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 p-4 rounded-2xl border border-border bg-card shadow-sm">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="h-8 w-8 shrink-0 rounded-lg bg-ape-primary-soft flex items-center justify-center text-ape-primary-text">
               <Eye className="h-4.5 w-4.5" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <h2 className="text-xs font-bold text-muted-foreground uppercase">{t.document.ready}</h2>
-              <p className="text-sm font-semibold truncate max-w-xs sm:max-w-md text-foreground">
+              <p className="max-w-full break-words text-sm font-semibold leading-snug text-foreground">
                 {exportedFilename || t.document.readyForExport}
               </p>
               {exportReport?.issues?.length > 0 && (
@@ -561,28 +561,28 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 xl:w-auto xl:self-auto">
             {(() => {
               const documentLabels = t.document as any
               const exportPdfLabel = documentLabels.exportPdf || t.document.exportDocx.replace("DOCX", "PDF")
               const downloadPdfLabel = documentLabels.downloadPdf || t.document.downloadDocx.replace("DOCX", "PDF")
               return exportedPdfFilename ? (
-                <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="text-xs h-9 gap-1.5">
-                  <FileDown className="h-3.5 w-3.5" />
+                <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="h-9 shrink-0 gap-1.5 text-xs">
+                  <FileDown className="h-3.5 w-3.5 shrink-0" />
                   {downloadPdfLabel}
                 </Button>
               ) : (
-                <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exportingPdf} className="text-xs h-9 gap-1.5">
-                  {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exportingPdf} className="h-9 shrink-0 gap-1.5 text-xs">
+                  {exportingPdf ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <FileDown className="h-3.5 w-3.5 shrink-0" />}
                   {exportPdfLabel}
                 </Button>
               )
             })()}
 
-            <Button variant="outline" size="sm" onClick={copyToClipboard} className="text-xs h-9">
+            <Button variant="outline" size="sm" onClick={copyToClipboard} className="h-9 shrink-0 text-xs">
               {copied ? (
                 <>
-                  <Check className="h-3.5 w-3.5 mr-1 text-emerald-500" />
+                  <Check className="mr-1 h-3.5 w-3.5 shrink-0 text-emerald-500" />
                   {t.document.copied}
                 </>
               ) : (
@@ -591,13 +591,13 @@ export function DocumentPreview({ topic, context, docxFilename, runtimeTemplate,
             </Button>
             
             {exportedFilename ? (
-              <Button size="sm" onClick={handleDownload} className="bg-ape-primary hover:bg-ape-primary/90 text-primary-foreground text-xs h-9 gap-1.5 shadow-sm">
-                <FileDown className="h-3.5 w-3.5" />
+              <Button size="sm" onClick={handleDownload} className="h-9 shrink-0 gap-1.5 bg-ape-primary text-xs text-primary-foreground shadow-sm hover:bg-ape-primary/90">
+                <FileDown className="h-3.5 w-3.5 shrink-0" />
                 {t.document.downloadDocx}
               </Button>
             ) : (
-              <Button size="sm" onClick={handleExport} disabled={exporting} className="bg-ape-primary hover:bg-ape-primary/90 text-primary-foreground text-xs h-9 gap-1.5 shadow-sm">
-                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+              <Button size="sm" onClick={handleExport} disabled={exporting} className="h-9 shrink-0 gap-1.5 bg-ape-primary text-xs text-primary-foreground shadow-sm hover:bg-ape-primary/90">
+                {exporting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <FileDown className="h-3.5 w-3.5 shrink-0" />}
                 {t.document.exportDocx}
               </Button>
             )}
