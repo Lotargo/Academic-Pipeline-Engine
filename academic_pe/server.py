@@ -5,6 +5,7 @@ import logging
 import threading
 import asyncio
 import time
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -170,6 +171,36 @@ def _history_metadata_dir() -> str:
     return os.path.join("exports", "_metadata")
 
 
+RUN_ID_PATTERN = re.compile(r"^run_\d{8}_\d{6}$")
+
+
+def _is_valid_run_id(run_id: object) -> bool:
+    return isinstance(run_id, str) and bool(RUN_ID_PATTERN.match(run_id))
+
+
+def _run_id_from_export_filename(filename: object) -> Optional[str]:
+    if not isinstance(filename, str):
+        return None
+    normalized = filename.replace("\\", "/")
+    first_part = normalized.split("/", 1)[0]
+    return first_part if _is_valid_run_id(first_part) else None
+
+
+def _run_id_from_metadata_id(metadata_id: str) -> Optional[str]:
+    stem = metadata_id.split(".", 1)[0]
+    return stem if _is_valid_run_id(stem) else None
+
+
+def _resolve_history_run_id(metadata_id: str, data: dict) -> Optional[str]:
+    candidates = [
+        data.get("run_id"),
+        _run_id_from_export_filename(data.get("docx_filename")),
+        _run_id_from_export_filename(data.get("pdf_filename")),
+        _run_id_from_metadata_id(metadata_id),
+    ]
+    return next((candidate for candidate in candidates if _is_valid_run_id(candidate)), None)
+
+
 def _safe_metadata_path(metadata_id: str) -> str:
     if not metadata_id or metadata_id != os.path.basename(metadata_id):
         raise HTTPException(status_code=400, detail="Invalid history metadata id")
@@ -202,8 +233,10 @@ def _write_history_metadata(metadata_path: str, data: dict) -> None:
 
 
 def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
+    run_id = _resolve_history_run_id(metadata_id, data)
     return {
         "id": metadata_id,
+        "run_id": run_id,
         "filename": data.get("docx_filename"),
         "pdf_filename": data.get("pdf_filename"),
         "topic": data.get("topic", "Unknown"),
@@ -659,6 +692,7 @@ def run_pipeline_thread(
             "topic": topic,
             "instructions": instructions,
             "author": author,
+            "run_id": run_id,
             "template_mode": config.pipeline.template_mode.value,
             "template_id": config.pipeline.template_id,
             "runtime_template": (
@@ -798,7 +832,7 @@ def _prepare_export(payload: ExportRequest):
             if author is None:
                 current_author = current_run.get("author")
                 author = current_author if isinstance(current_author, str) else None
-            val = current_run.get("run_id")
+            val = payload.run_id or current_run.get("run_id")
             if isinstance(val, str):
                 run_id = val
     else:
@@ -813,7 +847,7 @@ def _prepare_export(payload: ExportRequest):
             if author is None:
                 current_author = current_run.get("author")
                 author = current_author if isinstance(current_author, str) else None
-            val = current_run.get("run_id")
+            val = payload.run_id or current_run.get("run_id")
             if isinstance(val, str):
                 run_id = val
 
@@ -823,6 +857,9 @@ def _prepare_export(payload: ExportRequest):
 
     if not context:
         raise HTTPException(status_code=400, detail="No draft content is available to export")
+
+    if run_id is not None and not _is_valid_run_id(run_id):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
 
     export_context = _exportable_context(context)
     if not export_context:
@@ -891,6 +928,7 @@ def _write_export_metadata(
     author: Optional[str],
     source_document_plan,
     export_context,
+    run_id: Optional[str],
 ) -> None:
     metadata_dir = os.path.join("exports", "_metadata")
     os.makedirs(metadata_dir, exist_ok=True)
@@ -902,6 +940,7 @@ def _write_export_metadata(
         "topic": topic,
         "instructions": None,
         "author": author,
+        "run_id": run_id,
         "template_mode": current_run.get("template_mode") or config.pipeline.template_mode.value,
         "template_id": current_run.get("template_id") or config.pipeline.template_id,
         "runtime_template": current_run.get("runtime_template"),
@@ -951,7 +990,7 @@ def export_docx(payload: ExportRequest):
         if isinstance(logs_list, list):
             logs_list.append(f"[Export QA]: {result.status.upper()} for {result.filename}")
 
-    _write_export_metadata(result, config, topic, timestamp, author, source_document_plan, export_context)
+    _write_export_metadata(result, config, topic, timestamp, author, source_document_plan, export_context, run_id)
 
     return result.to_dict()
 
@@ -977,7 +1016,7 @@ def export_pdf(payload: ExportRequest):
         if isinstance(logs_list, list):
             logs_list.append(f"[PDF Export]: {result.status.upper()} for {result.filename}")
 
-    _write_export_metadata(result, config, topic, timestamp, author, source_document_plan, export_context)
+    _write_export_metadata(result, config, topic, timestamp, author, source_document_plan, export_context, run_id)
 
     return result.to_dict()
 

@@ -1,7 +1,7 @@
 # Prompt Enhancement, Mistral OCR Attachments & Web Research Sprint
 
 Date: 2026-06-13  
-Status: In progress
+Status: In progress - prompt enhancement and export/archive hardening completed; OCR attachments and Researcher remain planned.
 Scope: Prompt engineering helper, attachment uploads, Mistral OCR pipeline, token limits, and optional Researcher search agent.
 
 ## Sprint Goal
@@ -27,6 +27,64 @@ Enhance the pipeline's intelligence and input flexibility by introducing:
 - [x] Clean up empty run directories on successful completions when no plots are generated.
 - [x] Delete the entire run directory recursively (containing docx, plots, and QA outputs) when deleting a history item from the UI.
 - [x] Fixed console panel to only be toggleable manually (removed auto-open on task start).
+- [x] Added `config/agents.yaml` and `ui/next-env.d.ts` to `.gitignore` and removed them from the Git index to avoid noisy local/runtime changes.
+
+---
+
+## Completed Additional Work: Export, Archive & UI Hardening
+
+Status: `[x] Completed`
+
+These items were completed during the sprint even though they were not part of the original OCR/research plan. They are important for later README/docs updates because they materially changed the product workflow.
+
+### DOCX Rendering Quality
+
+- [x] Fixed DOCX bibliography/list numbering bug where rendered numbered lists could continue from a previous sequence and start at `11` instead of `1`.
+- [x] Added regression coverage for numbered list rendering.
+
+### Dynamic Export Filenames
+
+- [x] Added sanitized document-title-based filenames instead of always exporting as `Final_Academic_Paper.docx`.
+- [x] Preserved normal word spaces in generated filenames.
+- [x] Sanitized unsupported filename characters for Windows and other operating systems.
+- [x] Added tests for filename sanitization and export filename resolution.
+
+### PDF Export
+
+- [x] Added local PDF export through LibreOffice/soffice conversion from the high-quality DOCX renderer.
+- [x] Added `/api/export/pdf` backend endpoint.
+- [x] Added `/api/export/prerequisites` endpoint to report LibreOffice availability and install hints.
+- [x] Updated `/api/download` to serve PDF files with the correct MIME type.
+- [x] Added PDF export/download buttons in the active document and archive document UI.
+- [x] Verified local LibreOffice conversion quality manually.
+- [x] Added automated PDF export endpoint tests.
+
+### Run Directory Consistency
+
+- [x] Ensured explicit DOCX/PDF exports can target the active or archived document `run_id`.
+- [x] Returned `run_id` from history metadata so archive exports save beside the original run assets.
+- [x] Stored `run_id` in new history/export metadata records.
+- [x] Validated `run_id` format before using it for export paths.
+- [x] Added regression coverage proving PDF export saves under `exports/<run_id>`.
+
+### Archive & Document Actions
+
+- [x] Added visible archive and delete actions for selected documents.
+- [x] Added delete support from the archived works modal.
+- [x] Improved sidebar history item layout so long titles wrap/clamp and action controls stay visible.
+
+### Export Card Layout
+
+- [x] Fixed long export filenames wrapping over action buttons.
+- [x] Kept DOCX/PDF/copy buttons inside the export card on narrow layouts.
+- [x] Aligned the preview eye icon with the export status and filename block.
+
+### Notifications
+
+- [x] Replaced the default toast appearance with a custom two-tone Academic PE notification style.
+- [x] Moved notifications lower on the right side so they no longer cover top-right workspace controls.
+- [x] Increased notification width for better readability.
+- [x] Added right-side slide-in/slide-out animation.
 
 ---
 

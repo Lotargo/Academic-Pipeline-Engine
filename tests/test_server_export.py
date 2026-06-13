@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from academic_pe.server import app, current_run, run_lock
 from academic_pe.api_models import ExportRequest
 import json
+import os
 
 def test_export_request_validation():
     # Verify that ExportRequest accepts runtime_template
@@ -9,6 +10,7 @@ def test_export_request_validation():
         filename="test.docx",
         topic="Dynamic Topic",
         author="Lotargo",
+        run_id="run_20260613_120000",
         context={"intro": "Introduction text"},
         runtime_template={
             "source": "auto",
@@ -22,6 +24,7 @@ def test_export_request_validation():
     assert req.runtime_template is not None
     assert req.runtime_template["name"] == "Dynamic Schema"
     assert req.author == "Lotargo"
+    assert req.run_id == "run_20260613_120000"
 
 def test_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
     # Mock export_docx_with_qa to avoid actual LibreOffice call or file rendering
@@ -199,6 +202,59 @@ def test_pdf_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
     _, resolved_config, output_filename = mock_called[0]
     assert output_filename is None
     assert resolved_config.pipeline.title == "My PDF Paper"
+
+
+def test_pdf_export_endpoint_uses_payload_run_directory(monkeypatch, tmp_path):
+    import copy
+    from academic_pe.core.config import load_config
+
+    base_config = load_config("config/agents.yaml")
+    monkeypatch.chdir(tmp_path)
+    mock_called = []
+    monkeypatch.setattr("academic_pe.server.load_config", lambda path: copy.deepcopy(base_config))
+
+    def mock_export_pdf_with_qa(context, config, output_filename=None):
+        mock_called.append((context, config, output_filename))
+        from academic_pe.tools.export_qa import ExportResult, RenderResult
+        return ExportResult(
+            status="passed",
+            filename="paper.pdf",
+            path=str(tmp_path / "exports" / "run_20260613_120000" / "paper.pdf"),
+            issues=[],
+            render=RenderResult(
+                status="passed",
+                pdf_path=str(tmp_path / "exports" / "run_20260613_120000" / "paper.pdf"),
+                message="PDF exported",
+            ),
+        )
+
+    monkeypatch.setattr("academic_pe.server.export_pdf_with_qa", mock_export_pdf_with_qa)
+
+    client = TestClient(app)
+    response = client.post("/api/export/pdf", json={
+        "topic": "Archived PDF Paper",
+        "context": {"intro": "Intro"},
+        "run_id": "run_20260613_120000",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "run_20260613_120000/paper.pdf"
+    assert len(mock_called) == 1
+    _, resolved_config, _ = mock_called[0]
+    assert resolved_config.pipeline.output_dir == os.path.join("exports", "run_20260613_120000")
+    assert (tmp_path / "exports" / "run_20260613_120000").is_dir()
+
+
+def test_pdf_export_endpoint_rejects_invalid_run_id(monkeypatch):
+    client = TestClient(app)
+    response = client.post("/api/export/pdf", json={
+        "topic": "Invalid Run",
+        "context": {"intro": "Intro"},
+        "run_id": "../bad",
+    })
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid run_id"
 
 
 def test_pdf_export_endpoint_reports_missing_converter(monkeypatch):

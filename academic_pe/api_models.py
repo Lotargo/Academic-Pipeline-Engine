@@ -26,6 +26,7 @@ class ExportRequest(BaseModel):
     context: Optional[Dict[str, str]] = None
     runtime_template: Optional[dict] = None
     author: Optional[str] = None
+    run_id: Optional[str] = None
 
 
 class SecretUpdatePayload(BaseModel):
@@ -45,4 +46,3 @@ class PromptEnhanceRequest(BaseModel):
 class PromptEnhanceResponse(BaseModel):
     topic: str
     instructions: str
-

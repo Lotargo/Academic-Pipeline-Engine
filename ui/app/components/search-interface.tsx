@@ -279,6 +279,7 @@ export function Search() {
           topic: status?.topic || "Untitled",
           runtime_template: status?.runtime_template,
           author: nickname.trim() || undefined,
+          run_id: status?.run_id || undefined,
         }),
       })
       const data = await res.json()
@@ -324,6 +325,7 @@ export function Search() {
           topic: status?.topic || "Untitled",
           runtime_template: status?.runtime_template,
           author: nickname.trim() || undefined,
+          run_id: status?.run_id || undefined,
         }),
       })
       const data = await res.json()
@@ -614,6 +616,7 @@ export function Search() {
                   topic={selectedPaper.topic}
                   context={selectedPaper.context}
                   docxFilename={selectedPaper.filename}
+                  runId={selectedPaper?.run_id}
                   runtimeTemplate={selectedPaper?.runtime_template}
                   author={selectedPaper?.author}
                   t={t}
