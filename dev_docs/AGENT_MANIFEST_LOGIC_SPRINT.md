@@ -16,6 +16,11 @@ Enhancement and generation must reduce ambiguity, not increase scope.
 
 The system must preserve the user's requested artifact type, genre, voice, audience level, style, structure, and constraints unless the current user request explicitly asks to change them.
 
+The pipeline has two execution modes:
+
+- **Standard mode**: preserve the requested artifact type and produce a good natural result without unnecessary academic apparatus.
+- **Academic mode**: apply scientific/critical thinking, stronger argumentation, evidence discipline, conceptual rigor, and structured analysis appropriate to the artifact. Academic mode must not blindly force plots, tables, formulas, citations, or research-paper structure into every artifact. It should adapt the artifact into an academically rigorous version of itself when appropriate.
+
 ## Status Legend
 
 - `[x] Completed`
@@ -174,7 +179,90 @@ Tasks:
 
 ---
 
-## Workstream 4: Artifact Contract DSL / S-Expression Layer
+## Workstream 4: Standard vs Academic Execution Modes
+
+Status: `[ ] Planned`
+
+Objective: Make `academic_mode` a manifest overlay that changes reasoning depth and quality discipline without destroying the requested artifact type.
+
+Rationale:
+- The current academic mode is too easy to interpret as "add charts/tables/formulas everywhere".
+- Academic mode should mean disciplined thinking, source awareness, critical analysis, methodological clarity, and stronger self-checking.
+- A poem, story, README, plan document, essay, or adult creative artifact can have an academic-mode treatment, but it should not automatically become a generic research paper.
+
+Mode rules:
+- [ ] Standard mode preserves the requested artifact and avoids unnecessary formal apparatus.
+- [ ] Academic mode adds rigor only where compatible with the artifact.
+- [ ] Academic mode may require evidence, definitions, method notes, conceptual framing, or source discipline for analytical artifacts.
+- [ ] Academic mode may request charts/tables/formulas only when they naturally support the artifact and user task.
+- [ ] Academic mode must not force visualization into creative writing, poetry, personal narratives, or README-style documentation unless explicitly requested.
+- [ ] Academic mode must not override adult/creative/school/technical genre constraints; it should apply a more thoughtful version of that genre.
+
+Examples:
+- Poem + standard mode: lyrical brief, rhythm, imagery, human voice.
+- Poem + academic mode: can become a literary-style poetic artifact with stronger control of motif, symbolism, form, and intertextual awareness, but still a poem unless the user asks for analysis.
+- Story + academic mode: can improve narrative structure, theme, conflict, psychological coherence, and literary craft, but should not become a rubric or research article.
+- README + academic mode: can improve technical precision, reproducibility, architecture clarity, and limitations, but should not add citations by default.
+- Academic paper + academic mode: may use methodology, citations, formulas, tables, and evidence discipline when relevant.
+
+Tasks:
+- [ ] Represent execution mode as a manifest overlay, not as scattered boolean checks.
+- [ ] Add `standard_mode` and `academic_mode` contract clauses.
+- [ ] Remove hard-coded "must include plot/chart" logic from generic academic-mode prompts.
+- [ ] Move visualization requirements into artifact-compatible manifest rules.
+- [ ] Add tests proving academic mode does not force charts/tables/formulas into incompatible artifact types.
+- [ ] Add tests proving academic paper + academic mode still receives proper scientific rigor.
+
+---
+
+## Workstream 5: Independent Self-Critique Phase
+
+Status: `[ ] Planned`
+
+Objective: Add a non-blocking critical-analysis phase inside agents so they improve their own output before handing it forward.
+
+Rationale:
+- LLMs often stay infected by the first reasoning path when critique is merely appended as the next instruction.
+- A separate critic pass can catch conceptual drift, weak structure, missing constraints, and style mismatch more reliably.
+- This critic must not become another Reviewer that blocks the pipeline. It should rewrite/improve the agent's own output directly.
+
+Pattern:
+
+```text
+agent draft
+→ independent critic pass
+→ self-repair/rewrite
+→ final agent output
+```
+
+Agent-specific behavior:
+- [ ] PromptEnhancer critic checks whether enhancement changed artifact type, added bureaucracy, or lost user details; then rewrites the enhanced prompt itself.
+- [ ] Planner critic checks whether the plan follows the manifest, preserves genre/style, avoids academic drift, and handles continuation; then rewrites the plan itself.
+- [ ] Writer critic checks whether the draft obeys the contract, avoids AI markers, preserves voice, and satisfies user constraints; then rewrites the content itself.
+- [ ] Researcher critic checks source relevance, citation quality, and overreach; then rewrites findings itself.
+- [ ] Exporter/renderer critic checks structure/format compatibility where possible.
+
+Constraints:
+- [ ] Self-critique must not ask the user for approval.
+- [ ] Self-critique must not return a rejection state.
+- [ ] Self-critique must not create an infinite revision loop.
+- [ ] Self-critique output should be concise internally and should not leak long chain-of-thought.
+- [ ] Store only a short `self_critique_summary` in debug metadata when needed.
+- [ ] Reviewer remains the external quality gate, but agents should already have self-corrected before Reviewer sees the content.
+
+Academic-mode additions:
+- [ ] In academic mode, self-critique should include stronger critical thinking:
+  - weak assumptions;
+  - unsupported claims;
+  - conceptual contradictions;
+  - shallow definitions;
+  - missing limitations;
+  - source/evidence gaps when sources are required.
+- [ ] The self-critic repairs these issues directly instead of sending the document back as a blocker.
+
+---
+
+## Workstream 6: Artifact Contract DSL / S-Expression Layer
 
 Status: `[ ] Planned`
 
@@ -228,7 +316,7 @@ Design constraints:
 
 ---
 
-## Workstream 5: Prompt Enhancer Refactor
+## Workstream 7: Prompt Enhancer Refactor
 
 Status: `[ ] Planned`
 
@@ -257,7 +345,7 @@ Tasks:
 
 ---
 
-## Workstream 6: Continuation Manifest Memory
+## Workstream 8: Continuation Manifest Memory
 
 Status: `[ ] Planned`
 
@@ -283,7 +371,7 @@ Tasks:
 
 ---
 
-## Workstream 7: AI-Marker And Human-Style Guardrails
+## Workstream 9: AI-Marker And Human-Style Guardrails
 
 Status: `[ ] Planned`
 
@@ -314,7 +402,7 @@ Tasks:
 
 ---
 
-## Workstream 8: UI And Debug Visibility
+## Workstream 10: UI And Debug Visibility
 
 Status: `[ ] Planned`
 
@@ -332,7 +420,7 @@ Tasks:
 
 ---
 
-## Workstream 9: Tests
+## Workstream 11: Tests
 
 Status: `[ ] Planned`
 
@@ -353,6 +441,8 @@ Tasks:
 - [ ] Add reviewer tests for genre drift, academicization drift, rubric drift, and AI-marker detection.
 - [ ] Add continuation tests proving previous resolved manifest is inherited.
 - [ ] Add contract DSL tests proving agent prompts receive compact, stable, non-executable S-expression contracts.
+- [ ] Add standard-vs-academic mode tests for creative, technical, README, and academic artifacts.
+- [ ] Add self-critique tests proving agents repair their own draft instead of returning a blocker.
 
 ---
 
