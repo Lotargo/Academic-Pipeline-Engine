@@ -788,6 +788,10 @@ def test_create_orchestrator_from_config_stores_resolved_artifact_contract_metad
     assert metadata["resolved_contract"]["visualization_required"] is False
     assert set(metadata["manifest_selection"]["matched_phrases"]) >= {"readme", "installation", "usage"}
     assert "(artifact technical_readme)" in metadata["contract_sexpr"]
+    assert "[Active Artifact Contract]" in orch._writer.config.system_prompt
+    assert "(artifact technical_readme)" in orch._writer.config.system_prompt
+    assert "(visualization_required false)" in orch._writer.config.system_prompt
+    assert "python-run" not in orch._writer.config.system_prompt
 
 
 def test_create_orchestrator_from_config_inherits_continuation_artifact_metadata():
