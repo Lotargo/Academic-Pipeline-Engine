@@ -408,8 +408,16 @@ export function Search() {
       source_type: "generated",
       topic: paper?.topic || "Untitled",
       instructions: paper?.instructions || undefined,
+      previous_prompt: paper?.previous_prompt || [
+        paper?.topic ? `Topic: ${paper.topic}` : "",
+        paper?.instructions ? `Instructions: ${paper.instructions}` : "",
+      ].filter(Boolean).join("\n") || undefined,
       context,
       document_plan: paper?.document_plan || paper?.context?.document_plan || undefined,
+      runtime_template: paper?.runtime_template || undefined,
+      runtime_prompt_manifest: paper?.runtime_prompt_manifest || undefined,
+      template_mode: paper?.template_mode || undefined,
+      template_id: paper?.template_id || undefined,
       metadata_id: paper?.id || undefined,
       run_id: paper?.run_id || undefined,
     }

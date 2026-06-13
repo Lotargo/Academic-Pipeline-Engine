@@ -116,6 +116,8 @@ The attachment/OCR feature is not only a passive reference-material upload. It m
 - A user can take an already generated/archive document from the UI and start a continuation from it without manually downloading and re-uploading it.
 - A user can also upload an external previous work through Mistral OCR and ask the pipeline to continue, expand, or adapt it.
 - In continuation mode, all agents must treat the previous work as the semantic base and preserve its topic, argument chain, terminology, style, and already established structure unless the user explicitly asks to change them.
+- Continuation sources must include the previous user prompt, previous instructions, previous document plan, and previous runtime template/manifest whenever available. These are required context, not optional metadata, because the agents need them to infer why the original document had its genre, structure, tone, and audience level.
+- If the previous work is non-academic (for example a children's story, school narrative, informal essay, poem, or creative text), continuation must preserve that genre, narrator/voice, pacing, and audience level unless the new user request explicitly asks to convert the style.
 - The pipeline must not simply append a disconnected second document. It should produce one coherent revised/continued document.
 - To make the continuation coherent, agents may need to rewrite or trim terminal parts of the previous work, especially conclusions, summaries, closing transitions, and final bibliography/appendix placement.
 - The Planner should detect where the previous work naturally ends, decide what must be preserved, what needs bridging/revision, and how the new user clarification continues the existing logic.

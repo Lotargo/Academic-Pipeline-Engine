@@ -234,6 +234,18 @@ class Orchestrator:
         if source_instructions:
             parts.append(f"Previous document instructions: {source_instructions}")
 
+        previous_prompt = source.get("previous_prompt")
+        if previous_prompt:
+            parts.append("[Previous User Prompt]\n" + str(previous_prompt))
+
+        runtime_template = source.get("runtime_template")
+        if isinstance(runtime_template, dict):
+            parts.append("[Previous Runtime Template]\n" + str(runtime_template))
+
+        runtime_prompt_manifest = source.get("runtime_prompt_manifest")
+        if isinstance(runtime_prompt_manifest, dict):
+            parts.append("[Previous Runtime Prompt Manifest]\n" + str(runtime_prompt_manifest))
+
         document_plan = source.get("document_plan")
         if document_plan:
             parts.append("[Previous Document Plan]\n" + str(document_plan))

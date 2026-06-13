@@ -770,11 +770,16 @@ def test_continuation_source_is_included_in_planning_context():
         continuation_source={
             "source_type": "generated",
             "topic": "Existing Work",
+            "previous_prompt": "Topic: Existing Work\nInstructions: Continue as a children's story.",
             "context": {
                 "intro": "Existing introduction.",
                 "conclusion": "Existing final summary.",
             },
             "document_plan": "Existing plan.",
+            "runtime_template": {
+                "name": "Children Story",
+                "sections": [{"name": "story", "title": "Story", "instruction": "Narrative style"}],
+            },
         },
     )
     orch.user_topic = "Existing Work"
@@ -785,7 +790,11 @@ def test_continuation_source_is_included_in_planning_context():
     planning_prompt = llm.prompts[0]
     assert "[Continuation Source]" in planning_prompt
     assert "Previous document topic/title: Existing Work" in planning_prompt
+    assert "[Previous User Prompt]" in planning_prompt
+    assert "Continue as a children's story." in planning_prompt
     assert "Existing final summary." in planning_prompt
+    assert "Preserve the previous genre, narrator/voice, audience level" in planning_prompt
+    assert "Do not make the continuation more academic" in planning_prompt
     assert "Plan one coherent revised/continued document" in planning_prompt
 
 

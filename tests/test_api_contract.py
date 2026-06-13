@@ -34,7 +34,17 @@ def test_run_request_accepts_continuation_source():
                 "intro": "Existing introduction.",
                 "conclusion": "Existing final summary.",
             },
+            "previous_prompt": "Topic: AI Agent Design\nInstructions: Write for school pupils.",
             "document_plan": "Existing plan.",
+            "runtime_template": {
+                "source": "custom",
+                "source_template_id": "custom_current",
+                "name": "Story Template",
+                "category": "story",
+                "sections": [
+                    {"name": "story", "title": "Story", "instruction": "Continue gently."}
+                ],
+            },
             "metadata_id": "paper.metadata.json",
             "run_id": "run_20260613_120000",
         },
@@ -43,3 +53,6 @@ def test_run_request_accepts_continuation_source():
     assert payload.continuation_source is not None
     assert payload.continuation_source.topic == "AI Agent Design"
     assert payload.continuation_source.context["conclusion"] == "Existing final summary."
+    assert payload.continuation_source.previous_prompt == "Topic: AI Agent Design\nInstructions: Write for school pupils."
+    assert payload.continuation_source.runtime_template is not None
+    assert payload.continuation_source.runtime_template["name"] == "Story Template"

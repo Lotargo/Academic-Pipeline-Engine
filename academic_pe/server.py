@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import yaml
 import logging
@@ -74,6 +74,7 @@ current_run = {
     "export_report": None,
     "error": None,
     "topic": "",
+    "instructions": None,
     "timestamp": None,
     "author": None,
     "active_section": None,
@@ -172,6 +173,15 @@ def _history_metadata_dir() -> str:
     return os.path.join("exports", "_metadata")
 
 
+def _build_previous_prompt(topic: Optional[str], instructions: Optional[str]) -> Optional[str]:
+    parts = []
+    if topic:
+        parts.append(f"Topic: {topic}")
+    if instructions:
+        parts.append(f"Instructions: {instructions}")
+    return "\n".join(parts) if parts else None
+
+
 RUN_ID_PATTERN = re.compile(r"^run_\d{8}_\d{6}$")
 
 
@@ -242,6 +252,7 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "pdf_filename": data.get("pdf_filename"),
         "topic": data.get("topic", "Unknown"),
         "instructions": data.get("instructions"),
+        "previous_prompt": data.get("previous_prompt"),
         "timestamp": data.get("timestamp", ""),
         "author": data.get("author"),
         "status": data.get("status", "COMPLETED"),
@@ -272,6 +283,50 @@ def _delete_export_asset(docx_name: Optional[str]) -> None:
         raise HTTPException(status_code=403, detail="Export path is outside the output directory")
     if os.path.exists(file_path) and os.path.isfile(file_path):
         os.remove(file_path)
+
+
+def _apply_continuation_structure(config: AppConfig, continuation_source: Optional[dict]) -> AppConfig:
+    if not continuation_source:
+        return config
+
+    runtime_template_data = continuation_source.get("runtime_template")
+    if isinstance(runtime_template_data, dict):
+        try:
+            from academic_pe.core.orchestrator import _apply_runtime_template
+            from academic_pe.core.templates import RuntimeTemplate
+
+            runtime_template = RuntimeTemplate(**runtime_template_data)
+            resolved = _apply_runtime_template(config, runtime_template)
+            resolved.pipeline.template_mode = TemplateMode.custom
+            return resolved
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Failed to reuse continuation runtime template: %s", exc
+            )
+
+    context = continuation_source.get("context")
+    if isinstance(context, dict):
+        from academic_pe.core.config import SectionPrompt
+
+        sections = []
+        for name, content in context.items():
+            if name == "document_plan" or not content:
+                continue
+            sections.append(
+                SectionPrompt(
+                    name=name,
+                    topic=name.replace("_", " ").replace("-", " ").title(),
+                    instruction=(
+                        "Continue from the previous work in the same genre, register, narrative voice, "
+                        "style, audience level, and structure unless the new user request explicitly changes them."
+                    ),
+                )
+            )
+        if sections:
+            config.pipeline.sections = sections
+            config.pipeline.template_mode = TemplateMode.custom
+
+    return config
 
 # Custom logger handler
 class StatusLogHandler(logging.Handler):
@@ -370,11 +425,36 @@ async def refresh_examples():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _build_prompt_enhancement_prompt(topic: str, instructions: Optional[str], lang: str) -> str:
+    return (
+        "You are a genre-preserving writing prompt editor for an automated document pipeline.\n"
+        "Your task is to refine the user's raw topic and instructions without changing the requested genre, audience, tone, or output type.\n"
+        f"Generate the enhanced topic and instructions in the language corresponding to '{lang}' "
+        "(e.g., if 'ru' write in Russian, if 'en' write in English).\n\n"
+        f"Raw Topic: {topic}\n"
+        f"Raw Guidelines/Instructions: {instructions or ''}\n\n"
+        "Crucial Alignment Rules:\n"
+        "1. Preserve the user's intent exactly. If the user asks for a poem, story, fairy tale, letter, speech, school essay, report, or other non-academic genre, keep that genre. Do not convert it into an academic paper, rubric, assignment sheet, evaluation criteria, or bureaucratic specification.\n"
+        "2. Preserve all concrete details from the raw request: title, characters, setting, required phrases, class/year, author name, length, style, forbidden words, desired mood, and continuation constraints.\n"
+        "3. For creative writing tasks, improve only the creative brief: imagery, mood, voice, rhythm, rhyme, narrator, target audience, length, and constraints. Do not add title pages, citations, source requirements, H2/H3 headings, font sizes, page numbering, grading criteria, or document bureaucracy unless the user explicitly asked for them.\n"
+        "4. For school-level or informal tasks, keep the requested level and natural language. Do not make the output more academic, technical, formal, or adult than requested.\n"
+        "5. For technical/scientific/academic tasks only, add academic structure, formulas, citations, terminology consistency, and formal tone when they fit the domain.\n"
+        "6. Keep the pipeline constraints digital: never add physical-world instructions such as printing, binding, physical submission, or hand-signing.\n"
+        "7. Explicitly forbid placeholders, AI self-references, and meta-text that would appear in the final generated document.\n\n"
+        "Return ONLY a valid JSON object matching the schema below. Do not include markdown code block fences, wrapper text, or explanations outside the JSON object.\n"
+        "Schema:\n"
+        "{\n"
+        '  "topic": "Enhanced topic/title that preserves the requested genre",\n'
+        '  "instructions": "Concise, genre-preserving writing instructions for the pipeline"\n'
+        "}"
+    )
+
+
 @app.post("/api/prompt/enhance", response_model=PromptEnhanceResponse)
 async def enhance_prompt(payload: PromptEnhanceRequest):
     """
     Uses the example_generator agent to enhance a raw topic and instructions
-    into a mathematically/technically deep academic research task.
+    into a clearer genre-preserving writing task.
     """
     import re
     from academic_pe.agents.factory import create_agent
@@ -390,28 +470,7 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
 
     lang = config.ui.language
 
-    # Build prompt manifest
-    prompt = (
-        f"You are a senior academic director and prompt engineer.\n"
-        f"Your task is to refine and enrich the following raw, draft topic and instructions into a well-structured, professional task description, tailored exactly to the requested scope, field of study, complexity level, and target audience.\n"
-        f"Generate the enhanced topic and instructions in the language corresponding to '{lang}' "
-        f"(e.g., if 'ru' write in Russian, if 'en' write in English).\n\n"
-        f"Raw Topic: {payload.topic}\n"
-        f"Raw Guidelines/Instructions: {payload.instructions or ''}\n\n"
-        f"Crucial Alignment Rules:\n"
-        f"1. Preserve Specific Details: You MUST preserve and respect any specific constraints, facts, and parameters provided in the raw guidelines. This includes student/author names (e.g. 'Золотарёва Е.К.'), class/year ('9-Б класс'), school details ('СОШ №235, г. Москва'), specific structural elements (e.g., 'обязательно нужен титульник'), and avoiding AI-typical phrases ('главное не спалиться что это ии написал'). Do not drop or ignore these facts.\n"
-        f"2. Dynamic Complexity & Domain Alignment: Adapt the instructions to the level and field of the paper:\n"
-        f"   - For technical/scientific domains (physics, CS, engineering, mathematics), mandate LaTeX formulas, formal impersonal tone, and deep mathematical formulations.\n"
-        f"   - For humanities, history, school essays, and general reports, focus instructions on historical context, chronological structure, source critique, and thematic coverage. Do NOT force advanced mathematical analysis (like statistical modeling, Poisson distribution, correlation/regression formulas, or $O(N \\log N)$ complexity) onto a non-mathematical or school-level task unless explicitly requested in the raw guidelines.\n"
-        f"3. General Professional Guidelines: Mandate the use of structured headings (H2/H3 headers), consistent terminology, and a formal/appropriate tone. Explicitly forbid placeholders (e.g. [insert link]), AI meta-text, conversational filler, and obvious AI self-references.\n"
-        f"4. Project Constraints & Digital Context: Since this is an automated document pipeline that drafts, reviews, and exports files to .docx, all instructions must be purely digital. Never generate physical-world instructions or tasks (such as 'распечатать реферат', 'сброшюровать', 'сдать лично', 'подписать вручную' / 'print the document', 'bind it', 'physically submit', 'hand-sign'). All guidelines must focus strictly on document content, structure, formatting, figures, tables, math, style, and citations.\n\n"
-        f"Return ONLY a valid JSON object matching the schema below. Do not include markdown code block fences (```json ... ```), wrapper text, or explanations outside the JSON object.\n"
-        f"Schema:\n"
-        f"{{\n"
-        f"  \"topic\": \"Enhanced, professionally formulated topic or title\",\n"
-        f"  \"instructions\": \"Enriched, detailed guidelines and structure list for the writing pipeline\"\n"
-        f"}}"
-    )
+    prompt = _build_prompt_enhancement_prompt(payload.topic, payload.instructions, lang)
 
     loop = asyncio.get_running_loop()
 
@@ -566,6 +625,7 @@ def run_pipeline_thread(
         if run_id:
             config.pipeline.output_dir = os.path.join("exports", run_id)
             os.makedirs(config.pipeline.output_dir, exist_ok=True)
+        config = _apply_continuation_structure(config, continuation_source)
         with run_lock:
             current_run["template_mode"] = config.pipeline.template_mode.value
             current_run["template_id"] = config.pipeline.template_id
@@ -575,9 +635,10 @@ def run_pipeline_thread(
 
         # Apply legacy section-topic overrides only for the current custom structure.
         # Fixed templates must remain structurally bound to the selected template.
-        if topic and config.pipeline.template_mode == TemplateMode.custom:
+        if topic and config.pipeline.template_mode == TemplateMode.custom and not continuation_source:
             with run_lock:
                 current_run["topic"] = topic
+                current_run["instructions"] = instructions
             for sec in config.pipeline.sections:
                 if sec.name == "theory":
                     sec.topic = f"{topic}: Theoretical Foundations"
@@ -698,6 +759,7 @@ def run_pipeline_thread(
         metadata = {
             "topic": topic,
             "instructions": instructions,
+            "previous_prompt": _build_previous_prompt(topic, instructions),
             "author": author,
             "run_id": run_id,
             "continuation_source": continuation_source,
@@ -772,6 +834,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["export_report"] = None
         current_run["error"] = None
         current_run["topic"] = payload.topic
+        current_run["instructions"] = payload.instructions
         current_run["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         current_run["author"] = payload.author
         current_run["active_section"] = None
@@ -956,7 +1019,8 @@ def _write_export_metadata(
     )
     metadata = {
         "topic": topic,
-        "instructions": None,
+        "instructions": current_run.get("instructions"),
+        "previous_prompt": _build_previous_prompt(topic, current_run.get("instructions")),
         "author": author,
         "run_id": run_id,
         "template_mode": current_run.get("template_mode") or config.pipeline.template_mode.value,
@@ -990,8 +1054,8 @@ def export_docx(payload: ExportRequest):
         raise HTTPException(
             status_code=400,
             detail=(
-                "Не удалось сохранить документ. Файл открыт в другой программе (например, Microsoft Word) "
-                "и заблокирован. Пожалуйста, закройте его и попробуйте снова. / "
+                "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РґРѕРєСѓРјРµРЅС‚. Р¤Р°Р№Р» РѕС‚РєСЂС‹С‚ РІ РґСЂСѓРіРѕР№ РїСЂРѕРіСЂР°РјРјРµ (РЅР°РїСЂРёРјРµСЂ, Microsoft Word) "
+                "Рё Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ. РџРѕР¶Р°Р»СѓР№СЃС‚Р°, Р·Р°РєСЂРѕР№С‚Рµ РµРіРѕ Рё РїРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°. / "
                 "Failed to save document. The file is open in another program (like Microsoft Word) and locked. "
                 "Please close it and try again."
             )

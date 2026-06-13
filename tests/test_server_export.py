@@ -163,7 +163,13 @@ def test_export_endpoint_excludes_document_plan_from_export(monkeypatch, tmp_pat
 
 
 def test_pdf_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
+    import copy
+    from academic_pe.core.config import load_config
+
     mock_called = []
+    base_config = load_config("config/agents.yaml")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("academic_pe.server.load_config", lambda path: copy.deepcopy(base_config))
 
     def mock_export_pdf_with_qa(context, config, output_filename=None):
         mock_called.append((context, config, output_filename))

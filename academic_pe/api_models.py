@@ -11,8 +11,13 @@ class ContinuationSource(BaseModel):
     source_type: str = "generated"
     topic: Optional[str] = None
     instructions: Optional[str] = None
+    previous_prompt: Optional[str] = None
     context: Dict[str, str]
     document_plan: Optional[str] = None
+    runtime_template: Optional[dict] = None
+    runtime_prompt_manifest: Optional[dict] = None
+    template_mode: Optional[TemplateMode] = None
+    template_id: Optional[str] = None
     metadata_id: Optional[str] = None
     run_id: Optional[str] = None
 

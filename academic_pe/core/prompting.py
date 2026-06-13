@@ -29,6 +29,7 @@ Avoid forward references to sections, tables, formulas, or chapters that do not 
 [Continuation Mode]
 You are continuing an existing document, not starting a separate paper.
 Use the previous document as the semantic base: preserve its topic, argument chain, terminology, style, and useful structure unless the user explicitly requests a change.
+Infer the previous document's genre, narrator/voice, audience level, register, pacing, and formatting from the continuation source and keep them. If the source is a children's story, school essay, informal narrative, report, poem, or other non-academic genre, continue in that same genre instead of converting it into academic prose.
 Produce the current section as part of one coherent revised/continued document. You may revise or replace closing/transition material from the previous work when needed to avoid duplicated introductions, duplicated conclusions, or a disconnected second document.
 The continuation source is available in the context data.
 {% endif %}
@@ -64,6 +65,8 @@ User topic: {{ user_topic }}
 Continuation planning rules:
 - Treat the previous document as the existing state of the work, not as a generic citation source.
 - Preserve the established topic, argument chain, terminology, style, and structure unless the new user instructions explicitly change them.
+- Preserve the previous genre, narrator/voice, audience level, register, pacing, and formatting. Do not make the continuation more academic, technical, formal, or adult than the previous work unless the new user explicitly asks for that change.
+- Use the previous user prompt, previous instructions, previous plan, and previous runtime template/manifest to infer why the document was written that way.
 - Decide which previous sections should be preserved, which terminal parts need trimming or rewriting, and what bridge is needed before new material.
 - Plan one coherent revised/continued document, not two detached documents.
 - Avoid duplicated introductions, duplicated conclusions, repeated bibliography blocks, and abrupt restarts.
@@ -102,6 +105,7 @@ Do not introduce new chapter numbering schemes, new missing references, or unrel
 
 [Continuation Mode]
 This revision is part of a continued document. Preserve continuity with the previous work and make only the changes needed to create one coherent revised/continued document.
+Preserve the previous genre, narrator/voice, audience level, register, pacing, and formatting. Do not upgrade the prose into academic style unless that style is already present in the source or explicitly requested now.
 If the current section is a terminal section from the old work, rewrite or trim final-sounding paragraphs so the new continuation does not read like a second document after a completed first document.
 {% endif %}
 
@@ -143,6 +147,7 @@ Rules:
 
 [Continuation Mode]
 When patching, preserve useful previous-work continuity and only replace the smallest lines needed to remove duplicated endings, disconnected transitions, contradictions, or stale final summaries.
+Do not change the source genre, narrator/voice, audience level, register, pacing, or formatting unless the current user request explicitly requires it.
 {% endif %}
 
 {% if academic_mode|default(false) %}
@@ -157,7 +162,7 @@ Expected document language: {{ language }}.
 {% if continuation_context|default("") %}
 
 [Continuation Review]
-The document was generated in continuation mode. Reject if it reads as two separate documents, restarts the topic without need, duplicates introductions/conclusions, contradicts the previous work, loses the user's continuation request, or has an abrupt style/terminology shift.
+The document was generated in continuation mode. Reject if it reads as two separate documents, restarts the topic without need, duplicates introductions/conclusions, contradicts the previous work, loses the user's continuation request, changes genre or audience level without explicit instruction, turns a non-academic source into academic prose, or has an abrupt style/terminology shift.
 {% endif %}
 
 The text is provided with line numbers (e.g., "1: text") and section headers (e.g., "=== Section: section_name ===") for your convenience so you can refer to precise lines and sections. Do not complain about or try to fix the line numbers or section headers themselves, as they are added by the environment.
