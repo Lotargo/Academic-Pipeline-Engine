@@ -5,6 +5,8 @@ from academic_pe.agents.base import DefaultAgent
 from academic_pe.core.template_library import TemplateLibrary
 from academic_pe.core.template_selector import TemplateSelector
 from academic_pe.core.templates import DocumentTemplate, PromptManifest, RuntimePromptManifest, RuntimeTemplate, RuntimeTemplateSource, TemplateSection
+from academic_pe.manifests import ArtifactManifestResolver
+from academic_pe.manifests.models import ArtifactManifest, ArtifactModeOverlay
 from typing import Dict
 
 
@@ -749,6 +751,79 @@ def test_create_orchestrator_from_config_does_not_refine_topic_for_mock_provider
     # provider is mock by default
     orch = create_orchestrator_from_config(config, user_topic="FSM", user_instructions="Use latex")
     assert orch.user_topic == "FSM"
+
+
+def test_create_orchestrator_from_config_stores_resolved_artifact_contract_metadata():
+    config = _make_config()
+    manifests = {
+        "technical_readme": ArtifactManifest(
+            id="technical_readme",
+            artifact_type="technical_readme",
+            forbid=["academic_drift", "forced_visualization"],
+            modes={
+                "academic": ArtifactModeOverlay(
+                    add_requirements={"rigor": "reproducibility"},
+                    visualization_policy="compatible_only",
+                )
+            },
+        ),
+        "unknown_freeform": ArtifactManifest(
+            id="unknown_freeform",
+            artifact_type="unknown_freeform",
+            forbid=["academic_drift"],
+        ),
+    }
+
+    config.pipeline.academic_mode = True
+    orch = create_orchestrator_from_config(
+        config,
+        user_topic="Project README",
+        user_instructions="Add installation and usage sections.",
+        artifact_manifest_resolver=ArtifactManifestResolver(manifests=manifests),
+    )
+
+    metadata = orch.runtime_prompt_manifest.metadata
+    assert metadata["resolved_manifest"]["id"] == "technical_readme"
+    assert metadata["resolved_contract"]["artifact"] == "technical_readme"
+    assert metadata["resolved_contract"]["visualization_required"] is False
+    assert set(metadata["manifest_selection"]["matched_phrases"]) >= {"readme", "installation", "usage"}
+    assert "(artifact technical_readme)" in metadata["contract_sexpr"]
+
+
+def test_create_orchestrator_from_config_inherits_continuation_artifact_metadata():
+    config = _make_config()
+    manifests = {
+        "creative_poem": ArtifactManifest(
+            id="creative_poem",
+            artifact_type="creative_poem",
+            forbid=["academic_drift", "forced_visualization"],
+        ),
+        "unknown_freeform": ArtifactManifest(
+            id="unknown_freeform",
+            artifact_type="unknown_freeform",
+        ),
+    }
+
+    orch = create_orchestrator_from_config(
+        config,
+        user_topic="Continue",
+        user_instructions="Add one more stanza.",
+        continuation_source={
+            "runtime_prompt_manifest": {
+                "metadata": {
+                    "resolved_manifest": {
+                        "id": "creative_poem",
+                        "version": 1,
+                    }
+                }
+            }
+        },
+        artifact_manifest_resolver=ArtifactManifestResolver(manifests=manifests),
+    )
+
+    metadata = orch.runtime_prompt_manifest.metadata
+    assert metadata["resolved_manifest"]["id"] == "creative_poem"
+    assert metadata["manifest_selection"]["matched_phrases"] == ["previous resolved manifest"]
 
 
 def test_continuation_source_is_included_in_planning_context():

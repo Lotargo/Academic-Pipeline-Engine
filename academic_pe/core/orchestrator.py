@@ -18,6 +18,7 @@ from academic_pe.core.template_compat import template_section_to_section_prompt
 from academic_pe.core.template_selector import TemplateSelector
 from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
+from academic_pe.manifests import ArtifactManifestResolver
 
 logger = logging.getLogger(__name__)
 
@@ -819,6 +820,7 @@ def create_orchestrator_from_config(
     renderer: Optional[Renderer] = None,
     template_selector: Optional[TemplateSelector] = None,
     prompt_manifest_resolver: Optional[PromptManifestResolver] = None,
+    artifact_manifest_resolver: Optional[ArtifactManifestResolver] = None,
     user_topic: str = "",
     user_instructions: str = "",
     continuation_source: Optional[Dict[str, Any]] = None,
@@ -852,6 +854,14 @@ def create_orchestrator_from_config(
         topic=refined_topic,
         instructions=user_instructions,
     )
+    runtime_prompt_manifest = _apply_artifact_manifest_metadata(
+        runtime_prompt_manifest,
+        config=config,
+        topic=refined_topic,
+        instructions=user_instructions,
+        continuation_source=continuation_source,
+        artifact_manifest_resolver=artifact_manifest_resolver,
+    )
     resolved_config = _apply_runtime_template(config, runtime_template)
     
     # Set resolved config pipeline title to refined topic
@@ -877,6 +887,48 @@ def create_orchestrator_from_config(
     orchestrator.user_topic = refined_topic
     orchestrator.user_instructions = user_instructions
     return orchestrator
+
+
+def _apply_artifact_manifest_metadata(
+    runtime_prompt_manifest: RuntimePromptManifest,
+    *,
+    config: AppConfig,
+    topic: str,
+    instructions: str,
+    continuation_source: Optional[Dict[str, Any]],
+    artifact_manifest_resolver: Optional[ArtifactManifestResolver],
+) -> RuntimePromptManifest:
+    resolver = artifact_manifest_resolver or ArtifactManifestResolver()
+    try:
+        resolved = resolver.resolve(
+            topic=topic,
+            instructions=instructions,
+            academic_mode=getattr(config.pipeline, "academic_mode", False),
+            language=str(getattr(getattr(config.pipeline, "language", "auto"), "value", getattr(config.pipeline, "language", "auto"))),
+            mode="continuation" if continuation_source else "new",
+            continuation_metadata=_continuation_manifest_metadata(continuation_source),
+        )
+    except Exception as exc:
+        logger.warning("Artifact manifest resolution skipped: %s", exc)
+        return runtime_prompt_manifest
+
+    metadata = dict(runtime_prompt_manifest.metadata or {})
+    metadata.update(resolved.metadata())
+    return runtime_prompt_manifest.model_copy(update={"metadata": metadata})
+
+
+def _continuation_manifest_metadata(continuation_source: Optional[Dict[str, Any]]) -> Optional[dict]:
+    if not continuation_source:
+        return None
+
+    runtime_prompt_manifest = continuation_source.get("runtime_prompt_manifest")
+    if isinstance(runtime_prompt_manifest, dict):
+        metadata = runtime_prompt_manifest.get("metadata")
+        if isinstance(metadata, dict):
+            return metadata
+        return runtime_prompt_manifest
+
+    return None
 
 
 def _create_template_selector(config: AppConfig) -> TemplateSelector:
