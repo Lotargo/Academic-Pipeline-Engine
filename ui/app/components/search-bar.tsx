@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Search, Sparkles, BookOpen, ChevronRight, HelpCircle, RotateCw } from "lucide-react"
+import { Search, Sparkles, BookOpen, ChevronRight, HelpCircle, RotateCw, Loader2 } from "lucide-react"
 import type { Messages } from "@/lib/i18n"
 import { toast } from "sonner"
 
@@ -21,13 +21,50 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
   const [ttl, setTtl] = useState<number>(0)
   const [refreshing, setRefreshing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isEnhancing, setIsEnhancing] = useState(false)
+
+  const handleEnhance = async () => {
+    if (isEnhancing || !topic.trim()) return
+    setIsEnhancing(true)
+    try {
+      const res = await fetch("/api/prompt/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: topic.trim(), instructions: instructions.trim() }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setTopic(data.topic)
+        setInstructions(data.instructions)
+        toast.success(t.search.enhanceSuccess)
+      } else {
+        let errMsg = t.search.enhanceError
+        try {
+          const err = await res.json()
+          errMsg = err.detail || errMsg
+        } catch {
+          try {
+            const text = await res.text()
+            if (text) errMsg = text
+          } catch {}
+        }
+        toast.error(errMsg)
+      }
+    } catch (e) {
+      console.error("Error enhancing prompt:", e)
+      toast.error(t.search.enhanceError)
+    } finally {
+      setIsEnhancing(false)
+    }
+  }
 
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
 
     textarea.style.height = "auto"
-    textarea.style.height = `${textarea.scrollHeight}px`
+    const nextHeight = Math.min(textarea.scrollHeight, 200)
+    textarea.style.height = `${nextHeight}px`
   }, [instructions])
 
   const handleManualRefresh = async () => {
@@ -132,11 +169,25 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               onChange={(e) => setTopic(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              disabled={disabled}
+              disabled={disabled || isEnhancing}
               placeholder={t.search.topicPlaceholder}
               className="w-full border-0 bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none py-1.5"
               required
             />
+            {/* Enhance Button */}
+            <Button
+              type="button"
+              onClick={handleEnhance}
+              disabled={disabled || isEnhancing || !topic.trim()}
+              className="h-8 px-2.5 rounded-lg bg-ape-primary-soft hover:bg-ape-primary-soft/80 text-ape-primary-text font-bold text-xs gap-1 cursor-pointer transition-all border-0 shadow-none"
+            >
+              {isEnhancing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 text-ape-primary" />
+              )}
+              <span>{isEnhancing ? t.search.enhancing : t.search.enhanceBtn}</span>
+            </Button>
           </div>
 
           {/* Guidelines Textarea */}
@@ -147,10 +198,10 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               onChange={(e) => setInstructions(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              disabled={disabled}
+              disabled={disabled || isEnhancing}
               placeholder={t.search.instructionsPlaceholder}
               rows={2}
-              className="w-full border-0 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/55 focus:outline-none resize-none leading-relaxed py-1 transition-[height] duration-200 ease-out overflow-hidden"
+              className="w-full border-0 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/55 focus:outline-none resize-none leading-relaxed py-1 transition-[height] duration-200 ease-out overflow-y-auto max-h-[200px]"
             />
           </div>
 
@@ -177,6 +228,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               <button
                 type="button"
                 onClick={() => setAcademicMode(false)}
+                disabled={disabled || isEnhancing}
                 className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
                   !academicMode
                     ? "ape-status-primary border"
@@ -188,6 +240,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               <button
                 type="button"
                 onClick={() => setAcademicMode(true)}
+                disabled={disabled || isEnhancing}
                 className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
                   academicMode
                     ? "ape-status-warning border"
@@ -200,7 +253,7 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
             
             <Button
               type="submit"
-              disabled={disabled || !topic.trim()}
+              disabled={disabled || isEnhancing || !topic.trim()}
               className="h-9 px-4 rounded-xl bg-ape-primary hover:bg-ape-primary/90 text-white font-bold text-xs gap-1.5 select-none transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:scale-100"
             >
               <span>{t.search.compile}</span>
@@ -236,7 +289,8 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
               key={idx}
               type="button"
               onClick={() => loadSuggestion(example.topic, example.instructions)}
-              className="px-3 py-2 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-[13px] leading-snug text-foreground font-semibold hover:border-ape-primary/30 transition-all cursor-pointer text-left"
+              disabled={disabled || isEnhancing}
+              className="px-3 py-2 rounded-lg border border-border/60 bg-card hover:bg-accent/40 text-[13px] leading-snug text-foreground font-semibold hover:border-ape-primary/30 transition-all cursor-pointer text-left disabled:opacity-50"
             >
               {example.topic}
             </button>

@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
-from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload
+from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload, PromptEnhanceRequest, PromptEnhanceResponse
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
 from academic_pe.core.orchestrator import create_orchestrator_from_config, PipelineState, PipelineCancelled
 from academic_pe.core.template_library import TemplateLibrary
@@ -329,6 +329,96 @@ async def refresh_examples():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompt/enhance", response_model=PromptEnhanceResponse)
+async def enhance_prompt(payload: PromptEnhanceRequest):
+    """
+    Uses the example_generator agent to enhance a raw topic and instructions
+    into a mathematically/technically deep academic research task.
+    """
+    import re
+    from academic_pe.agents.factory import create_agent
+
+    try:
+        config = load_config("config/agents.yaml")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load configuration: {str(e)}")
+
+    agent_cfg = config.agents.get("example_generator")
+    if not agent_cfg:
+        raise HTTPException(status_code=500, detail="example_generator agent configuration not found in agents.yaml")
+
+    lang = config.ui.language
+
+    # Build prompt manifest
+    prompt = (
+        f"You are a senior academic director and prompt engineer.\n"
+        f"Your task is to refine and enrich the following raw, draft topic and instructions into a well-structured, professional task description, tailored exactly to the requested scope, field of study, complexity level, and target audience.\n"
+        f"Generate the enhanced topic and instructions in the language corresponding to '{lang}' "
+        f"(e.g., if 'ru' write in Russian, if 'en' write in English).\n\n"
+        f"Raw Topic: {payload.topic}\n"
+        f"Raw Guidelines/Instructions: {payload.instructions or ''}\n\n"
+        f"Crucial Alignment Rules:\n"
+        f"1. Preserve Specific Details: You MUST preserve and respect any specific constraints, facts, and parameters provided in the raw guidelines. This includes student/author names (e.g. 'Золотарёва Е.К.'), class/year ('9-Б класс'), school details ('СОШ №235, г. Москва'), specific structural elements (e.g., 'обязательно нужен титульник'), and avoiding AI-typical phrases ('главное не спалиться что это ии написал'). Do not drop or ignore these facts.\n"
+        f"2. Dynamic Complexity & Domain Alignment: Adapt the instructions to the level and field of the paper:\n"
+        f"   - For technical/scientific domains (physics, CS, engineering, mathematics), mandate LaTeX formulas, formal impersonal tone, and deep mathematical formulations.\n"
+        f"   - For humanities, history, school essays, and general reports, focus instructions on historical context, chronological structure, source critique, and thematic coverage. Do NOT force advanced mathematical analysis (like statistical modeling, Poisson distribution, correlation/regression formulas, or $O(N \\log N)$ complexity) onto a non-mathematical or school-level task unless explicitly requested in the raw guidelines.\n"
+        f"3. General Professional Guidelines: Mandate the use of structured headings (H2/H3 headers), consistent terminology, and a formal/appropriate tone. Explicitly forbid placeholders (e.g. [insert link]), AI meta-text, conversational filler, and obvious AI self-references.\n"
+        f"4. Project Constraints & Digital Context: Since this is an automated document pipeline that drafts, reviews, and exports files to .docx, all instructions must be purely digital. Never generate physical-world instructions or tasks (such as 'распечатать реферат', 'сброшюровать', 'сдать лично', 'подписать вручную' / 'print the document', 'bind it', 'physically submit', 'hand-sign'). All guidelines must focus strictly on document content, structure, formatting, figures, tables, math, style, and citations.\n\n"
+        f"Return ONLY a valid JSON object matching the schema below. Do not include markdown code block fences (```json ... ```), wrapper text, or explanations outside the JSON object.\n"
+        f"Schema:\n"
+        f"{{\n"
+        f"  \"topic\": \"Enhanced, professionally formulated topic or title\",\n"
+        f"  \"instructions\": \"Enriched, detailed guidelines and structure list for the writing pipeline\"\n"
+        f"}}"
+    )
+
+    loop = asyncio.get_running_loop()
+
+    def run_agent():
+        agent = create_agent(
+            "example_generator",
+            agent_cfg,
+            retry_cfg=config.retry,
+            cb_cfg=config.circuit_breaker
+        )
+        return agent.process(prompt)
+
+    try:
+        raw_response = await loop.run_in_executor(None, run_agent)
+        
+        # Parse the JSON object
+        text = raw_response.strip()
+        if "```" in text:
+            match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+            if match:
+                text = match.group(1).strip()
+                
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            # Fallback regex search for the first { to the last }
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1:
+                json_slice = text[start:end+1]
+                data = json.loads(json_slice)
+            else:
+                raise ValueError("No JSON object structure found in the agent response")
+
+        if not isinstance(data, dict) or "topic" not in data or "instructions" not in data:
+            raise ValueError("Parsed JSON is not in the expected format (missing topic or instructions)")
+
+        return PromptEnhanceResponse(
+            topic=data["topic"].strip(),
+            instructions=data["instructions"].strip()
+        )
+
+    except Exception as e:
+        logging.getLogger(__name__).exception("Failed to enhance prompt: %s", e)
+        raise HTTPException(status_code=500, detail=f"Prompt enhancement failed: {str(e)}")
+
 
 
 @app.get("/api/templates")

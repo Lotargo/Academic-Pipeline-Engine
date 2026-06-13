@@ -32,16 +32,16 @@ Enhance the pipeline's intelligence and input flexibility by introducing:
 
 ## Workstream 1: Prompt Enhancement Agent
 
-Status: `[ ] Planned`
+Status: `[x] Completed`
 
 Objective: Add an interactive assistant button to refine and enrich poorly formulated prompts before running the generator.
 
 Tasks:
-- [ ] Reuse the `example_generator` agent for prompt enhancement (leveraging its system role as a senior academic director and prompt engineer).
-- [ ] Add a specific instruction manifest for the enhancement request so the agent refines a raw user topic/instruction into a technically deep academic task.
-- [ ] Add `/api/prompt/enhance` endpoint to send a raw prompt to the `example_generator` agent and return a structured, optimized version.
-- [ ] Add an "Enhance" (🪄) button next to the topic input in the UI.
-- [ ] Implement loading indicator and smooth replacement of the topic value with the enhanced prompt.
+- [x] Reuse the `example_generator` agent for prompt enhancement (leveraging its system role as a senior academic director and prompt engineer).
+- [x] Add a specific instruction manifest for the enhancement request so the agent refines a raw user topic/instruction into a technically deep academic task.
+- [x] Add `/api/prompt/enhance` endpoint to send a raw prompt to the `example_generator` agent and return a structured, optimized version.
+- [x] Add an "Enhance" (🪄) button next to the topic input in the UI.
+- [x] Implement loading indicator and smooth replacement of the topic value with the enhanced prompt.
 
 ---
 

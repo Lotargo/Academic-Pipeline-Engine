@@ -35,3 +35,14 @@ class SecretUpdatePayload(BaseModel):
 
 class BulkHistoryPayload(BaseModel):
     ids: List[str]
+
+
+class PromptEnhanceRequest(BaseModel):
+    topic: str
+    instructions: Optional[str] = None
+
+
+class PromptEnhanceResponse(BaseModel):
+    topic: str
+    instructions: str
+
