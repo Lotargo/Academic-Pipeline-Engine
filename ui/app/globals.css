@@ -219,6 +219,155 @@
     @apply border-ape-success/25 bg-ape-success-soft text-ape-success-text;
   }
 
+  .ape-toaster {
+    --width: min(480px, calc(100vw - 32px));
+    --toast-bg-a: color-mix(in oklch, var(--ape-surface-raised) 88%, transparent);
+    --toast-bg-b: color-mix(in oklch, var(--ape-primary-soft) 46%, var(--ape-surface-raised));
+    --toast-accent-a: var(--ape-primary);
+    --toast-accent-b: var(--ape-primary-text);
+  }
+
+  .ape-toaster [data-sonner-toast].ape-toast {
+    min-height: 66px;
+    overflow: hidden;
+    border: 1px solid color-mix(in oklch, var(--toast-accent-a) 34%, var(--border));
+    border-radius: 10px;
+    background:
+      linear-gradient(135deg, var(--toast-bg-a), var(--toast-bg-b)),
+      var(--popover);
+    box-shadow:
+      0 18px 46px rgb(20 24 32 / 0.18),
+      inset 0 1px 0 rgb(255 255 255 / 0.45);
+    color: var(--foreground);
+    padding: 13px 16px 13px 14px;
+    backdrop-filter: blur(14px);
+  }
+
+  .ape-toaster [data-sonner-toast].ape-toast::before,
+  .ape-toaster [data-sonner-toast].ape-toast::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .ape-toaster [data-sonner-toast].ape-toast::before {
+    inset: 0 auto 0 0;
+    width: 7px;
+    background: linear-gradient(180deg, var(--toast-accent-a), var(--toast-accent-b));
+    clip-path: polygon(0 0, 100% 11px, 100% calc(100% - 11px), 0 100%);
+  }
+
+  .ape-toaster [data-sonner-toast].ape-toast::after {
+    inset: 8px 8px 8px auto;
+    width: 116px;
+    opacity: 0.34;
+    background:
+      linear-gradient(135deg, transparent 0 32%, color-mix(in oklch, var(--toast-accent-a) 62%, transparent) 33% 35%, transparent 36%),
+      linear-gradient(45deg, transparent 0 42%, color-mix(in oklch, var(--toast-accent-b) 52%, transparent) 43% 45%, transparent 46%),
+      radial-gradient(circle at 76% 20%, color-mix(in oklch, var(--toast-accent-a) 52%, transparent) 0 2px, transparent 3px);
+    clip-path: polygon(34% 0, 100% 0, 72% 100%, 0 100%);
+  }
+
+  .ape-toaster [data-sonner-toast][data-type="success"] {
+    --toast-accent-a: var(--ape-success);
+    --toast-accent-b: var(--ape-success-text);
+    --toast-bg-b: color-mix(in oklch, var(--ape-success-soft) 52%, var(--ape-surface-raised));
+  }
+
+  .ape-toaster [data-sonner-toast][data-type="info"],
+  .ape-toaster [data-sonner-toast][data-type="loading"] {
+    --toast-accent-a: var(--ape-info);
+    --toast-accent-b: var(--ape-info-text);
+    --toast-bg-b: color-mix(in oklch, var(--ape-info-soft) 52%, var(--ape-surface-raised));
+  }
+
+  .ape-toaster [data-sonner-toast][data-type="warning"] {
+    --toast-accent-a: var(--ape-warning);
+    --toast-accent-b: var(--ape-warning-text);
+    --toast-bg-b: color-mix(in oklch, var(--ape-warning-soft) 56%, var(--ape-surface-raised));
+  }
+
+  .ape-toaster [data-sonner-toast][data-type="error"] {
+    --toast-accent-a: var(--ape-danger);
+    --toast-accent-b: var(--ape-danger-text);
+    --toast-bg-b: color-mix(in oklch, var(--ape-danger-soft) 56%, var(--ape-surface-raised));
+  }
+
+  .ape-toaster [data-sonner-toast][data-mounted="true"].ape-toast {
+    animation: ape-toast-slide-in 360ms cubic-bezier(0.18, 0.86, 0.22, 1.08);
+  }
+
+  .ape-toast-icon-wrap {
+    align-self: center;
+    margin-right: 8px;
+  }
+
+  .ape-toast-icon {
+    width: 30px;
+    height: 30px;
+    color: var(--toast-accent-b);
+    filter: drop-shadow(0 6px 10px rgb(20 24 32 / 0.14));
+  }
+
+  .ape-toast-icon-shadow {
+    fill: color-mix(in oklch, var(--toast-accent-b) 24%, transparent);
+  }
+
+  .ape-toast-icon-shell {
+    fill: color-mix(in oklch, var(--toast-accent-a) 18%, var(--ape-surface-raised));
+    stroke: var(--toast-accent-a);
+    stroke-width: 1.4;
+  }
+
+  .ape-toast-icon-core {
+    fill: color-mix(in oklch, var(--toast-accent-a) 28%, transparent);
+  }
+
+  .ape-toast-icon-cut {
+    stroke: color-mix(in oklch, var(--toast-accent-b) 72%, transparent);
+    stroke-linecap: round;
+    stroke-width: 1.1;
+  }
+
+  .ape-toast-icon-mark {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2.25;
+  }
+
+  .ape-toast-content {
+    min-width: 0;
+    padding-right: 92px;
+  }
+
+  .ape-toast-title {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .ape-toast-description {
+    font-size: 11px;
+    color: var(--muted-foreground);
+  }
+
+  @keyframes ape-toast-slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(42px) scale(0.96);
+    }
+    62% {
+      opacity: 1;
+      transform: translateX(-4px) scale(1.01);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
   .ape-status-warning {
     @apply border-ape-warning/25 bg-ape-warning-soft text-ape-warning-text;
   }
@@ -420,4 +569,3 @@
 .win11-spinner-dot:nth-child(3) { animation-delay: 0.45s; }
 .win11-spinner-dot:nth-child(4) { animation-delay: 0.60s; }
 .win11-spinner-dot:nth-child(5) { animation-delay: 0.75s; }
-

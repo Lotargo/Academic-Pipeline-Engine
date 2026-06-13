@@ -2,7 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { IBM_Plex_Mono, IBM_Plex_Sans, Space_Grotesk } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
-import { Toaster } from "sonner"
+import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 
@@ -43,7 +43,7 @@ export default function RootLayout({
       <body className={`${uiFont.variable} ${monoFont.variable} ${brandFont.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}
-          <Toaster position="top-right" richColors />
+          <Toaster />
           <Analytics />
         </ThemeProvider>
       </body>
