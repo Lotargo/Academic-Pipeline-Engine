@@ -276,6 +276,27 @@ class Orchestrator:
         prompt_manifest = manifest.prompt_manifest
         return bool(prompt_manifest.output_constraints.get("visualization_required", False))
 
+    def _contract_drift_issues(self) -> List[str]:
+        manifest = self.runtime_prompt_manifest
+        if manifest is None:
+            return []
+
+        metadata = manifest.metadata or {}
+        contract_data = metadata.get("resolved_contract")
+        if not isinstance(contract_data, dict):
+            return []
+
+        try:
+            from academic_pe.contracts.drift import run_all as run_contract_drift_checks
+            from academic_pe.contracts.models import ArtifactContract
+
+            result = run_contract_drift_checks(ArtifactContract(**contract_data), self.context)
+        except Exception as exc:
+            logger.warning("Contract drift checks skipped: %s", exc)
+            return []
+
+        return result.issues
+
     @property
     def state(self) -> PipelineState:
         return self._state
@@ -502,6 +523,9 @@ class Orchestrator:
                     # Quality gate failed, bypass LLM reviewer and auto-generate rejection
                     logger.warning("Quality Gate failed during review loop: %s", qg_result.issues)
                     critique = "REJECTED\n" + "\n".join(f"- [general]: Quality Gate issue: {issue}" for issue in qg_result.issues)
+                elif drift_issues := self._contract_drift_issues():
+                    logger.warning("Contract drift checks failed during review loop: %s", drift_issues)
+                    critique = "REJECTED\n" + "\n".join(f"- [general]: Contract Drift issue: {issue}" for issue in drift_issues)
                 else:
                     critique = self._reviewer.process(
                         render_template(
@@ -707,6 +731,14 @@ class Orchestrator:
                 raise PipelineError(
                     f"Quality Gate failed with {len(qg_result.issues)} issue(s). "
                     + "; ".join(qg_result.issues)
+                )
+            drift_issues = self._contract_drift_issues()
+            if drift_issues:
+                for issue in drift_issues:
+                    logger.warning("Contract Drift: %s", issue)
+                raise PipelineError(
+                    f"Contract Drift failed with {len(drift_issues)} issue(s). "
+                    + "; ".join(drift_issues)
                 )
             logger.info("Quality Gate: all checks passed.")
 

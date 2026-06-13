@@ -830,6 +830,72 @@ def test_create_orchestrator_from_config_inherits_continuation_artifact_metadata
     assert metadata["manifest_selection"]["matched_phrases"] == ["previous resolved manifest"]
 
 
+def test_pipeline_fails_on_contract_drift_without_reviewer():
+    class DriftMockProvider(MockProvider):
+        def __init__(self):
+            self.calls = 0
+
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
+            self.calls += 1
+            if self.calls == 1:
+                return "Plan the poem."
+            return "# Abstract\nThis paper analyzes the red dress."
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(
+                role="Writer",
+                model="mock",
+                temperature=0.0,
+                system_prompt="Writer prompt.",
+            ),
+        },
+        pipeline=PipelineConfig(
+            sections=[
+                SectionPrompt(name="poem", topic="Poem", instruction="Write a poem."),
+            ],
+        ),
+        quality_gate=QualityGateConfig(
+            volume=VolumeGateConfig(enabled=False),
+            latex=LatexGateConfig(enabled=False),
+        ),
+    )
+    manifests = {
+        "creative_poem": ArtifactManifest(
+            id="creative_poem",
+            artifact_type="creative_poem",
+            forbid=["academic_drift", "research_paper_structure"],
+        ),
+        "unknown_freeform": ArtifactManifest(
+            id="unknown_freeform",
+            artifact_type="unknown_freeform",
+        ),
+    }
+
+    llm = DriftMockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(
+        writer=writer,
+        config=config,
+        runtime_prompt_manifest=RuntimePromptManifest(
+            source=RuntimeTemplateSource.custom,
+            source_template_id="poem",
+            prompt_manifest=PromptManifest(writer_role="Poet", reviewer_role="Reviewer"),
+            metadata=ArtifactManifestResolver(manifests=manifests).resolve(
+                topic="Write a poem",
+                instructions="No academic paper.",
+            ).metadata(),
+        ),
+    )
+
+    try:
+        orch.run_pipeline(render_artifact=False)
+        assert False, "Expected contract drift to fail the pipeline."
+    except PipelineError as exc:
+        assert "Contract Drift failed" in str(exc)
+        assert "academic-paper structure" in str(exc)
+
+
 def test_continuation_source_is_included_in_planning_context():
     config = _make_config()
 
