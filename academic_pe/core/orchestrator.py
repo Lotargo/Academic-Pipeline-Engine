@@ -262,6 +262,19 @@ class Orchestrator:
 
         return "\n\n".join(parts)
 
+    def _visualization_required(self) -> bool:
+        manifest = self.runtime_prompt_manifest
+        if manifest is None:
+            return False
+
+        metadata = manifest.metadata or {}
+        contract = metadata.get("resolved_contract")
+        if isinstance(contract, dict):
+            return bool(contract.get("visualization_required", False))
+
+        prompt_manifest = manifest.prompt_manifest
+        return bool(prompt_manifest.output_constraints.get("visualization_required", False))
+
     @property
     def state(self) -> PipelineState:
         return self._state
@@ -378,6 +391,7 @@ class Orchestrator:
                     "user_instructions": self.user_instructions,
                     "continuation_context": self._continuation_context(),
                     "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                    "visualization_required": self._visualization_required(),
                     "output_dir": self._config.pipeline.output_dir,
                 },
             )
@@ -400,6 +414,7 @@ class Orchestrator:
                         "user_instructions": self.user_instructions,
                         "continuation_context": self._continuation_context(),
                         "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                        "visualization_required": self._visualization_required(),
                         "output_dir": self._config.pipeline.output_dir,
                     },
                 )
@@ -496,6 +511,7 @@ class Orchestrator:
                                 "sections": self._config.pipeline.sections,
                                 "continuation_context": self._continuation_context(),
                                 "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                "visualization_required": self._visualization_required(),
                                 "output_dir": self._config.pipeline.output_dir,
                             },
                         ),
@@ -543,6 +559,7 @@ class Orchestrator:
                                 "user_instructions": self.user_instructions,
                                 "continuation_context": self._continuation_context(),
                                 "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                "visualization_required": self._visualization_required(),
                                 "output_dir": self._config.pipeline.output_dir,
                             },
                         )
@@ -578,6 +595,7 @@ class Orchestrator:
                                     "user_instructions": self.user_instructions,
                                     "continuation_context": self._continuation_context(),
                                     "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                    "visualization_required": self._visualization_required(),
                                     "output_dir": self._config.pipeline.output_dir,
                                 },
                             )
@@ -645,6 +663,7 @@ class Orchestrator:
                                         "user_instructions": self.user_instructions,
                                         "continuation_context": self._continuation_context(),
                                         "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                        "visualization_required": self._visualization_required(),
                                         "output_dir": self._config.pipeline.output_dir,
                                     }
                                 )

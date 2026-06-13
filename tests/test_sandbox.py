@@ -31,21 +31,19 @@ def test_run_code_sympy():
     assert res.stdout.strip() == "x^{2}"
 
 
-def test_run_code_matplotlib():
-    img_path = "exports/test_sandbox_plot.png"
-    if os.path.exists(img_path):
-        os.remove(img_path)
-
-    os.makedirs("exports", exist_ok=True)
+def test_run_code_matplotlib(tmp_path):
+    run_export_dir = tmp_path / "exports" / "run_test"
+    run_export_dir.mkdir(parents=True)
+    img_path = run_export_dir / "test_sandbox_plot.png"
+    img_path_literal = img_path.as_posix()
     code = f"""
 import matplotlib.pyplot as plt
 plt.plot([1, 2], [3, 4])
-plt.savefig('{img_path}')
+plt.savefig('{img_path_literal}')
 """
     res = run_code_in_sandbox(code)
     assert res.success is True
     assert os.path.exists(img_path)
-    os.remove(img_path)
 
 
 def test_run_code_error_traceback():

@@ -124,3 +124,33 @@ def test_template_selector_uses_planner_for_auto_mode():
     assert planner.calls == [("Daisies", "Use a light tone.")]
     assert runtime_template.source_template_id == "technical_note"
     assert runtime_manifest.prompt_manifest.writer_role == "Technical writer"
+
+
+def test_template_selector_academic_mode_does_not_force_plots_for_auto_mode():
+    class FakePlanner:
+        def __init__(self):
+            self.calls = []
+
+        def plan(self, topic: str, instructions: str = ""):
+            self.calls.append((topic, instructions))
+            template = _library().get("technical_note")
+            return (
+                RuntimeTemplate.from_document_template(template),
+                RuntimePromptManifest.from_document_template(template),
+            )
+
+    config = _config(mode=TemplateMode.auto)
+    config.pipeline.academic_mode = True
+    planner = FakePlanner()
+
+    TemplateSelector(library=_library(), planner=planner).select(
+        config,
+        topic="Project README",
+        instructions="Write a README.",
+    )
+
+    planner_instructions = planner.calls[0][1]
+    assert "Academic Mode Constraint" in planner_instructions
+    assert "do not force charts" in planner_instructions
+    assert "MUST structure it to include data visualization/plots" not in planner_instructions
+    assert "python-run" not in planner_instructions

@@ -67,8 +67,10 @@ class TemplateSelector:
             planner_instructions = instructions
             if getattr(config.pipeline, "academic_mode", False):
                 academic_instr = (
-                    "Since the document is in Academic Mode, you MUST structure it to include data visualization/plots. "
-                    "Ensure that at least one section requires generating a plot/chart (e.g. by writing python-run blocks)."
+                    "Since the document is in Academic Mode, add stronger reasoning, evidence discipline, "
+                    "assumption checks, and limitations where they fit the requested artifact. Preserve the "
+                    "artifact type and do not force charts, formulas, citations, or research-paper structure "
+                    "unless the user request or selected artifact type makes them appropriate."
                 )
                 if planner_instructions:
                     planner_instructions = f"{planner_instructions}\n\n[Academic Mode Constraint]: {academic_instr}"

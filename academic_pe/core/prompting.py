@@ -35,8 +35,10 @@ The continuation source is available in the context data.
 {% endif %}
 
 {% if academic_mode|default(false) %}
-IMPORTANT: Since you are in Academic Mode, you MUST support your theoretical or computational claims with data visualizations (plots, charts, graphs).
-To do this, you MUST write a python code block marked specifically as ` ```python-run ` (do do not omit the "-run" suffix).
+Academic Mode: strengthen conceptual rigor, definitions, assumptions, evidence discipline, and limitations where they fit this artifact. Preserve the requested genre, audience, structure, and voice; do not turn a non-academic artifact into a research paper.
+{% endif %}
+{% if visualization_required|default(false) %}
+Visualization Requirement: include a data visualization only because this artifact contract explicitly requires it. Write a python code block marked specifically as ` ```python-run ` (do not omit the "-run" suffix).
 The code inside this block will be executed in a sandbox. It MUST:
 1. Set the matplotlib backend to non-interactive:
    import matplotlib
@@ -78,7 +80,10 @@ Configured sections:
 {% endfor %}
 
 {% if academic_mode|default(false) %}
-[Academic Mode Requirement]: The document must contain data visualizations. Plan which sections will include matplotlib charts (using ` ```python-run ` code blocks) to support the analysis, and specify the variables/data they should display.
+Academic Mode: plan for stronger reasoning, clearer assumptions, evidence discipline, and limitations where they fit this artifact. Preserve the requested artifact type and do not add charts, formulas, citations, or research-paper sections unless they naturally support the artifact or were explicitly requested.
+{% endif %}
+{% if visualization_required|default(false) %}
+[Visualization Requirement]: The artifact contract requires data visualization. Plan which sections will include matplotlib charts (using ` ```python-run ` code blocks) and specify the variables/data they should display.
 {% endif %}
 
 Return a concise Markdown plan with:
@@ -110,7 +115,10 @@ If the current section is a terminal section from the old work, rewrite or trim 
 {% endif %}
 
 {% if academic_mode|default(false) %}
-IMPORTANT: Since you are in Academic Mode, you MUST preserve or correct the python-run code block used for visualization. 
+Academic Mode: preserve compatible rigor and evidence discipline while keeping this artifact's genre, audience, and structure intact.
+{% endif %}
+{% if visualization_required|default(false) %}
+IMPORTANT: Preserve or correct the python-run code block used for visualization.
 If correcting a visualization error, ensure the block starts with ` ```python-run `, sets `matplotlib.use("Agg")`, saves to `{{ output_dir | default('exports') }}/plot_{{ section.name }}.png`, and prints the Markdown image tag `![Caption]({{ output_dir | default('exports') }}/plot_{{ section.name }}.png)`.
 {% endif %}
 
@@ -151,7 +159,10 @@ Do not change the source genre, narrator/voice, audience level, register, pacing
 {% endif %}
 
 {% if academic_mode|default(false) %}
-IMPORTANT: Since you are in Academic Mode, ensure any visualizations (plots/charts) generated via ` ```python-run ` code blocks are preserved or correctly updated. Do not break the python-run structure.
+Academic Mode: preserve compatible rigor and evidence discipline while keeping this artifact's genre, audience, and structure intact.
+{% endif %}
+{% if visualization_required|default(false) %}
+IMPORTANT: Ensure any visualizations (plots/charts) generated via ` ```python-run ` code blocks are preserved or correctly updated. Do not break the python-run structure.
 {% endif %}
 """
 
@@ -173,7 +184,10 @@ Reject only for concrete issues that materially harm correctness, coherence, or 
 Do not reject for minor preference, harmless wording, or label differences such as "section" vs "chapter" unless they create an actual broken reference.
 
 {% if academic_mode|default(false) %}
-[Academic Mode Requirement]: You MUST check if the document contains at least one generated data visualization, chart, or plot (represented by markdown image tags like `![Figure]({{ output_dir | default('exports') }}/...)` or ` ```python-run ` code blocks). If no visualization is present in the document, you MUST reject it with a comment under `[general]` or the appropriate section, demanding the addition of supporting charts/plots.
+Academic Mode: check for weak assumptions, unsupported claims, shallow definitions, conceptual contradictions, and missing limitations where those checks fit this artifact. Do not reject a non-academic artifact merely because it lacks charts, formulas, citations, or research-paper sections.
+{% endif %}
+{% if visualization_required|default(false) %}
+[Visualization Requirement]: Check if the document contains at least one generated data visualization, chart, or plot (represented by markdown image tags like `![Figure]({{ output_dir | default('exports') }}/...)` or ` ```python-run ` code blocks). If no visualization is present, reject it with a concrete issue.
 {% endif %}
 
 If a review focus is provided, first verify whether those issues are fixed. You MUST carefully verify whether all those issues are completely fixed. If any of those issues are still present (even partially), you MUST reject again. Add new issues only when they are severe regressions or major contradictions.
@@ -208,7 +222,10 @@ VERIFIED
 If any of those errors are still present, correct them and return the final corrected Markdown text of this section. Do not return diffs, search/replace blocks, edit instructions, or explanations.
 
 {% if academic_mode|default(false) %}
-IMPORTANT: Since you are in Academic Mode, ensure any visualizations (plots/charts) generated via ` ```python-run ` code blocks are preserved and successfully executed.
+Academic Mode: verify the specific reviewer feedback while preserving compatible rigor and the artifact's requested genre.
+{% endif %}
+{% if visualization_required|default(false) %}
+IMPORTANT: Ensure any visualizations (plots/charts) generated via ` ```python-run ` code blocks are preserved and successfully executed.
 {% endif %}
 """
 

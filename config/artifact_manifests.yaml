@@ -1,0 +1,125 @@
+artifacts:
+  - id: creative_poem
+    version: 1
+    artifact_type: creative_poem
+    description: Lyrical or narrative poetry.
+    style: [creative, human, natural]
+    audience: general
+    structure: [lines, stanzas]
+    forbid: [academic_drift, title_page, citations, rubric, forced_visualization, ai_markers]
+    modes:
+      academic:
+        add_forbid: [research_paper_structure, forced_visualization]
+        visualization_policy: forbidden
+
+  - id: creative_story
+    version: 1
+    artifact_type: creative_story
+    description: Fiction, fairy tale, or narrative prose.
+    style: [narrative, human, natural]
+    audience: general
+    structure: [scene, conflict, resolution]
+    forbid: [academic_drift, title_page, citations, rubric, forced_visualization, ai_markers]
+    modes:
+      academic:
+        add_forbid: [research_paper_structure, forced_visualization]
+        visualization_policy: forbidden
+
+  - id: school_essay
+    version: 1
+    artifact_type: school_essay
+    description: School composition or age-appropriate essay.
+    style: [clear, age_appropriate, natural]
+    audience: school
+    structure: [introduction, body, conclusion]
+    forbid: [research_overkill, title_page, forced_visualization, ai_markers]
+    modes:
+      academic:
+        add_requirements:
+          rigor: age_appropriate_argumentation
+        visualization_policy: compatible_only
+
+  - id: academic_paper
+    version: 1
+    artifact_type: academic_paper
+    description: Research-style academic document.
+    style: [formal, analytical, precise]
+    audience: academic
+    structure: [introduction, method, analysis, conclusion]
+    forbid: [ai_markers, unsupported_claims]
+    modes:
+      academic:
+        add_requirements:
+          evidence_discipline: true
+          visualization_required: true
+        visualization_policy: required
+
+  - id: technical_readme
+    version: 1
+    artifact_type: technical_readme
+    description: Practical technical README.
+    style: [practical, concrete, concise]
+    audience: developers
+    structure: [overview, installation, usage, configuration]
+    forbid: [academic_drift, citations, title_page, forced_visualization, invented_features, ai_markers]
+    modes:
+      academic:
+        add_requirements:
+          rigor: reproducibility_and_limitations
+        visualization_policy: compatible_only
+
+  - id: plan_document
+    version: 1
+    artifact_type: plan_document
+    description: Plan, roadmap, or execution document.
+    style: [actionable, structured, concise]
+    audience: general
+    structure: [goal, tasks, milestones, risks]
+    forbid: [essay_drift, research_paper_structure, forced_visualization, ai_markers]
+    modes:
+      academic:
+        add_requirements:
+          rigor: assumptions_risks_tradeoffs
+        visualization_policy: compatible_only
+
+  - id: report
+    version: 1
+    artifact_type: report
+    description: Informational or analytical report.
+    style: [clear, structured, evidence_aware]
+    audience: general
+    structure: [summary, findings, implications]
+    forbid: [ai_markers, unsupported_claims]
+    modes:
+      academic:
+        add_requirements:
+          evidence_discipline: true
+        visualization_policy: compatible_only
+
+  - id: continuation_source
+    version: 1
+    artifact_type: continuation_source
+    description: Existing artifact being continued or revised.
+    style: [preserve_source_style]
+    audience: preserve_source_audience
+    structure: [preserve_source_structure]
+    forbid: [genre_drift, audience_drift, structure_drift, academic_drift, ai_markers]
+    modes:
+      academic:
+        add_forbid: [forced_visualization]
+        visualization_policy: compatible_only
+
+  - id: unknown_freeform
+    version: 1
+    artifact_type: unknown_freeform
+    description: Preserve-first fallback for unknown or niche artifact requests.
+    style: [preserve_user_intent, natural]
+    audience: general
+    structure: [preserve_apparent_structure]
+    forbid: [academic_drift, invented_structure, title_page, citations, rubric, forced_visualization, ai_markers]
+    modes:
+      academic:
+        add_requirements:
+          rigor: clarify_without_changing_artifact
+        add_forbid: [research_paper_structure, forced_visualization]
+        visualization_policy: compatible_only
