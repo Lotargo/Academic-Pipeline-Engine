@@ -6,7 +6,7 @@ import re
 import signal
 import threading
 from enum import Enum, auto
-from typing import Callable, Dict, List, Optional, Protocol
+from typing import Any, Callable, Dict, List, Optional, Protocol
 
 from academic_pe.core.config import AppConfig, TemplateMode, load_config, SectionPrompt
 from academic_pe.agents.base import BaseAgent
@@ -193,6 +193,7 @@ class Orchestrator:
         renderer: Optional[Renderer] = None,
         runtime_template: Optional[RuntimeTemplate] = None,
         runtime_prompt_manifest: Optional[RuntimePromptManifest] = None,
+        continuation_source: Optional[Dict[str, Any]] = None,
     ):
         self._writer = writer
         self._reviewer = reviewer
@@ -200,6 +201,7 @@ class Orchestrator:
         self._config = config
         self.runtime_template = runtime_template
         self.runtime_prompt_manifest = runtime_prompt_manifest
+        self.continuation_source = continuation_source
         self._state: PipelineState = PipelineState.INIT
         self.context: Dict[str, str] = {}
         self.user_topic: str = ""
@@ -214,6 +216,39 @@ class Orchestrator:
         self._transitions: Dict[PipelineState, List[PipelineState]] = dict(_DEFAULT_TRANSITIONS)
         self._cancel_event: threading.Event = threading.Event()
         self.first_attempt_reason: Optional[str] = None
+
+    def _continuation_context(self) -> str:
+        source = self.continuation_source
+        if not source:
+            return ""
+
+        parts: List[str] = []
+        source_type = source.get("source_type") or "generated"
+        parts.append(f"Source type: {source_type}")
+
+        source_topic = source.get("topic")
+        if source_topic:
+            parts.append(f"Previous document topic/title: {source_topic}")
+
+        source_instructions = source.get("instructions")
+        if source_instructions:
+            parts.append(f"Previous document instructions: {source_instructions}")
+
+        document_plan = source.get("document_plan")
+        if document_plan:
+            parts.append("[Previous Document Plan]\n" + str(document_plan))
+
+        context = source.get("context")
+        if isinstance(context, dict):
+            section_parts = []
+            for name, content in context.items():
+                if name == "document_plan" or not content:
+                    continue
+                section_parts.append(f"## {name}\n{content}")
+            if section_parts:
+                parts.append("[Previous Document Sections]\n" + "\n\n".join(section_parts))
+
+        return "\n\n".join(parts)
 
     @property
     def state(self) -> PipelineState:
@@ -266,6 +301,10 @@ class Orchestrator:
 
     def _document_memory(self, current_section_name: str = "", with_line_numbers: bool = False) -> str:
         parts: List[str] = []
+        continuation_context = self._continuation_context()
+        if continuation_context:
+            parts.append("[Continuation Source]\n" + continuation_context)
+
         if self._draft_plan:
             parts.append("[Document Plan]\n" + self._draft_plan)
 
@@ -325,6 +364,7 @@ class Orchestrator:
                     "language_instruction": language_instruction(target_language),
                     "user_topic": self.user_topic,
                     "user_instructions": self.user_instructions,
+                    "continuation_context": self._continuation_context(),
                     "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                     "output_dir": self._config.pipeline.output_dir,
                 },
@@ -346,6 +386,7 @@ class Orchestrator:
                         "language_instruction": language_instruction(target_language),
                         "user_topic": self.user_topic,
                         "user_instructions": self.user_instructions,
+                        "continuation_context": self._continuation_context(),
                         "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                         "output_dir": self._config.pipeline.output_dir,
                     },
@@ -441,6 +482,7 @@ class Orchestrator:
                                 "language": target_language,
                                 "review_focus": review_focus,
                                 "sections": self._config.pipeline.sections,
+                                "continuation_context": self._continuation_context(),
                                 "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                                 "output_dir": self._config.pipeline.output_dir,
                             },
@@ -487,6 +529,7 @@ class Orchestrator:
                                 "language_instruction": language_instruction(target_language),
                                 "user_topic": self.user_topic,
                                 "user_instructions": self.user_instructions,
+                                "continuation_context": self._continuation_context(),
                                 "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                                 "output_dir": self._config.pipeline.output_dir,
                             },
@@ -521,6 +564,7 @@ class Orchestrator:
                                     "language_instruction": language_instruction(target_language),
                                     "user_topic": self.user_topic,
                                     "user_instructions": self.user_instructions,
+                                    "continuation_context": self._continuation_context(),
                                     "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                                     "output_dir": self._config.pipeline.output_dir,
                                 },
@@ -587,6 +631,7 @@ class Orchestrator:
                                         "language_instruction": language_instruction(target_language),
                                         "user_topic": self.user_topic,
                                         "user_instructions": self.user_instructions,
+                                        "continuation_context": self._continuation_context(),
                                         "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
                                         "output_dir": self._config.pipeline.output_dir,
                                     }
@@ -745,6 +790,7 @@ def create_orchestrator_from_config(
     prompt_manifest_resolver: Optional[PromptManifestResolver] = None,
     user_topic: str = "",
     user_instructions: str = "",
+    continuation_source: Optional[Dict[str, Any]] = None,
 ) -> Orchestrator:
     from academic_pe.agents.factory import create_agent
 
@@ -795,6 +841,7 @@ def create_orchestrator_from_config(
         renderer=renderer,
         runtime_template=runtime_template,
         runtime_prompt_manifest=runtime_prompt_manifest,
+        continuation_source=continuation_source,
     )
     orchestrator.user_topic = refined_topic
     orchestrator.user_instructions = user_instructions

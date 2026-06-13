@@ -10,11 +10,13 @@ interface SearchBarProps {
   onSearch?: (topic: string, instructions: string, academicMode: boolean) => void
   disabled?: boolean
   t: Messages
+  initialTopic?: string
+  initialInstructions?: string
 }
 
-export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
-  const [topic, setTopic] = useState("")
-  const [instructions, setInstructions] = useState("")
+export function SearchBar({ onSearch, disabled, t, initialTopic = "", initialInstructions = "" }: SearchBarProps) {
+  const [topic, setTopic] = useState(initialTopic)
+  const [instructions, setInstructions] = useState(initialInstructions)
   const [isFocused, setIsFocused] = useState(false)
   const [academicMode, setAcademicMode] = useState(false)
   const [examples, setExamples] = useState<{ topic: string; instructions: string }[]>([])
@@ -22,6 +24,11 @@ export function SearchBar({ onSearch, disabled, t }: SearchBarProps) {
   const [refreshing, setRefreshing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [isEnhancing, setIsEnhancing] = useState(false)
+
+  useEffect(() => {
+    setTopic(initialTopic)
+    setInstructions(initialInstructions)
+  }, [initialTopic, initialInstructions])
 
   const handleEnhance = async () => {
     if (isEnhancing || !topic.trim()) return

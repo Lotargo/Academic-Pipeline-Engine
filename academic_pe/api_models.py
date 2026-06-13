@@ -7,6 +7,16 @@ from pydantic import BaseModel
 from academic_pe.core.config import TemplateMode
 
 
+class ContinuationSource(BaseModel):
+    source_type: str = "generated"
+    topic: Optional[str] = None
+    instructions: Optional[str] = None
+    context: Dict[str, str]
+    document_plan: Optional[str] = None
+    metadata_id: Optional[str] = None
+    run_id: Optional[str] = None
+
+
 class RunRequest(BaseModel):
     topic: str
     instructions: Optional[str] = None
@@ -14,6 +24,7 @@ class RunRequest(BaseModel):
     template_id: Optional[str] = None
     academic_mode: Optional[bool] = None
     author: Optional[str] = None
+    continuation_source: Optional[ContinuationSource] = None
 
 
 class ConfigUpdateRequest(BaseModel):

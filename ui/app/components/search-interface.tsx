@@ -10,7 +10,7 @@ import { LiveDocumentCanvas } from "./live-document-canvas"
 import { ConsolePanel } from "./console-panel"
 import { ArchivedWorksModal } from "./archived-works-modal"
 import { toast } from "sonner"
-import { Archive, Sparkles, FileText, ArrowRight, XCircle, Terminal, FileDown, Loader2, Trash2 } from "lucide-react"
+import { Archive, Sparkles, FileText, ArrowRight, XCircle, Terminal, FileDown, Loader2, Trash2, PlayCircle } from "lucide-react"
 import { AcademicLogoIcon } from "./academic-logo-icon"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -41,6 +41,7 @@ export function Search() {
   const [exportingDocx, setExportingDocx] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
   const [paperPendingDelete, setPaperPendingDelete] = useState<any>(null)
+  const [continuationSource, setContinuationSource] = useState<any>(null)
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const notifiedRef = useRef(false)
@@ -399,6 +400,33 @@ export function Search() {
     }
   }
 
+  const buildContinuationSource = (paper: any) => {
+    const context = Object.fromEntries(
+      Object.entries(paper?.context || {}).filter(([_, value]) => Boolean(value))
+    )
+    return {
+      source_type: "generated",
+      topic: paper?.topic || "Untitled",
+      instructions: paper?.instructions || undefined,
+      context,
+      document_plan: paper?.document_plan || paper?.context?.document_plan || undefined,
+      metadata_id: paper?.id || undefined,
+      run_id: paper?.run_id || undefined,
+    }
+  }
+
+  const handleContinuePaper = (paper: any) => {
+    if (!paper?.context || Object.keys(paper.context).length === 0) {
+      toast.error(language === "ru" ? "У этой работы нет сохранённого текста для продолжения" : "This work has no saved text to continue")
+      return
+    }
+    setContinuationSource(buildContinuationSource(paper))
+    setSelectedPaper(null)
+    setArchivedWorksOpen(false)
+    setActiveTab("workspace")
+    toast.info(language === "ru" ? "Режим продолжения включён" : "Continuation mode enabled")
+  }
+
   const handleStartGeneration = async (topic: string, instructions: string, academicMode: boolean) => {
     notifiedRef.current = false
     
@@ -430,6 +458,7 @@ export function Search() {
           instructions,
           academic_mode: academicMode,
           author: nickname.trim() || undefined,
+          continuation_source: continuationSource || undefined,
         })
       })
       if (!res.ok) {
@@ -446,6 +475,7 @@ export function Search() {
           topic: serverStatus?.topic || topic,
         }))
       }
+      setContinuationSource(null)
       toast.info(t.nav.pipelineDrafting)
     } catch (e: any) {
       toast.error(e.message || "Failed to start execution")
@@ -501,6 +531,14 @@ export function Search() {
           <div className="flex shrink-0 items-center gap-2">
             {selectedPaper && (
               <>
+                <Button
+                  size="sm"
+                  onClick={() => handleContinuePaper(selectedPaper)}
+                  className="h-8 gap-1.5 bg-ape-primary px-3 text-[11px] font-bold uppercase text-white hover:bg-ape-primary/90"
+                >
+                  <PlayCircle className="h-3.5 w-3.5" />
+                  {language === "ru" ? "Продолжить" : "Continue"}
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -681,7 +719,39 @@ export function Search() {
                   onSearch={handleStartGeneration}
                   disabled={status.status === "RUNNING" || status.status === "STARTING"}
                   t={t}
+                  initialTopic={continuationSource?.topic || ""}
+                  initialInstructions={
+                    continuationSource
+                      ? (language === "ru"
+                          ? "Продолжи эту работу на основе уточнений: "
+                          : "Continue this work based on these clarifications: ")
+                      : ""
+                  }
                 />
+
+                {continuationSource && (
+                  <div className="rounded-xl border border-ape-primary/25 bg-ape-primary-soft/60 p-4 text-xs text-ape-primary-text">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-bold uppercase tracking-wide">
+                          {language === "ru" ? "Режим продолжения" : "Continuation mode"}
+                        </p>
+                        <p className="mt-1 break-words">
+                          {language === "ru" ? "Источник" : "Source"}: {continuationSource.topic || "Untitled"}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setContinuationSource(null)}
+                        className="h-7 shrink-0 px-2 text-[11px] font-bold"
+                      >
+                        {language === "ru" ? "Сбросить" : "Clear"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Active compilation summary card */}
                 {(status.status === "RUNNING" || status.status === "STARTING") && (
@@ -754,6 +824,7 @@ export function Search() {
           onOpenChange={setArchivedWorksOpen}
           language={language}
           onRestored={fetchHistory}
+          onContinueWork={handleContinuePaper}
         />
         <AlertDialog open={Boolean(paperPendingDelete)} onOpenChange={(open) => !open && setPaperPendingDelete(null)}>
           <AlertDialogContent>

@@ -751,6 +751,44 @@ def test_create_orchestrator_from_config_does_not_refine_topic_for_mock_provider
     assert orch.user_topic == "FSM"
 
 
+def test_continuation_source_is_included_in_planning_context():
+    config = _make_config()
+
+    class CapturingProvider(MockProvider):
+        def __init__(self):
+            self.prompts = []
+
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
+            self.prompts.append(user_prompt)
+            return "APPROVED" if "Check the provided text" in user_prompt else "Generated section content."
+
+    llm = CapturingProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(
+        writer=writer,
+        config=config,
+        continuation_source={
+            "source_type": "generated",
+            "topic": "Existing Work",
+            "context": {
+                "intro": "Existing introduction.",
+                "conclusion": "Existing final summary.",
+            },
+            "document_plan": "Existing plan.",
+        },
+    )
+    orch.user_topic = "Existing Work"
+    orch.user_instructions = "Extend with a new case study."
+
+    orch.run_pipeline(render_artifact=False)
+
+    planning_prompt = llm.prompts[0]
+    assert "[Continuation Source]" in planning_prompt
+    assert "Previous document topic/title: Existing Work" in planning_prompt
+    assert "Existing final summary." in planning_prompt
+    assert "Plan one coherent revised/continued document" in planning_prompt
+
+
 def test_strip_markdown_fences():
     from academic_pe.core.orchestrator import strip_markdown_fences
     

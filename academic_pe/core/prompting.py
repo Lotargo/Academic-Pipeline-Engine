@@ -24,6 +24,14 @@ Do not call sections "chapters" unless the user explicitly requested chapter-bas
 Avoid forward references to sections, tables, formulas, or chapters that do not exist in the current document.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
+{% if continuation_context|default("") %}
+
+[Continuation Mode]
+You are continuing an existing document, not starting a separate paper.
+Use the previous document as the semantic base: preserve its topic, argument chain, terminology, style, and useful structure unless the user explicitly requests a change.
+Produce the current section as part of one coherent revised/continued document. You may revise or replace closing/transition material from the previous work when needed to avoid duplicated introductions, duplicated conclusions, or a disconnected second document.
+The continuation source is available in the context data.
+{% endif %}
 
 {% if academic_mode|default(false) %}
 IMPORTANT: Since you are in Academic Mode, you MUST support your theoretical or computational claims with data visualizations (plots, charts, graphs).
@@ -48,6 +56,18 @@ DEFAULT_PLAN_TEMPLATE = """Create a compact writing plan for an academic documen
 {{ language_instruction }}
 User topic: {{ user_topic }}
 {% if user_instructions %}User instructions: {{ user_instructions }}{% endif %}
+{% if continuation_context|default("") %}
+
+[Continuation Source]
+{{ continuation_context }}
+
+Continuation planning rules:
+- Treat the previous document as the existing state of the work, not as a generic citation source.
+- Preserve the established topic, argument chain, terminology, style, and structure unless the new user instructions explicitly change them.
+- Decide which previous sections should be preserved, which terminal parts need trimming or rewriting, and what bridge is needed before new material.
+- Plan one coherent revised/continued document, not two detached documents.
+- Avoid duplicated introductions, duplicated conclusions, repeated bibliography blocks, and abrupt restarts.
+{% endif %}
 
 Configured sections:
 {% for section in sections -%}
@@ -62,6 +82,7 @@ Return a concise Markdown plan with:
 - thesis / central claim;
 - section-by-section goals;
 - terminology that must stay consistent;
+- continuation actions for preserved, revised, bridge, and newly expanded material when a continuation source is provided;
 - formulas or complexity claims that must not contradict each other;
 - forbidden inconsistencies, including missing section numbers or references to unavailable document parts.
 """
@@ -77,6 +98,12 @@ Preserve unaffected paragraphs, wording, Markdown structure, academic tone, and 
 Do not introduce new chapter numbering schemes, new missing references, or unrelated claims.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
+{% if continuation_context|default("") %}
+
+[Continuation Mode]
+This revision is part of a continued document. Preserve continuity with the previous work and make only the changes needed to create one coherent revised/continued document.
+If the current section is a terminal section from the old work, rewrite or trim final-sounding paragraphs so the new continuation does not read like a second document after a completed first document.
+{% endif %}
 
 {% if academic_mode|default(false) %}
 IMPORTANT: Since you are in Academic Mode, you MUST preserve or correct the python-run code block used for visualization. 
@@ -112,6 +139,11 @@ Rules:
 - Do not add explanations outside the blocks.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
+{% if continuation_context|default("") %}
+
+[Continuation Mode]
+When patching, preserve useful previous-work continuity and only replace the smallest lines needed to remove duplicated endings, disconnected transitions, contradictions, or stale final summaries.
+{% endif %}
 
 {% if academic_mode|default(false) %}
 IMPORTANT: Since you are in Academic Mode, ensure any visualizations (plots/charts) generated via ` ```python-run ` code blocks are preserved or correctly updated. Do not break the python-run structure.
@@ -122,6 +154,11 @@ IMPORTANT: Since you are in Academic Mode, ensure any visualizations (plots/char
 DEFAULT_REVIEW_TEMPLATE = """Check the provided text for material academic quality issues.
 Expected document language: {{ language }}.
 {% if review_focus %}Review focus from the previous attempt: {{ review_focus }}{% endif %}
+{% if continuation_context|default("") %}
+
+[Continuation Review]
+The document was generated in continuation mode. Reject if it reads as two separate documents, restarts the topic without need, duplicates introductions/conclusions, contradicts the previous work, loses the user's continuation request, or has an abrupt style/terminology shift.
+{% endif %}
 
 The text is provided with line numbers (e.g., "1: text") and section headers (e.g., "=== Section: section_name ===") for your convenience so you can refer to precise lines and sections. Do not complain about or try to fix the line numbers or section headers themselves, as they are added by the environment.
 

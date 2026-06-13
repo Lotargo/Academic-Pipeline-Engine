@@ -105,20 +105,38 @@ Tasks:
 
 ## Workstream 2: Document Attachments & Mistral OCR Integration
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Allow uploading reference files or previous works to extend or align new pipeline generations.
 
+### Continuation Mode Clarification
+
+The attachment/OCR feature is not only a passive reference-material upload. It must also support a direct "continue this work" workflow:
+
+- A user can take an already generated/archive document from the UI and start a continuation from it without manually downloading and re-uploading it.
+- A user can also upload an external previous work through Mistral OCR and ask the pipeline to continue, expand, or adapt it.
+- In continuation mode, all agents must treat the previous work as the semantic base and preserve its topic, argument chain, terminology, style, and already established structure unless the user explicitly asks to change them.
+- The pipeline must not simply append a disconnected second document. It should produce one coherent revised/continued document.
+- To make the continuation coherent, agents may need to rewrite or trim terminal parts of the previous work, especially conclusions, summaries, closing transitions, and final bibliography/appendix placement.
+- The Planner should detect where the previous work naturally ends, decide what must be preserved, what needs bridging/revision, and how the new user clarification continues the existing logic.
+- The Writer should draft new sections as a continuation of the prior argument, not as a restart from the original topic.
+- The Reviewer should check continuity: no duplicated introductions/conclusions, no contradiction with the previous work, no abrupt style shift, and no loss of the user's requested continuation details.
+
 Tasks:
 - [ ] Create file upload component in the UI workspace panel supporting PDF, DOCX, and MD.
+- [x] Add UI action to continue from an existing generated/archive document directly from the document/archive controls.
 - [ ] Integrate **Mistral OCR API** client in the backend to parse uploaded documents into clean Markdown.
 - [ ] Add a visual list of active attachments in the UI.
+- [~] Add attachment metadata distinguishing passive reference material from continuation source documents.
 - [ ] **Token Guardrail**:
   - [ ] Add `tiktoken` dependency in backend (`o200k_base` encoding).
   - [ ] Measure the token length of OCR-processed Markdown.
   - [ ] Make the token limit configurable (stored in the application configuration e.g. `config/agents.yaml`, default 20,000 tokens) to easily increase/decrease it.
   - [ ] Reject files exceeding the configured token limit with a clear validation message.
 - [ ] Inject parsed reference documents into the Planner context as background material/continuity source.
+- [x] Update Planner prompts so continuation sources are analyzed as existing document state, including preserved content, sections to revise/trim, bridge requirements, and new continuation sections.
+- [x] Update Writer prompts so generated content extends the existing document and can revise ending/transition sections instead of producing a separate standalone paper.
+- [x] Update Reviewer prompts/quality checks to validate continuity, avoid duplicated endings, and ensure the resulting output reads as one coherent document.
 
 ---
 

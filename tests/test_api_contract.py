@@ -21,3 +21,25 @@ def test_run_request_template_selection_fields_are_optional():
     assert payload.template_mode is None
     assert payload.template_id is None
     assert payload.author is None
+
+
+def test_run_request_accepts_continuation_source():
+    payload = RunRequest(
+        topic="AI Agent Design",
+        instructions="Extend with deployment risks.",
+        continuation_source={
+            "source_type": "generated",
+            "topic": "AI Agent Design",
+            "context": {
+                "intro": "Existing introduction.",
+                "conclusion": "Existing final summary.",
+            },
+            "document_plan": "Existing plan.",
+            "metadata_id": "paper.metadata.json",
+            "run_id": "run_20260613_120000",
+        },
+    )
+
+    assert payload.continuation_source is not None
+    assert payload.continuation_source.topic == "AI Agent Design"
+    assert payload.continuation_source.context["conclusion"] == "Existing final summary."

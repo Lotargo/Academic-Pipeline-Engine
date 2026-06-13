@@ -84,6 +84,7 @@ current_run = {
     "academic_mode": False,
     "run_id": None,
     "document_plan": None,
+    "continuation_source": None,
 }
 
 
@@ -240,12 +241,14 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "filename": data.get("docx_filename"),
         "pdf_filename": data.get("pdf_filename"),
         "topic": data.get("topic", "Unknown"),
+        "instructions": data.get("instructions"),
         "timestamp": data.get("timestamp", ""),
         "author": data.get("author"),
         "status": data.get("status", "COMPLETED"),
         "archived": bool(data.get("archived", False)),
         "archived_at": data.get("archived_at"),
         "context": data.get("context", {}),
+        "document_plan": data.get("document_plan"),
         "original_context": data.get("original_context", {}),
         "academic_mode": data.get("academic_mode", False),
         "logs": data.get("logs", []),
@@ -255,6 +258,7 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "template_id": data.get("template_id"),
         "runtime_template": data.get("runtime_template"),
         "runtime_prompt_manifest": data.get("runtime_prompt_manifest"),
+        "continuation_source": data.get("continuation_source"),
     }
 
 
@@ -541,6 +545,7 @@ def run_pipeline_thread(
     academic_mode: Optional[bool] = None,
     run_id: Optional[str] = None,
     author: Optional[str] = None,
+    continuation_source: Optional[dict] = None,
 ):
     global current_run, _current_orchestrator
     
@@ -566,7 +571,8 @@ def run_pipeline_thread(
             current_run["template_id"] = config.pipeline.template_id
             current_run["academic_mode"] = config.pipeline.academic_mode
             current_run["document_plan"] = None
-        
+            current_run["continuation_source"] = continuation_source
+
         # Apply legacy section-topic overrides only for the current custom structure.
         # Fixed templates must remain structurally bound to the selected template.
         if topic and config.pipeline.template_mode == TemplateMode.custom:
@@ -591,6 +597,7 @@ def run_pipeline_thread(
             config,
             user_topic=topic or "",
             user_instructions=instructions or "",
+            continuation_source=continuation_source,
         )
         with run_lock:
             current_run["topic"] = orch.user_topic
@@ -693,6 +700,7 @@ def run_pipeline_thread(
             "instructions": instructions,
             "author": author,
             "run_id": run_id,
+            "continuation_source": continuation_source,
             "template_mode": config.pipeline.template_mode.value,
             "template_id": config.pipeline.template_id,
             "runtime_template": (
@@ -778,6 +786,11 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         )
         current_run["run_id"] = run_id
         current_run["document_plan"] = None
+        current_run["continuation_source"] = (
+            payload.continuation_source.model_dump(mode="json")
+            if payload.continuation_source is not None
+            else None
+        )
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -788,6 +801,11 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         payload.academic_mode,
         run_id,
         payload.author,
+        (
+            payload.continuation_source.model_dump(mode="json")
+            if payload.continuation_source is not None
+            else None
+        ),
     )
     return {"status": "started", "message": "Pipeline execution started in the background"}
 

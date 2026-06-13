@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ArchiveRestore, FileText, Loader2, Trash2 } from "lucide-react"
+import { ArchiveRestore, FileText, Loader2, PlayCircle, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,6 +29,7 @@ interface ArchivedWorksModalProps {
   onOpenChange: (open: boolean) => void
   language: UiLanguage
   onRestored: () => void
+  onContinueWork?: (item: any) => void
 }
 
 const labels = {
@@ -68,7 +69,7 @@ const labels = {
   },
 } as const
 
-export function ArchivedWorksModal({ open, onOpenChange, language, onRestored }: ArchivedWorksModalProps) {
+export function ArchivedWorksModal({ open, onOpenChange, language, onRestored, onContinueWork }: ArchivedWorksModalProps) {
   const [items, setItems] = useState<any[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -84,6 +85,7 @@ export function ArchivedWorksModal({ open, onOpenChange, language, onRestored }:
       : "This permanently removes the archived record and related export files."
   const cancelLabel = language === "ru" ? "Отмена" : "Cancel"
   const deletedLabel = language === "ru" ? "Архивная работа удалена" : "Archived work deleted"
+  const continueLabel = language === "ru" ? "Продолжить" : "Continue"
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
@@ -210,6 +212,17 @@ export function ArchivedWorksModal({ open, onOpenChange, language, onRestored }:
                       <span>{t.timestamp}: {item.timestamp || "-"}</span>
                     </div>
                   </div>
+                  {onContinueWork && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => onContinueWork(item)}
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-ape-primary-soft hover:text-ape-primary-text"
+                      title={continueLabel}
+                    >
+                      <PlayCircle className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
