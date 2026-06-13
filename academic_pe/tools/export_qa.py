@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import ntpath
 import re
 import shutil
 import subprocess
@@ -50,6 +51,42 @@ class ExportResult:
 
 
 _RAW_MARKDOWN_RE = re.compile(r"(^|\s)(#{1,6}\s|\*\*[^*]+\*\*|\$[^$]+\$|\$\$[^$]+\$\$)")
+DEFAULT_EXPORT_FILENAME = "Final_Academic_Paper.docx"
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
+_UNSAFE_FILENAME_CHARS_RE = re.compile(r'[*?"<>|]')
+_WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+
+
+def sanitize_filename(title: str) -> str:
+    filename = _CONTROL_CHARS_RE.sub("", title or "")
+    filename = filename.replace("\\", "-").replace("/", "-").replace(":", " -")
+    filename = _UNSAFE_FILENAME_CHARS_RE.sub("", filename)
+    filename = filename.strip(" .")
+    if not filename:
+        return "Untitled"
+
+    stem = filename.rsplit(".", 1)[0]
+    if stem.upper() in _WINDOWS_RESERVED_NAMES:
+        filename = f"_{filename}"
+    return filename
+
+
+def resolve_export_filename(title: str, output_filename: Optional[str] = None) -> str:
+    filename = ntpath.basename(output_filename or DEFAULT_EXPORT_FILENAME)
+    if filename == DEFAULT_EXPORT_FILENAME:
+        filename = sanitize_filename(title)
+    else:
+        filename = sanitize_filename(filename)
+    if not filename.lower().endswith(".docx"):
+        filename = f"{filename}.docx"
+    return filename
 
 
 def inspect_docx_artifacts(docx_path: str, required_sections: List[str]) -> List[ExportIssue]:
@@ -151,7 +188,8 @@ def export_docx_with_qa(content: Dict[str, str], config: AppConfig, output_filen
     output_dir = config.pipeline.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
-    filename = os.path.basename(output_filename or config.pipeline.output_filename)
+    requested_filename = output_filename or config.pipeline.output_filename
+    filename = resolve_export_filename(config.pipeline.title, requested_filename)
     docx_path = os.path.join(output_dir, filename)
     render_paper(content, output_filename=docx_path, config=config)
 

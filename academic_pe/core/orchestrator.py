@@ -637,7 +637,12 @@ class Orchestrator:
             self.transition_to(PipelineState.RENDERING)
 
             if render_artifact and self._renderer is not None:
-                output_filename = self._config.pipeline.output_filename
+                from academic_pe.tools.export_qa import resolve_export_filename
+
+                title = self._config.pipeline.title or self.user_topic
+                if title == "GENERATED ACADEMIC PAPER" and self.user_topic:
+                    title = self.user_topic
+                output_filename = resolve_export_filename(title, self._config.pipeline.output_filename)
                 output_dir = self._config.pipeline.output_dir
                 os.makedirs(output_dir, exist_ok=True)
                 output_path = os.path.join(output_dir, output_filename)

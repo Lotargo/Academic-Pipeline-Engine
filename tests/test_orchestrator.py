@@ -80,6 +80,52 @@ def test_full_pipeline_mock():
     assert "conclusion" in orch.context
 
 
+def test_pipeline_renderer_uses_title_for_default_filename(tmp_path):
+    config = _make_config()
+    config.pipeline.output_dir = str(tmp_path)
+    config.pipeline.title = 'Количественный анализ: A/B "C"'
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+
+    seen: Dict[str, str] = {}
+
+    def fake_renderer(content, output_filename, config=None):
+        seen["output_filename"] = output_filename
+        return output_filename
+
+    orch = Orchestrator(
+        writer=writer,
+        config=config,
+        renderer=fake_renderer,
+    )
+
+    result = orch.run_pipeline()
+
+    assert result == str(tmp_path / "Количественный анализ - A-B C.docx")
+    assert seen["output_filename"] == result
+
+
+def test_pipeline_renderer_uses_user_topic_when_title_is_default_placeholder(tmp_path):
+    config = _make_config()
+    config.pipeline.output_dir = str(tmp_path)
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+
+    def fake_renderer(content, output_filename, config=None):
+        return output_filename
+
+    orch = Orchestrator(
+        writer=writer,
+        config=config,
+        renderer=fake_renderer,
+    )
+    orch.user_topic = "Direct Pipeline Topic"
+
+    result = orch.run_pipeline()
+
+    assert result == str(tmp_path / "Direct Pipeline Topic.docx")
+
+
 def test_create_orchestrator_from_config_applies_fixed_template_and_manifest():
     library = TemplateLibrary([
         DocumentTemplate(

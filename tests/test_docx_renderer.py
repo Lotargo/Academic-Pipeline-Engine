@@ -251,6 +251,26 @@ class TestNewRendererFeatures:
         assert doc.tables[0].rows[0].cells[0].text == "H1"
         assert doc.tables[0].rows[1].cells[1].text == "V2"
 
+    def test_numbered_lists_do_not_auto_increment_between_blocks(self, tmp_doc):
+        content = {
+            "theory": (
+                "1. First item\n"
+                "2. Second item\n\n"
+                "Plain text.\n\n"
+                "1. New first item\n"
+                "2. New second item\n"
+            )
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        paragraph_text = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+
+        assert "1. First item" in paragraph_text
+        assert "2. Second item" in paragraph_text
+        assert "1. New first item" in paragraph_text
+        assert "2. New second item" in paragraph_text
+        assert "3. New first item" not in paragraph_text
+
     def test_renders_chart_placeholder(self, tmp_doc):
         content = {
             "calculation": "Calculations\n\n[Chart: Test Performance]\n"

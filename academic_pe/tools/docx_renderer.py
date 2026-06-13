@@ -381,10 +381,22 @@ def _render_markdown_block(
                 if list_match:
                     marker = list_match.group(2)
                     body = list_match.group(3)
-                    style = "List Number" if marker[0].isdigit() else "List Bullet"
-                    paragraph = doc.add_paragraph(style=style)
-                    paragraph.paragraph_format.space_after = Pt(3)
-                    add_formatted_text(paragraph, body, font_name=font_name, font_size=font_size)
+                    if marker[0].isdigit():
+                        # Numbered list: render manually to avoid auto-incrementing across the document.
+                        paragraph = doc.add_paragraph(style="Body Text")
+                        paragraph.paragraph_format.left_indent = Cm(0.75)
+                        paragraph.paragraph_format.first_line_indent = Cm(0.0)
+                        paragraph.paragraph_format.line_spacing = line_spacing
+                        paragraph.paragraph_format.space_after = Pt(3)
+
+                        prefix_run = paragraph.add_run(f"{marker} ")
+                        set_font_style(prefix_run, font_name=font_name, font_size=font_size)
+                        add_formatted_text(paragraph, body, font_name=font_name, font_size=font_size)
+                    else:
+                        # Bullet list
+                        paragraph = doc.add_paragraph(style="List Bullet")
+                        paragraph.paragraph_format.space_after = Pt(3)
+                        add_formatted_text(paragraph, body, font_name=font_name, font_size=font_size)
         elif current_block_type == "block_math":
             math_text = block_text.strip()
             if math_text.startswith("$$") and math_text.endswith("$$"):
