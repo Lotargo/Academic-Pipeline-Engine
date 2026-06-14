@@ -960,6 +960,42 @@ def test_create_orchestrator_from_config_infers_legacy_continuation_artifact_met
     assert "(artifact creative_poem)" in metadata["contract_sexpr"]
 
 
+def test_create_orchestrator_from_config_preserves_low_confidence_continuation_style_hints():
+    config = _make_config()
+    manifests = {
+        "unknown_freeform": ArtifactManifest(
+            id="unknown_freeform",
+            artifact_type="unknown_freeform",
+            structure=["preserve_apparent_structure"],
+            forbid=["academic_drift", "invented_structure"],
+        ),
+    }
+
+    orch = create_orchestrator_from_config(
+        config,
+        user_topic="Continue",
+        user_instructions="Keep the odd fragment log going.",
+        continuation_source={
+            "context": {
+                "fragment_a": "Moonlog: silver dust / no headings / two short columns.",
+                "fragment_b": "Spare verbs. Field-note rhythm. No essay frame.",
+            },
+        },
+        artifact_manifest_resolver=ArtifactManifestResolver(manifests=manifests),
+    )
+
+    metadata = orch.runtime_prompt_manifest.metadata
+    requirements = metadata["resolved_contract"]["requirements"]
+    assert metadata["resolved_manifest"]["id"] == "unknown_freeform"
+    assert requirements["preserve_style_and_avoid_new_structure"] is True
+    assert requirements["preserve_source_voice"] is True
+    assert requirements["avoid_new_sections_unless_requested"] is True
+    assert requirements["source_section_order"] == ["fragment_a", "fragment_b"]
+    assert "Moonlog: silver dust" in requirements["source_style_sample"]
+    assert "(requirement preserve_source_voice true)" in metadata["contract_sexpr"]
+    assert '(requirement source_section_order ("fragment_a" "fragment_b"))' in metadata["contract_sexpr"]
+
+
 def test_pipeline_fails_on_contract_drift_without_reviewer():
     class DriftMockProvider(MockProvider):
         def __init__(self):

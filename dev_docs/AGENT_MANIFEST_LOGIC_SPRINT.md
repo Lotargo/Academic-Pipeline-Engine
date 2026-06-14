@@ -438,7 +438,7 @@ Tasks:
 
 ## Workstream 8: Continuation Manifest Memory
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Make continuation inherit the previous artifact's resolved behavior, not just previous text.
 
@@ -449,7 +449,7 @@ Tasks:
   - confidence;
   - user phrases that triggered selection;
   - ambiguity notes.
-- [~] Continuation priority order:
+- [x] Continuation priority order:
   1. explicit current user instruction;
   2. previous resolved manifest;
   3. previous user prompt;
@@ -458,7 +458,12 @@ Tasks:
   6. artifact manifest defaults;
   7. unknown fallback manifest.
 - [x] If old history metadata lacks `resolved_manifest`, infer from stored prompt, plan, runtime template, and document text.
-- [ ] If inference confidence is low, preserve style from the existing text and avoid adding new structure.
+- [x] If inference confidence is low, preserve style from the existing text and avoid adding new structure.
+
+Implementation notes:
+- Low-confidence continuation now compiles explicit contract requirements to preserve source voice and avoid new sections unless requested.
+- Resolver extracts compact source section order and source style samples from previous context/runtime metadata.
+- These preservation hints are persisted in `resolved_contract`, rendered in the contract S-expression, and carried through orchestrator metadata.
 
 ---
 

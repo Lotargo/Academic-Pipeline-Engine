@@ -93,6 +93,12 @@ def test_resolver_style_preservation_on_low_confidence_fallback(tmp_path):
     assert resolved.manifest.id == "unknown_freeform"
     assert resolved.evidence.confidence <= 0.65
     assert resolved.contract.requirements.get("preserve_style_and_avoid_new_structure") is True
+    assert resolved.contract.requirements.get("preserve_source_voice") is True
+    assert resolved.contract.requirements.get("avoid_new_sections_unless_requested") is True
+    assert resolved.contract.requirements.get("source_section_order") == ["text"]
+    assert resolved.contract.requirements.get("source_style_sample") == "Some text in a unique structure."
+    assert '(requirement source_section_order ("text"))' in resolved.contract_sexpr
+    assert '(requirement source_style_sample "Some text in a unique structure.")' in resolved.contract_sexpr
 
 
 def test_resolver_user_override_wins_over_continuation(tmp_path):

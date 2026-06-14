@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from academic_pe.contracts.compiler import compile_artifact_contract
 from academic_pe.contracts.models import ArtifactContract
@@ -192,9 +192,9 @@ class ArtifactManifestResolver:
                 manifest = current_manifest
                 evidence = current_evidence
 
-        extra_reqs = {}
+        extra_reqs: dict[str, Any] = {}
         if mode == "continuation" and evidence.confidence < 0.65:
-            extra_reqs["preserve_style_and_avoid_new_structure"] = True
+            extra_reqs.update(_low_confidence_continuation_requirements(continuation_metadata))
 
         resolved_execution_mode = execution_mode or ("academic" if academic_mode else "standard")
         contract = compile_artifact_contract(
@@ -280,3 +280,89 @@ class ArtifactManifestResolver:
                 return manifest_id
         return None
 
+
+def _low_confidence_continuation_requirements(continuation_metadata: Optional[dict]) -> dict[str, Any]:
+    requirements: dict[str, Any] = {
+        "preserve_style_and_avoid_new_structure": True,
+        "preserve_source_voice": True,
+        "avoid_new_sections_unless_requested": True,
+    }
+    if not continuation_metadata:
+        return requirements
+
+    section_names = _source_section_names(continuation_metadata)
+    if section_names:
+        requirements["source_section_order"] = section_names[:12]
+
+    style_sample = _source_style_sample(continuation_metadata)
+    if style_sample:
+        requirements["source_style_sample"] = style_sample
+
+    return requirements
+
+
+def _source_section_names(continuation_metadata: dict) -> list[str]:
+    context = continuation_metadata.get("context")
+    if isinstance(context, dict):
+        names = [
+            str(name)
+            for name, content in context.items()
+            if name != "document_plan" and isinstance(content, str) and content.strip()
+        ]
+        if names:
+            return names
+
+    runtime_template = continuation_metadata.get("runtime_template")
+    if isinstance(runtime_template, dict):
+        sections = runtime_template.get("sections")
+        if isinstance(sections, list):
+            names = []
+            for section in sections:
+                if not isinstance(section, dict):
+                    continue
+                raw_name = section.get("name") or section.get("title")
+                if isinstance(raw_name, str) and raw_name.strip():
+                    names.append(raw_name.strip())
+            return names
+
+    return []
+
+
+def _source_style_sample(continuation_metadata: dict, *, limit: int = 700) -> str:
+    samples: list[str] = []
+
+    context = continuation_metadata.get("context")
+    if isinstance(context, dict):
+        for name, content in context.items():
+            if name == "document_plan" or not isinstance(content, str):
+                continue
+            excerpt = _compact_excerpt(content)
+            if excerpt:
+                samples.append(excerpt)
+            if sum(len(item) for item in samples) >= limit:
+                break
+
+    if not samples:
+        for key in ["previous_prompt", "instructions", "document_plan"]:
+            value = continuation_metadata.get(key)
+            if isinstance(value, str):
+                excerpt = _compact_excerpt(value)
+                if excerpt:
+                    samples.append(excerpt)
+            if sum(len(item) for item in samples) >= limit:
+                break
+
+    combined = "\n---\n".join(samples)
+    if len(combined) <= limit:
+        return combined
+    return combined[: limit - 3].rstrip() + "..."
+
+
+def _compact_excerpt(text: str, *, limit: int = 360) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    excerpt = "\n".join(lines[:8])
+    if len(excerpt) <= limit:
+        return excerpt
+    return excerpt[: limit - 3].rstrip() + "..."

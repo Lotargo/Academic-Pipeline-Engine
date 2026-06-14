@@ -252,7 +252,21 @@ def test_resolver_enforces_style_preservation_on_low_confidence_continuation(tmp
         topic="A strange niche artifact",
         instructions="Make it exactly in this odd structure.",
         mode="continuation",
+        continuation_metadata={
+            "context": {
+                "fragment_a": "Moonlog: silver dust / no headings / two short columns.",
+                "fragment_b": "Keep the field-note rhythm, spare verbs, and slash-separated fragments.",
+            }
+        },
     )
     assert resolved.manifest.id == "unknown_freeform"
     assert resolved.evidence.confidence == 0.25
     assert resolved.contract.requirements.get("preserve_style_and_avoid_new_structure") is True
+    assert resolved.contract.requirements.get("preserve_source_voice") is True
+    assert resolved.contract.requirements.get("avoid_new_sections_unless_requested") is True
+    assert resolved.contract.requirements.get("source_section_order") == ["fragment_a", "fragment_b"]
+    assert "Moonlog: silver dust" in resolved.contract.requirements.get("source_style_sample", "")
+    assert "slash-separated fragments" in resolved.contract.requirements.get("source_style_sample", "")
+    assert "(requirement avoid_new_sections_unless_requested true)" in resolved.contract_sexpr
+    assert "(requirement preserve_source_voice true)" in resolved.contract_sexpr
+    assert '(requirement source_section_order ("fragment_a" "fragment_b"))' in resolved.contract_sexpr
