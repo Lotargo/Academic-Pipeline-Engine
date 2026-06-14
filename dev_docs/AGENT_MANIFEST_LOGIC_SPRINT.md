@@ -304,8 +304,8 @@ Tasks:
   - reviewer contract;
   - researcher contract;
   - exporter contract.
-- [ ] Persist the resolved contract in history metadata.
-- [ ] On continuation, inherit the previous resolved contract before applying the new user instruction.
+- [x] Persist the resolved contract in history metadata.
+- [x] On continuation, inherit the previous resolved contract before applying the new user instruction.
 - [x] Add drift checks that compare final agent output against the contract.
 
 Design constraints:
@@ -347,13 +347,13 @@ Tasks:
 
 ## Workstream 8: Continuation Manifest Memory
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Make continuation inherit the previous artifact's resolved behavior, not just previous text.
 
 Tasks:
-- [ ] Save `resolved_manifest` into history metadata for every generation.
-- [ ] Save manifest selection evidence:
+- [x] Save `resolved_manifest` into history metadata for every generation.
+- [x] Save manifest selection evidence:
   - detected artifact type;
   - confidence;
   - user phrases that triggered selection;
@@ -373,12 +373,12 @@ Tasks:
 
 ## Workstream 9: AI-Marker And Human-Style Guardrails
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Ensure all agents avoid obvious AI-generated markers and machine-like artifacts while preserving the requested genre.
 
 Tasks:
-- [ ] Add global negative constraints for final content:
+- [~] Add global negative constraints for final content:
   - no AI self-reference;
   - no "as an AI" phrasing;
   - no meta-comments about generation;
@@ -392,7 +392,7 @@ Tasks:
   - school writing: age-appropriate, natural student-like register when requested;
   - README: practical, concrete, no invented features;
   - academic writing: formal but not empty, no generic AI-style filler.
-- [ ] Add reviewer drift checks for:
+- [~] Add reviewer drift checks for:
   - artificial smoothness;
   - repeated syntactic patterns;
   - generic transitions;

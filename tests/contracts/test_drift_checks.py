@@ -89,6 +89,23 @@ def test_detects_ai_markers_and_placeholders():
     assert "AI/meta" in result.issues[0]
 
 
+def test_detects_apology_wrappers_and_template_filler():
+    result = check_ai_markers(
+        _contract(),
+        {
+            "story": (
+                "Here is the requested story.\n"
+                "I apologize, but this is only a draft.\n"
+                "[TODO] Add real ending.\n"
+                "Lorem ipsum."
+            )
+        },
+    )
+
+    assert not result.passed
+    assert "AI/meta" in result.issues[0]
+
+
 def test_detects_forbidden_citation_apparatus():
     result = check_forbidden_citations(
         _contract(),

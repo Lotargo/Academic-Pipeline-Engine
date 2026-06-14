@@ -1,5 +1,12 @@
 from fastapi.testclient import TestClient
-from academic_pe.server import app, current_run, run_lock
+from academic_pe.server import (
+    _artifact_manifest_metadata,
+    _history_item_from_metadata,
+    _with_artifact_manifest_metadata,
+    app,
+    current_run,
+    run_lock,
+)
 from academic_pe.api_models import ExportRequest
 import json
 import os
@@ -25,6 +32,38 @@ def test_export_request_validation():
     assert req.runtime_template["name"] == "Dynamic Schema"
     assert req.author == "Lotargo"
     assert req.run_id == "run_20260613_120000"
+
+
+def test_artifact_manifest_metadata_is_flattened_for_history_items():
+    runtime_prompt_manifest = {
+        "metadata": {
+            "resolved_manifest": {"id": "creative_poem", "version": 1},
+            "resolved_contract": {"artifact": "creative_poem", "visualization_required": False},
+            "contract_sexpr": "(document\n  (artifact creative_poem)\n)",
+            "manifest_selection": {
+                "manifest_id": "creative_poem",
+                "confidence": 0.9,
+                "matched_phrases": ["poem"],
+                "ambiguity_notes": [],
+            },
+        }
+    }
+
+    metadata = _with_artifact_manifest_metadata(
+        {
+            "topic": "Poem",
+            "timestamp": "2026-06-13 12:00:00",
+            "runtime_prompt_manifest": runtime_prompt_manifest,
+        }
+    )
+    history_item = _history_item_from_metadata("poem.20260613120000.metadata.json", metadata)
+
+    assert _artifact_manifest_metadata(runtime_prompt_manifest)["resolved_manifest"]["id"] == "creative_poem"
+    assert metadata["resolved_manifest"]["id"] == "creative_poem"
+    assert metadata["resolved_contract"]["artifact"] == "creative_poem"
+    assert metadata["manifest_selection"]["matched_phrases"] == ["poem"]
+    assert history_item["resolved_manifest"]["id"] == "creative_poem"
+    assert history_item["contract_sexpr"].startswith("(document")
 
 def test_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
     # Mock export_docx_with_qa to avoid actual LibreOffice call or file rendering

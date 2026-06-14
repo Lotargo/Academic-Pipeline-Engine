@@ -953,6 +953,14 @@ def _continuation_manifest_metadata(continuation_source: Optional[Dict[str, Any]
     if not continuation_source:
         return None
 
+    top_level_metadata = {
+        key: continuation_source[key]
+        for key in ["resolved_manifest", "resolved_contract", "contract_sexpr", "manifest_selection"]
+        if key in continuation_source
+    }
+    if top_level_metadata:
+        return top_level_metadata
+
     runtime_prompt_manifest = continuation_source.get("runtime_prompt_manifest")
     if isinstance(runtime_prompt_manifest, dict):
         metadata = runtime_prompt_manifest.get("metadata")

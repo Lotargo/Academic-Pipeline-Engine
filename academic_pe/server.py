@@ -86,6 +86,10 @@ current_run = {
     "run_id": None,
     "document_plan": None,
     "continuation_source": None,
+    "resolved_manifest": None,
+    "resolved_contract": None,
+    "contract_sexpr": None,
+    "manifest_selection": None,
 }
 
 
@@ -269,8 +273,32 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "template_id": data.get("template_id"),
         "runtime_template": data.get("runtime_template"),
         "runtime_prompt_manifest": data.get("runtime_prompt_manifest"),
+        "resolved_manifest": data.get("resolved_manifest"),
+        "resolved_contract": data.get("resolved_contract"),
+        "contract_sexpr": data.get("contract_sexpr"),
+        "manifest_selection": data.get("manifest_selection"),
         "continuation_source": data.get("continuation_source"),
     }
+
+
+def _artifact_manifest_metadata(runtime_prompt_manifest: Optional[dict]) -> dict:
+    if not isinstance(runtime_prompt_manifest, dict):
+        return {}
+
+    metadata = runtime_prompt_manifest.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+
+    keys = ["resolved_manifest", "resolved_contract", "contract_sexpr", "manifest_selection"]
+    return {key: metadata[key] for key in keys if key in metadata}
+
+
+def _with_artifact_manifest_metadata(metadata: dict) -> dict:
+    runtime_prompt_manifest = metadata.get("runtime_prompt_manifest")
+    artifact_metadata = _artifact_manifest_metadata(runtime_prompt_manifest)
+    for key, value in artifact_metadata.items():
+        metadata.setdefault(key, value)
+    return metadata
 
 
 def _delete_export_asset(docx_name: Optional[str]) -> None:
@@ -657,6 +685,11 @@ def run_pipeline_thread(
                 if orch.runtime_prompt_manifest is not None
                 else None
             )
+            artifact_metadata = _artifact_manifest_metadata(current_run["runtime_prompt_manifest"])
+            current_run["resolved_manifest"] = artifact_metadata.get("resolved_manifest")
+            current_run["resolved_contract"] = artifact_metadata.get("resolved_contract")
+            current_run["contract_sexpr"] = artifact_metadata.get("contract_sexpr")
+            current_run["manifest_selection"] = artifact_metadata.get("manifest_selection")
         
         # Store orchestrator for cancellation
         with _orchestrator_lock:
@@ -741,7 +774,7 @@ def run_pipeline_thread(
             metadata_dir,
             f"{metadata_stem}.{datetime.now().strftime('%Y%m%d%H%M%S')}.metadata.json",
         )
-        metadata = {
+        metadata = _with_artifact_manifest_metadata({
             "topic": topic,
             "instructions": instructions,
             "previous_prompt": _build_previous_prompt(topic, instructions),
@@ -769,7 +802,7 @@ def run_pipeline_thread(
             "academic_mode": config.pipeline.academic_mode,
             "logs": current_run["logs"],
             "reviewer_feedback": current_run["reviewer_feedback"]
-        }
+        })
         with open(metadata_filename, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
         success = True
@@ -834,6 +867,10 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         )
         current_run["run_id"] = run_id
         current_run["document_plan"] = None
+        current_run["resolved_manifest"] = None
+        current_run["resolved_contract"] = None
+        current_run["contract_sexpr"] = None
+        current_run["manifest_selection"] = None
         current_run["continuation_source"] = (
             payload.continuation_source.model_dump(mode="json")
             if payload.continuation_source is not None
@@ -1002,7 +1039,7 @@ def _write_export_metadata(
         metadata_dir,
         f"{Path(result.filename).stem}.{datetime.now().strftime('%Y%m%d%H%M%S')}.metadata.json",
     )
-    metadata = {
+    metadata = _with_artifact_manifest_metadata({
         "topic": topic,
         "instructions": current_run.get("instructions"),
         "previous_prompt": _build_previous_prompt(topic, current_run.get("instructions")),
@@ -1023,7 +1060,7 @@ def _write_export_metadata(
         "logs": current_run.get("logs", []),
         "reviewer_feedback": current_run.get("reviewer_feedback", []),
         "export_report": result.to_dict(),
-    }
+    })
     with open(metadata_filename, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
 
