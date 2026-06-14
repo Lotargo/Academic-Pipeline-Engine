@@ -426,27 +426,12 @@ async def refresh_examples():
 
 
 def _build_prompt_enhancement_prompt(topic: str, instructions: Optional[str], lang: str) -> str:
-    return (
-        "You are a genre-preserving writing prompt editor for an automated document pipeline.\n"
-        "Your task is to refine the user's raw topic and instructions without changing the requested genre, audience, tone, or output type.\n"
-        f"Generate the enhanced topic and instructions in the language corresponding to '{lang}' "
-        "(e.g., if 'ru' write in Russian, if 'en' write in English).\n\n"
-        f"Raw Topic: {topic}\n"
-        f"Raw Guidelines/Instructions: {instructions or ''}\n\n"
-        "Crucial Alignment Rules:\n"
-        "1. Preserve the user's intent exactly. If the user asks for a poem, story, fairy tale, letter, speech, school essay, report, or other non-academic genre, keep that genre. Do not convert it into an academic paper, rubric, assignment sheet, evaluation criteria, or bureaucratic specification.\n"
-        "2. Preserve all concrete details from the raw request: title, characters, setting, required phrases, class/year, author name, length, style, forbidden words, desired mood, and continuation constraints.\n"
-        "3. For creative writing tasks, improve only the creative brief: imagery, mood, voice, rhythm, rhyme, narrator, target audience, length, and constraints. Do not add title pages, citations, source requirements, H2/H3 headings, font sizes, page numbering, grading criteria, or document bureaucracy unless the user explicitly asked for them.\n"
-        "4. For school-level or informal tasks, keep the requested level and natural language. Do not make the output more academic, technical, formal, or adult than requested.\n"
-        "5. For technical/scientific/academic tasks only, add academic structure, formulas, citations, terminology consistency, and formal tone when they fit the domain.\n"
-        "6. Keep the pipeline constraints digital: never add physical-world instructions such as printing, binding, physical submission, or hand-signing.\n"
-        "7. Explicitly forbid placeholders, AI self-references, and meta-text that would appear in the final generated document.\n\n"
-        "Return ONLY a valid JSON object matching the schema below. Do not include markdown code block fences, wrapper text, or explanations outside the JSON object.\n"
-        "Schema:\n"
-        "{\n"
-        '  "topic": "Enhanced topic/title that preserves the requested genre",\n'
-        '  "instructions": "Concise, genre-preserving writing instructions for the pipeline"\n'
-        "}"
+    from academic_pe.agent_adapters import build_prompt_enhancement_prompt
+
+    return build_prompt_enhancement_prompt(
+        topic=topic,
+        instructions=instructions,
+        language=lang,
     )
 
 

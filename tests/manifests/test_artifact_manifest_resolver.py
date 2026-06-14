@@ -75,6 +75,17 @@ def test_resolver_selects_poem_without_forced_visualization(tmp_path):
     assert "(artifact creative_poem)" in resolved.contract_sexpr
 
 
+def test_resolver_selects_poem_from_russian_cues(tmp_path):
+    resolved = _resolver(tmp_path).resolve(
+        topic="Дама в красном",
+        instructions="Сочинить стихотворение не менее 12 строк.",
+        language="ru",
+    )
+
+    assert resolved.manifest.id == "creative_poem"
+    assert any(match in {"стих", "стихотвор"} for match in resolved.evidence.matched_phrases)
+
+
 def test_resolver_selects_readme_and_preserves_technical_artifact(tmp_path):
     resolved = _resolver(tmp_path).resolve(
         topic="Project README",

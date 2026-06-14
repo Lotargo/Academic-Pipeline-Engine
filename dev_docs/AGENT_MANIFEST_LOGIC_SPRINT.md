@@ -32,7 +32,7 @@ The pipeline has two execution modes:
 
 ## Workstream 1: Manifest Architecture
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Introduce layered manifests that define document/artifact intent separately from agent execution behavior.
 
@@ -149,12 +149,12 @@ Boundary rules:
 
 ## Workstream 3: Agent Adapter Manifests
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Give each agent a manifest adapter so the same artifact manifest is interpreted correctly for that agent's job.
 
 Tasks:
-- [ ] Add prompt-enhancer adapter:
+- [x] Add prompt-enhancer adapter:
   - clarify the brief;
   - preserve artifact type;
   - do not add new scope or bureaucracy.
@@ -181,7 +181,7 @@ Tasks:
 
 ## Workstream 4: Standard vs Academic Execution Modes
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Make `academic_mode` a manifest overlay that changes reasoning depth and quality discipline without destroying the requested artifact type.
 
@@ -318,29 +318,29 @@ Design constraints:
 
 ## Workstream 7: Prompt Enhancer Refactor
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Replace the current single prompt-enhancement prompt with manifest-driven intent routing and controlled enhancement.
 
 Tasks:
-- [ ] Add intent router for artifact type detection.
+- [x] Add intent router for artifact type detection.
 - [ ] Treat examples as illustrative, not exhaustive.
-- [ ] Add fallback behavior for unknown artifact types:
+- [x] Add fallback behavior for unknown artifact types:
   - preserve apparent artifact type;
   - improve minimally;
   - do not convert to academic paper;
   - do not invent structure.
-- [ ] Add lightweight ToT-style candidate generation internally:
+- [~] Add lightweight ToT-style candidate generation internally:
   - conservative candidate;
   - detailed candidate;
   - creative/structural candidate when appropriate.
-- [ ] Add critic/gate that rejects candidates that:
+- [~] Add critic/gate that rejects candidates that:
   - change artifact type;
   - add title pages/rubrics/citations without request;
   - introduce academic drift;
   - lose user details;
   - add AI markers or meta-text.
-- [ ] Return only the final `topic` and `instructions` JSON to the UI.
+- [x] Return only the final `topic` and `instructions` JSON to the UI.
 - [ ] Optionally store a short `decision_summary` for debug metadata, without exposing long chain-of-thought.
 
 ---
