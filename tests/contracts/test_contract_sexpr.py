@@ -34,6 +34,7 @@ def test_contract_renderer_is_stable_and_escapes_strings():
     assert rendered == render_contract_sexpr(contract)
     assert '(artifact unknown_freeform)' in rendered
     assert '(language ru)' in rendered
+    assert '(clauses standard_mode)' in rendered
     assert '(forbid academic_drift title_page)' in rendered
     assert '(content_boundary adult_content ' in rendered
     assert '(explicitness "user_requested")' in rendered
@@ -60,6 +61,7 @@ def test_academic_overlay_does_not_force_visualization_for_poem():
     contract = compile_artifact_contract(manifest, execution_mode="academic")
 
     assert contract.visualization_required is False
+    assert contract.clauses == ["academic_mode"]
     assert "research_paper_structure" in contract.forbid
     assert "forced_visualization" in contract.forbid
 
@@ -79,4 +81,5 @@ def test_academic_paper_overlay_can_require_visualization():
     contract = compile_artifact_contract(manifest, execution_mode="academic")
 
     assert contract.visualization_required is True
+    assert "(clauses academic_mode)" in render_contract_sexpr(contract)
     assert contract.requirements["evidence_discipline"] is True

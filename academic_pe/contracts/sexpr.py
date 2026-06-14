@@ -15,6 +15,8 @@ def render_contract_sexpr(contract: ArtifactContract) -> str:
     lines.append(f"  (audience {_atom(contract.audience)})")
     lines.append(f"  (mode {_atom(contract.mode)})")
     lines.append(f"  (execution_mode {_atom(contract.execution_mode)})")
+    if contract.clauses:
+        lines.append("  (clauses " + " ".join(_atom(item) for item in contract.clauses) + ")")
     if contract.structure:
         lines.append("  (structure " + " ".join(_atom(item) for item in contract.structure) + ")")
     if contract.forbid:

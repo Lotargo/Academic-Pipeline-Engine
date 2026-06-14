@@ -785,13 +785,44 @@ def test_create_orchestrator_from_config_stores_resolved_artifact_contract_metad
     metadata = orch.runtime_prompt_manifest.metadata
     assert metadata["resolved_manifest"]["id"] == "technical_readme"
     assert metadata["resolved_contract"]["artifact"] == "technical_readme"
+    assert metadata["resolved_contract"]["execution_mode"] == "academic"
+    assert metadata["resolved_contract"]["clauses"] == ["academic_mode"]
     assert metadata["resolved_contract"]["visualization_required"] is False
     assert set(metadata["manifest_selection"]["matched_phrases"]) >= {"readme", "installation", "usage"}
     assert "(artifact technical_readme)" in metadata["contract_sexpr"]
     assert "[Active Artifact Contract]" in orch._writer.config.system_prompt
     assert "(artifact technical_readme)" in orch._writer.config.system_prompt
+    assert "(clauses academic_mode)" in orch._writer.config.system_prompt
     assert "(visualization_required false)" in orch._writer.config.system_prompt
     assert "python-run" not in orch._writer.config.system_prompt
+
+
+def test_orchestrator_runtime_flags_prefer_contract_clauses_over_pipeline_boolean():
+    config = _make_config()
+    config.pipeline.academic_mode = True
+    writer = DefaultAgent(config.agents["writer"], MockProvider())
+    runtime_manifest = RuntimePromptManifest(
+        source=RuntimeTemplateSource.custom,
+        prompt_manifest=PromptManifest(writer_role="Writer", reviewer_role="Reviewer"),
+        metadata={
+            "resolved_contract": {
+                "manifest_id": "creative_poem",
+                "artifact": "creative_poem",
+                "execution_mode": "standard",
+                "clauses": ["standard_mode"],
+                "visualization_required": False,
+            }
+        },
+    )
+
+    orch = Orchestrator(
+        writer=writer,
+        config=config,
+        runtime_prompt_manifest=runtime_manifest,
+    )
+
+    assert orch._academic_mode_enabled() is False
+    assert orch._sandbox_enabled() is False
 
 
 def test_create_orchestrator_from_config_inherits_continuation_artifact_metadata():

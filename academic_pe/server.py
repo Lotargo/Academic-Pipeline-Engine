@@ -461,13 +461,19 @@ async def refresh_examples():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _build_prompt_enhancement_prompt(topic: str, instructions: Optional[str], lang: str) -> str:
+def _build_prompt_enhancement_prompt(
+    topic: str,
+    instructions: Optional[str],
+    lang: str,
+    academic_mode: bool = False,
+) -> str:
     from academic_pe.agent_adapters import build_prompt_enhancement_prompt
 
     return build_prompt_enhancement_prompt(
         topic=topic,
         instructions=instructions,
         language=lang,
+        academic_mode=academic_mode,
     )
 
 
@@ -491,7 +497,12 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
 
     lang = config.ui.language
 
-    prompt = _build_prompt_enhancement_prompt(payload.topic, payload.instructions, lang)
+    prompt = _build_prompt_enhancement_prompt(
+        payload.topic,
+        payload.instructions,
+        lang,
+        academic_mode=payload.academic_mode if payload.academic_mode is not None else config.pipeline.academic_mode,
+    )
 
     loop = asyncio.get_running_loop()
 

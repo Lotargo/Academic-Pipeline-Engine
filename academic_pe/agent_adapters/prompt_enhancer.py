@@ -15,6 +15,7 @@ class PromptEnhancerManifestResolver(Protocol):
         topic: str = "",
         instructions: str = "",
         academic_mode: bool = False,
+        execution_mode: Optional[str] = None,
         language: str = "auto",
         mode: str = "new",
         continuation_metadata: Optional[dict] = None,
@@ -115,7 +116,7 @@ def build_prompt_enhancement_prompt(
             "output more academic, technical, formal, or adult than requested."
         ),
         (
-            "6. Academic mode means compatible rigor, not automatic research-paper structure. Keep the artifact "
+            "6. The academic_mode clause means compatible rigor, not automatic research-paper structure. Keep the artifact "
             "itself unless the user explicitly asks to change it."
         ),
         (
@@ -164,7 +165,7 @@ def _resolve_manifest(
         return selected_resolver.resolve(
             topic=topic,
             instructions=instructions,
-            academic_mode=academic_mode,
+            execution_mode="academic" if academic_mode else "standard",
             language=language,
             mode="continuation" if continuation_metadata else "new",
             continuation_metadata=continuation_metadata,

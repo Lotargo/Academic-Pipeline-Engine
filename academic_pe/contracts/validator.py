@@ -53,6 +53,8 @@ def contract_validation_issues(contract: ArtifactContract) -> list[str]:
         _append_name_issues(issues, f"style[{index}]", name)
     for index, name in enumerate(contract.structure):
         _append_name_issues(issues, f"structure[{index}]", name)
+    for index, name in enumerate(contract.clauses):
+        _append_name_issues(issues, f"clauses[{index}]", name)
     for index, name in enumerate(contract.forbid):
         _append_name_issues(issues, f"forbid[{index}]", name)
     for key, value in contract.requirements.items():

@@ -16,6 +16,7 @@ def test_validate_contract_accepts_safe_data_contract():
         artifact="creative_poem",
         style=["human", "natural"],
         structure=["lines", "stanzas"],
+        clauses=["standard_mode"],
         forbid=["academic_drift", "title_page"],
         requirements={
             "min_lines": 12,
@@ -66,6 +67,17 @@ def test_validate_contract_rejects_unsafe_requirement_keys():
     )
 
     with pytest.raises(ContractValidationError, match="reserved contract name 'os.system'"):
+        validate_contract(contract)
+
+
+def test_validate_contract_rejects_unsafe_clause_names():
+    contract = ArtifactContract(
+        manifest_id="creative_poem",
+        artifact="creative_poem",
+        clauses=["academic mode"],
+    )
+
+    with pytest.raises(ContractValidationError, match="safe atom name"):
         validate_contract(contract)
 
 
@@ -137,5 +149,6 @@ def test_compile_artifact_contract_carries_content_boundaries():
 
     contract = compile_artifact_contract(manifest)
 
+    assert contract.clauses == ["standard_mode"]
     assert contract.content_boundaries["adult_content"]["require_consent"] is True
     assert contract.content_boundaries["adult_content"]["forbid"] == ["minors", "coercion"]

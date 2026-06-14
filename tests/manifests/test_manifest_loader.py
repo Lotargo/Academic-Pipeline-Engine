@@ -70,8 +70,10 @@ def test_default_manifests_encode_standard_vs_academic_boundaries():
     academic_paper = compile_artifact_contract(manifests["academic_paper"], execution_mode="academic")
 
     assert standard_poem.execution_mode == "standard"
+    assert standard_poem.clauses == ["standard_mode"]
     assert standard_poem.visualization_required is False
     assert academic_poem.visualization_required is False
+    assert academic_poem.clauses == ["academic_mode"]
     assert "research_paper_structure" in academic_poem.forbid
     assert "forced_visualization" in academic_poem.forbid
     assert academic_readme.visualization_required is False

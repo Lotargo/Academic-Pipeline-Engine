@@ -65,17 +65,17 @@ class TemplateSelector:
             if self._planner is None:
                 raise AutoTemplatePlanningRequired("template_mode=auto requires PlannerAgent.")
             planner_instructions = instructions
-            if getattr(config.pipeline, "academic_mode", False):
+            if _pipeline_execution_mode(config) == "academic":
                 academic_instr = (
-                    "Since the document is in Academic Mode, add stronger reasoning, evidence discipline, "
+                    "Since the active execution clause is academic_mode, add stronger reasoning, evidence discipline, "
                     "assumption checks, and limitations where they fit the requested artifact. Preserve the "
                     "artifact type and do not force charts, formulas, citations, or research-paper structure "
                     "unless the user request or selected artifact type makes them appropriate."
                 )
                 if planner_instructions:
-                    planner_instructions = f"{planner_instructions}\n\n[Academic Mode Constraint]: {academic_instr}"
+                    planner_instructions = f"{planner_instructions}\n\n[Execution Mode Clause]: {academic_instr}"
                 else:
-                    planner_instructions = f"[Academic Mode Constraint]: {academic_instr}"
+                    planner_instructions = f"[Execution Mode Clause]: {academic_instr}"
             return self._planner.plan(topic=topic, instructions=planner_instructions)
 
         raise TemplateSelectionError(f"Unsupported template mode: {mode}")
@@ -91,3 +91,7 @@ class TemplateSelector:
         if self._library is None:
             self._library = TemplateLibrary.from_yaml(self._library_path)
         return self._library
+
+
+def _pipeline_execution_mode(config: AppConfig) -> str:
+    return "academic" if getattr(config.pipeline, "academic_mode", False) else "standard"

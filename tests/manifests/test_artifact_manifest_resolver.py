@@ -71,8 +71,10 @@ def test_resolver_selects_poem_without_forced_visualization(tmp_path):
     assert resolved.evidence.confidence > 0.5
     assert "poem" in resolved.evidence.matched_phrases
     assert resolved.contract.visualization_required is False
+    assert resolved.contract.clauses == ["academic_mode"]
     assert "research_paper_structure" in resolved.contract.forbid
     assert "(artifact creative_poem)" in resolved.contract_sexpr
+    assert "(clauses academic_mode)" in resolved.contract_sexpr
     assert resolved.metadata()["decision_summary"] == {
         "selected_manifest": "creative_poem",
         "manifest_version": 1,
@@ -109,6 +111,18 @@ def test_resolver_selects_readme_and_preserves_technical_artifact(tmp_path):
     assert "citations" in resolved.contract.forbid
 
 
+def test_resolver_accepts_explicit_execution_mode(tmp_path):
+    resolved = _resolver(tmp_path).resolve(
+        topic="Project README",
+        instructions="Add installation and usage sections.",
+        execution_mode="academic",
+    )
+
+    assert resolved.contract.execution_mode == "academic"
+    assert resolved.contract.clauses == ["academic_mode"]
+    assert resolved.contract.requirements["rigor"] == "reproducibility"
+
+
 def test_resolver_uses_unknown_freeform_fallback(tmp_path):
     resolved = _resolver(tmp_path).resolve(
         topic="A strange niche artifact",
@@ -130,6 +144,7 @@ def test_resolver_allows_visualization_for_academic_paper_academic_mode(tmp_path
 
     assert resolved.manifest.id == "academic_paper"
     assert resolved.contract.visualization_required is True
+    assert resolved.contract.clauses == ["academic_mode"]
     assert resolved.contract.requirements["evidence_discipline"] is True
 
 

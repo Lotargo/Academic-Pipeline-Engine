@@ -19,6 +19,7 @@ def compile_artifact_contract(
     requirements = dict(manifest.requirements)
     content_boundaries = dict(manifest.content_boundaries)
     visualization_required = bool(requirements.get("visualization_required", False))
+    clauses = [_mode_clause(execution_mode)]
 
     overlay = manifest.modes.get(execution_mode)
     if overlay is not None:
@@ -42,6 +43,7 @@ def compile_artifact_contract(
         audience=manifest.audience,
         mode=mode,
         execution_mode=execution_mode,
+        clauses=clauses,
         structure=manifest.structure,
         forbid=forbid,
         requirements=requirements,
@@ -49,3 +51,10 @@ def compile_artifact_contract(
         visualization_required=visualization_required,
     )
     return validate_contract(contract)
+
+
+def _mode_clause(execution_mode: str) -> str:
+    normalized = execution_mode.strip().lower().replace("-", "_")
+    if normalized.endswith("_mode"):
+        return normalized
+    return f"{normalized}_mode"

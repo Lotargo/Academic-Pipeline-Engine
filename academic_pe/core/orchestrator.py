@@ -263,18 +263,42 @@ class Orchestrator:
 
         return "\n\n".join(parts)
 
-    def _visualization_required(self) -> bool:
+    def _resolved_contract_data(self) -> Optional[dict]:
         manifest = self.runtime_prompt_manifest
         if manifest is None:
-            return False
+            return None
 
         metadata = manifest.metadata or {}
         contract = metadata.get("resolved_contract")
         if isinstance(contract, dict):
+            return contract
+        return None
+
+    def _academic_mode_enabled(self) -> bool:
+        contract = self._resolved_contract_data()
+        if contract is not None:
+            clauses = contract.get("clauses")
+            if isinstance(clauses, list) and "academic_mode" in clauses:
+                return True
+            return contract.get("execution_mode") == "academic"
+
+        return bool(getattr(self._config.pipeline, "academic_mode", False))
+
+    def _visualization_required(self) -> bool:
+        contract = self._resolved_contract_data()
+        if contract is not None:
             return bool(contract.get("visualization_required", False))
 
+        manifest = self.runtime_prompt_manifest
+        if manifest is None:
+            return False
         prompt_manifest = manifest.prompt_manifest
         return bool(prompt_manifest.output_constraints.get("visualization_required", False))
+
+    def _sandbox_enabled(self) -> bool:
+        if self._resolved_contract_data() is not None:
+            return self._visualization_required()
+        return bool(getattr(self._config.pipeline, "academic_mode", False))
 
     def _contract_drift_issues(self) -> List[str]:
         manifest = self.runtime_prompt_manifest
@@ -412,7 +436,7 @@ class Orchestrator:
                     "user_topic": self.user_topic,
                     "user_instructions": self.user_instructions,
                     "continuation_context": self._continuation_context(),
-                    "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                    "academic_mode": self._academic_mode_enabled(),
                     "visualization_required": self._visualization_required(),
                     "output_dir": self._config.pipeline.output_dir,
                 },
@@ -435,7 +459,7 @@ class Orchestrator:
                         "user_topic": self.user_topic,
                         "user_instructions": self.user_instructions,
                         "continuation_context": self._continuation_context(),
-                        "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                        "academic_mode": self._academic_mode_enabled(),
                         "visualization_required": self._visualization_required(),
                         "output_dir": self._config.pipeline.output_dir,
                     },
@@ -465,8 +489,7 @@ class Orchestrator:
                         document_sections=self.context,
                     )
 
-                    academic_mode = getattr(self._config.pipeline, "academic_mode", False)
-                    if academic_mode:
+                    if self._sandbox_enabled():
                         try:
                             from academic_pe.core.sandbox import execute_sandbox_blocks
                             draft_content = execute_sandbox_blocks(draft_content)
@@ -535,7 +558,7 @@ class Orchestrator:
                                 "review_focus": review_focus,
                                 "sections": self._config.pipeline.sections,
                                 "continuation_context": self._continuation_context(),
-                                "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                "academic_mode": self._academic_mode_enabled(),
                                 "visualization_required": self._visualization_required(),
                                 "output_dir": self._config.pipeline.output_dir,
                             },
@@ -583,7 +606,7 @@ class Orchestrator:
                                 "user_topic": self.user_topic,
                                 "user_instructions": self.user_instructions,
                                 "continuation_context": self._continuation_context(),
-                                "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                "academic_mode": self._academic_mode_enabled(),
                                 "visualization_required": self._visualization_required(),
                                 "output_dir": self._config.pipeline.output_dir,
                             },
@@ -597,8 +620,7 @@ class Orchestrator:
                         try:
                             revised_content = apply_line_replace_patch(current_content, patch_text)
                             revised_content = strip_markdown_fences(revised_content)
-                            academic_mode = getattr(self._config.pipeline, "academic_mode", False)
-                            if academic_mode:
+                            if self._sandbox_enabled():
                                 from academic_pe.core.sandbox import execute_sandbox_blocks
                                 revised_content = execute_sandbox_blocks(revised_content)
                         except Exception as exc:
@@ -619,7 +641,7 @@ class Orchestrator:
                                     "user_topic": self.user_topic,
                                     "user_instructions": self.user_instructions,
                                     "continuation_context": self._continuation_context(),
-                                    "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                    "academic_mode": self._academic_mode_enabled(),
                                     "visualization_required": self._visualization_required(),
                                     "output_dir": self._config.pipeline.output_dir,
                                 },
@@ -637,8 +659,7 @@ class Orchestrator:
                                 )
                                 revised_content = strip_markdown_fences(revised_content)
 
-                                academic_mode = getattr(self._config.pipeline, "academic_mode", False)
-                                if academic_mode:
+                                if self._sandbox_enabled():
                                     try:
                                         from academic_pe.core.sandbox import execute_sandbox_blocks
                                         revised_content = execute_sandbox_blocks(revised_content)
@@ -687,7 +708,7 @@ class Orchestrator:
                                         "user_topic": self.user_topic,
                                         "user_instructions": self.user_instructions,
                                         "continuation_context": self._continuation_context(),
-                                        "academic_mode": getattr(self._config.pipeline, "academic_mode", False),
+                                        "academic_mode": self._academic_mode_enabled(),
                                         "visualization_required": self._visualization_required(),
                                         "output_dir": self._config.pipeline.output_dir,
                                     }
@@ -706,8 +727,7 @@ class Orchestrator:
                                         "Section %s verification failed. Writer corrected the text (attempt %d/2).",
                                         section.name, verify_attempt + 1
                                     )
-                                    academic_mode = getattr(self._config.pipeline, "academic_mode", False)
-                                    if academic_mode:
+                                    if self._sandbox_enabled():
                                         try:
                                             from academic_pe.core.sandbox import execute_sandbox_blocks
                                             response = execute_sandbox_blocks(response)
@@ -935,7 +955,7 @@ def _apply_artifact_manifest_metadata(
         resolved = resolver.resolve(
             topic=topic,
             instructions=instructions,
-            academic_mode=getattr(config.pipeline, "academic_mode", False),
+            execution_mode=_pipeline_execution_mode(config),
             language=str(getattr(getattr(config.pipeline, "language", "auto"), "value", getattr(config.pipeline, "language", "auto"))),
             mode="continuation" if continuation_source else "new",
             continuation_metadata=_continuation_manifest_metadata(continuation_source),
@@ -947,6 +967,10 @@ def _apply_artifact_manifest_metadata(
     metadata = dict(runtime_prompt_manifest.metadata or {})
     metadata.update(resolved.metadata())
     return runtime_prompt_manifest.model_copy(update={"metadata": metadata})
+
+
+def _pipeline_execution_mode(config: AppConfig) -> str:
+    return "academic" if getattr(config.pipeline, "academic_mode", False) else "standard"
 
 
 def _continuation_manifest_metadata(continuation_source: Optional[Dict[str, Any]]) -> Optional[dict]:

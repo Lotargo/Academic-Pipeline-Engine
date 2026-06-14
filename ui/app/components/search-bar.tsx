@@ -37,7 +37,11 @@ export function SearchBar({ onSearch, disabled, t, initialTopic = "", initialIns
       const res = await fetch("/api/prompt/enhance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: topic.trim(), instructions: instructions.trim() }),
+        body: JSON.stringify({
+          topic: topic.trim(),
+          instructions: instructions.trim(),
+          academic_mode: academicMode,
+        }),
       })
       if (res.ok) {
         const data = await res.json()

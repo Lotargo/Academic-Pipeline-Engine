@@ -78,6 +78,7 @@ class ArtifactManifestResolver:
         topic: str = "",
         instructions: str = "",
         academic_mode: bool = False,
+        execution_mode: Optional[str] = None,
         language: str = "auto",
         mode: str = "new",
         continuation_metadata: Optional[dict] = None,
@@ -124,12 +125,12 @@ class ArtifactManifestResolver:
             manifest = current_manifest
             evidence = current_evidence
 
-        execution_mode = "academic" if academic_mode else "standard"
+        resolved_execution_mode = execution_mode or ("academic" if academic_mode else "standard")
         contract = compile_artifact_contract(
             manifest,
             language=language,
             mode=mode,
-            execution_mode=execution_mode,
+            execution_mode=resolved_execution_mode,
         )
         return ResolvedArtifactManifest(
             manifest=manifest,

@@ -144,7 +144,7 @@ def test_prompt_manifest_resolver_adds_planner_structure_guidance():
     )
 
     assert "Planner: choose section structure compatible with the contract" in resolved.system_prompt
-    assert "do not add academic apparatus unless compatible or requested" in resolved.system_prompt
+    assert "do not add academic apparatus unless compatible with mode clauses or requested" in resolved.system_prompt
     assert "artifact-native sections" in resolved.system_prompt
     assert "(artifact creative_poem)" in resolved.system_prompt
 

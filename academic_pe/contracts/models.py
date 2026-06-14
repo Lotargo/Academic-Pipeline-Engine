@@ -16,6 +16,7 @@ class ArtifactContract(BaseModel):
     audience: str = "general"
     mode: str = "new"
     execution_mode: str = "standard"
+    clauses: List[str] = Field(default_factory=list)
     structure: List[str] = Field(default_factory=list)
     forbid: List[str] = Field(default_factory=list)
     requirements: Dict[str, Any] = Field(default_factory=dict)

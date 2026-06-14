@@ -57,6 +57,7 @@ class BulkHistoryPayload(BaseModel):
 class PromptEnhanceRequest(BaseModel):
     topic: str
     instructions: Optional[str] = None
+    academic_mode: Optional[bool] = None
 
 
 class PromptEnhanceResponse(BaseModel):

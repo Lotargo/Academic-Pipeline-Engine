@@ -150,7 +150,8 @@ def test_template_selector_academic_mode_does_not_force_plots_for_auto_mode():
     )
 
     planner_instructions = planner.calls[0][1]
-    assert "Academic Mode Constraint" in planner_instructions
+    assert "Execution Mode Clause" in planner_instructions
+    assert "academic_mode" in planner_instructions
     assert "do not force charts" in planner_instructions
     assert "MUST structure it to include data visualization/plots" not in planner_instructions
     assert "python-run" not in planner_instructions

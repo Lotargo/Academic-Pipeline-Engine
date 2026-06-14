@@ -6,6 +6,7 @@ def test_contract_guidance_for_writer_preserves_artifact_voice():
 
     assert "Writer: produce final content that obeys the contract" in guidance
     assert "Preserve voice, genre, audience level" in guidance
+    assert "mode clauses" in guidance
     assert "negative constraints" in guidance
 
 
@@ -13,6 +14,7 @@ def test_contract_guidance_for_planner_avoids_generic_academic_structure():
     guidance = contract_guidance_for_agent("planner")
 
     assert "Planner: choose section structure compatible with the contract" in guidance
+    assert "mode clauses" in guidance
     assert "Preserve continuation structure" in guidance
     assert "artifact-native sections" in guidance
 
@@ -22,6 +24,7 @@ def test_contract_guidance_for_reviewer_checks_drift_and_ai_markers():
 
     assert "Reviewer: check for genre, style, audience, structure" in guidance
     assert "forbidden-clause drift" in guidance
+    assert "standard_mode and academic_mode clauses" in guidance
     assert "AI/meta markers" in guidance
 
 

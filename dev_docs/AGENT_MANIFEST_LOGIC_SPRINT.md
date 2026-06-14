@@ -254,7 +254,7 @@ Tasks:
 
 ## Workstream 4: Standard vs Academic Execution Modes
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Make `academic_mode` a manifest overlay that changes reasoning depth and quality discipline without destroying the requested artifact type.
 
@@ -279,8 +279,8 @@ Examples:
 - Academic paper + academic mode: may use methodology, citations, formulas, tables, and evidence discipline when relevant.
 
 Tasks:
-- [~] Represent execution mode as a manifest overlay, not as scattered boolean checks. Manifest `modes.*` overlays now compile into `ArtifactContract.execution_mode`; remaining cleanup is legacy config/UI naming around `academic_mode`.
-- [~] Add `standard_mode` and `academic_mode` contract clauses. Contracts carry `execution_mode` plus overlay-derived requirements/forbids; explicit named clauses still need a final schema pass if we want them.
+- [x] Represent execution mode as a manifest overlay, not as scattered boolean checks. Manifest `modes.*` overlays compile into `ArtifactContract.execution_mode`; `academic_mode` remains only as a UI/API/config compatibility input.
+- [x] Add `standard_mode` and `academic_mode` contract clauses.
 - [x] Remove hard-coded "must include plot/chart" logic from generic academic-mode prompts.
 - [x] Move visualization requirements into artifact-compatible manifest rules.
 - [x] Add tests proving academic mode does not force charts/tables/formulas into incompatible artifact types.
@@ -290,6 +290,9 @@ Implementation notes:
 - Generic draft/plan/revision/review prompts no longer default to `academic document`, `academic tone`, or `material academic quality`.
 - Agent config prompts and dynamic example defaults are now artifact-aware instead of academic-paper-first.
 - Default manifest tests cover poem/readme boundaries and academic-paper rigor/visualization behavior.
+- Contracts now carry `clauses` such as `standard_mode` and `academic_mode`; S-expression contract blocks render them for all agent adapters.
+- Orchestrator runtime prompt flags are derived from the resolved contract first, with legacy pipeline flags only as fallback for direct/non-manifest calls.
+- Prompt enhancement accepts the same compatibility mode input and converts it into execution-mode clauses before rendering the active artifact contract.
 
 ---
 

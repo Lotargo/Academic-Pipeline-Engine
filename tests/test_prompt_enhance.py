@@ -15,6 +15,7 @@ def test_prompt_enhancement_preserves_poem_genre():
     assert "bureaucracy" in prompt
     assert "[Active Artifact Contract]" in prompt
     assert "(artifact creative_poem)" in prompt
+    assert "(clauses standard_mode)" in prompt
     assert "(visualization_required false)" in prompt
     assert "PromptEnhancer adapter rules" in prompt
     assert "candidate-and-critic" in prompt
@@ -28,6 +29,21 @@ def test_prompt_enhancement_uses_preserve_first_fallback_for_unknown_artifact():
     )
 
     assert "(artifact unknown_freeform)" in prompt
+    assert "(clauses standard_mode)" in prompt
     assert "preserve-first fallback" in prompt.lower()
     assert "do not invent academic sections or bureaucracy" in prompt
     assert "Selection confidence is low" in prompt
+
+
+def test_prompt_enhancement_passes_academic_mode_as_contract_clause():
+    prompt = _build_prompt_enhancement_prompt(
+        topic="Lady in Red",
+        instructions="Write a poem with 12 lines.",
+        lang="en",
+        academic_mode=True,
+    )
+
+    assert "(artifact creative_poem)" in prompt
+    assert "(clauses academic_mode)" in prompt
+    assert "(visualization_required false)" in prompt
+    assert "academic_mode clause means compatible rigor" in prompt
