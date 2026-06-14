@@ -61,6 +61,8 @@ def test_config_defaults():
     assert cfg.pipeline.template_mode == "custom"
     assert cfg.pipeline.template_id is None
     assert cfg.ui.language == "ru"
+    assert cfg.agents["test"].self_critique.enabled is False
+    assert cfg.agents["test"].self_critique.temperature is None
 
 
 def test_config_has_template_selection_fields():

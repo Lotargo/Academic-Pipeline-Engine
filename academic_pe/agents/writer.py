@@ -3,6 +3,7 @@ import logging
 from typing import Callable, Optional, Dict
 
 from academic_pe.agents.base import BaseAgent
+from academic_pe.agents.self_critique import run_self_critique
 from academic_pe.core.llm import _call_provider_generate
 
 StreamCallback = Callable[[str], None]
@@ -93,9 +94,29 @@ class WriterAgent(BaseAgent):
             else:
                 if turn > 0 and on_delta is not None:
                     on_delta(response)
-                return response
+                result = run_self_critique(
+                    agent_name="writer",
+                    config=self.config,
+                    llm=self.llm,
+                    task_description=task_description,
+                    draft_output=response,
+                    system_prompt=system_prompt,
+                    context=context,
+                )
+                self.last_self_critique_summary = result.summary or None
+                return result.output
 
-        return response
+        result = run_self_critique(
+            agent_name="writer",
+            config=self.config,
+            llm=self.llm,
+            task_description=task_description,
+            draft_output=response,
+            system_prompt=system_prompt,
+            context=context,
+        )
+        self.last_self_critique_summary = result.summary or None
+        return result.output
 
 
 class ReviewerAgent(BaseAgent):

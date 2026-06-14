@@ -1,6 +1,8 @@
+import json
+
 import pytest
 
-from academic_pe.core.config import AgentConfig
+from academic_pe.core.config import AgentConfig, SelfCritiqueConfig
 from academic_pe.core.llm import LLMProvider
 from academic_pe.core.planner_agent import PlannerAgent, PlannerAgentError
 from academic_pe.core.templates import RuntimeTemplateSource
@@ -21,6 +23,23 @@ class StaticPlannerProvider(LLMProvider):
             }
         )
         return self.response
+
+
+class SequencePlannerProvider(LLMProvider):
+    def __init__(self, responses: list[str]):
+        self.responses = responses
+        self.calls = []
+
+    def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+        self.calls.append(
+            {
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "model": model,
+                "temperature": temperature,
+            }
+        )
+        return self.responses[len(self.calls) - 1]
 
 
 def _planner(response: str) -> PlannerAgent:
@@ -160,3 +179,87 @@ def test_planner_agent_handles_latex_escapes():
     assert runtime_template.name == "Article with LaTeX"
     assert "formula for \\theta and \\sigma and standard newline" in runtime_template.sections[0].instruction
 
+
+def test_planner_agent_self_critique_repairs_raw_plan_before_parse():
+    raw_plan = """
+{
+  "document_type": "poem",
+  "name": "Generic Plan",
+  "description": "A temporary template.",
+  "category": "creative",
+  "language_policy": "auto",
+  "sections": [
+    {
+      "name": "introduction",
+      "title": "Introduction",
+      "instruction": "Introduce the topic."
+    }
+  ],
+  "prompt_manifest": {
+    "writer_role": "Writer",
+    "reviewer_role": "Reviewer",
+    "review_rubric": {
+      "required": ["coherent"]
+    },
+    "output_constraints": {
+      "markdown_allowed": true,
+      "latex_allowed": false
+    }
+  }
+}
+"""
+    repaired_plan = """
+{
+  "document_type": "poem",
+  "name": "Poem",
+  "description": "A temporary poem template.",
+  "category": "creative",
+  "language_policy": "auto",
+  "sections": [
+    {
+      "name": "poem",
+      "title": "Poem",
+      "instruction": "Write stanza-oriented poetry."
+    }
+  ],
+  "prompt_manifest": {
+    "writer_role": "Poet",
+    "reviewer_role": "Poetry reviewer",
+    "review_rubric": {
+      "required": ["preserve poetic form"]
+    },
+    "output_constraints": {
+      "markdown_allowed": true,
+      "latex_allowed": false
+    }
+  }
+}
+"""
+    provider = SequencePlannerProvider(
+        [
+            raw_plan,
+            json.dumps({"summary": "Restored poem structure.", "output": repaired_plan}),
+        ]
+    )
+    planner = PlannerAgent(
+        AgentConfig(
+            role="Planner",
+            model="mock",
+            temperature=0.0,
+            system_prompt="Base planner prompt.",
+            self_critique=SelfCritiqueConfig(enabled=True),
+        ),
+        provider,
+    )
+
+    runtime_template, runtime_manifest = planner.plan(
+        topic="Rain poem",
+        instructions="Keep it lyrical.",
+    )
+
+    assert runtime_template.name == "Poem"
+    assert runtime_template.sections[0].name == "poem"
+    assert runtime_manifest.prompt_manifest.writer_role == "Poet"
+    assert planner.last_self_critique_summary == "Restored poem structure."
+    assert len(provider.calls) == 2
+    assert "Planner self-critique" in provider.calls[1]["user_prompt"]

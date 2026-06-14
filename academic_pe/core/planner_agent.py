@@ -6,6 +6,7 @@ from typing import Tuple
 
 from pydantic import ValidationError
 
+from academic_pe.agents.self_critique import run_self_critique
 from academic_pe.core.config import AgentConfig
 from academic_pe.core.llm import LLMProvider, _call_provider_generate
 from academic_pe.core.templates import (
@@ -92,22 +93,35 @@ class PlannerAgent:
     def __init__(self, config: AgentConfig, llm: LLMProvider):
         self.config = config
         self.llm = llm
+        self.last_self_critique_summary: str | None = None
 
     def plan(
         self,
         topic: str,
         instructions: str = "",
     ) -> Tuple[RuntimeTemplate, RuntimePromptManifest]:
+        system_prompt = self._system_prompt()
+        user_prompt = PLANNER_USER_TEMPLATE.format(
+            topic=topic or "(not provided)",
+            instructions=instructions or "(none)",
+        )
         raw = _call_provider_generate(
             self.llm,
-            system_prompt=self._system_prompt(),
-            user_prompt=PLANNER_USER_TEMPLATE.format(
-                topic=topic or "(not provided)",
-                instructions=instructions or "(none)",
-            ),
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
             model=self.config.model,
             temperature=self.config.temperature,
         )
+        critique = run_self_critique(
+            agent_name="planner",
+            config=self.config,
+            llm=self.llm,
+            task_description=user_prompt,
+            draft_output=raw,
+            system_prompt=system_prompt,
+        )
+        self.last_self_critique_summary = critique.summary or None
+        raw = critique.output
         return self.parse_plan(raw)
 
     def parse_plan(self, raw: str) -> Tuple[RuntimeTemplate, RuntimePromptManifest]:

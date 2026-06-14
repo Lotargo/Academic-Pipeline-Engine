@@ -217,6 +217,7 @@ class Orchestrator:
         self._transitions: Dict[PipelineState, List[PipelineState]] = dict(_DEFAULT_TRANSITIONS)
         self._cancel_event: threading.Event = threading.Event()
         self.first_attempt_reason: Optional[str] = None
+        self.self_critique_summaries: List[Dict[str, str]] = []
 
     def _continuation_context(self) -> str:
         source = self.continuation_source
@@ -370,6 +371,26 @@ class Orchestrator:
         self.context[section_name] = cleaned_content
         self._emit_section_delta(section_name, cleaned_content, cleaned_content)
 
+    def _capture_self_critique_summary(
+        self,
+        agent: BaseAgent,
+        *,
+        stage: str,
+        section_name: Optional[str] = None,
+    ) -> None:
+        summary = getattr(agent, "last_self_critique_summary", None)
+        if not summary:
+            return
+        entry = {
+            "agent": getattr(agent.config, "role", "agent"),
+            "stage": stage,
+            "summary": str(summary),
+        }
+        if section_name:
+            entry["section"] = section_name
+        self.self_critique_summaries.append(entry)
+        agent.last_self_critique_summary = None
+
     def _document_memory(self, current_section_name: str = "", with_line_numbers: bool = False) -> str:
         parts: List[str] = []
         continuation_context = self._continuation_context()
@@ -443,6 +464,7 @@ class Orchestrator:
             )
             logger.info("Creating document plan before drafting sections.")
             self._draft_plan = self._writer.process(plan_task)
+            self._capture_self_critique_summary(self._writer, stage="planning", section_name="document_plan")
             self._set_section_content("document_plan", self._draft_plan)
 
             # --- DRAFTING ---
@@ -488,6 +510,7 @@ class Orchestrator:
                         on_delta=on_delta,
                         document_sections=self.context,
                     )
+                    self._capture_self_critique_summary(self._writer, stage="drafting", section_name=section.name)
 
                     if self._sandbox_enabled():
                         try:
@@ -617,6 +640,7 @@ class Orchestrator:
                             context=self._document_memory(section.name, with_line_numbers=True),
                             document_sections=self.context,
                         )
+                        self._capture_self_critique_summary(self._writer, stage="patch_revision", section_name=section.name)
                         try:
                             revised_content = apply_line_replace_patch(current_content, patch_text)
                             revised_content = strip_markdown_fences(revised_content)
@@ -657,6 +681,7 @@ class Orchestrator:
                                     context=self._document_memory(section.name),
                                     document_sections=self.context,
                                 )
+                                self._capture_self_critique_summary(self._writer, stage="fallback_revision", section_name=section.name)
                                 revised_content = strip_markdown_fences(revised_content)
 
                                 if self._sandbox_enabled():
@@ -718,6 +743,7 @@ class Orchestrator:
                                     context=self._document_memory(section.name),
                                     document_sections=self.context,
                                 )
+                                self._capture_self_critique_summary(self._writer, stage="self_verification", section_name=section.name)
                                 if response.strip() == "VERIFIED":
                                     logger.info("Section %s verified successfully.", section.name)
                                     verified = True

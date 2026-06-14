@@ -1,6 +1,6 @@
 from academic_pe.agents.base import BaseAgent, DefaultAgent
 from academic_pe.agents.factory import create_agent, register_agent_type, _AGENT_TYPES
-from academic_pe.core.config import AgentConfig
+from academic_pe.core.config import AgentConfig, SelfCritiqueConfig
 from academic_pe.core.llm import MockProvider
 
 
@@ -143,3 +143,34 @@ def test_writer_agent_grep_loop():
     assert "Section 'theory'" in llm.last_user_prompt
     assert "纯洁" in llm.last_user_prompt
     assert result == "This is the final text without chinese characters."
+
+
+def test_writer_agent_self_critique_repairs_final_output():
+    from academic_pe.agents.writer import WriterAgent
+
+    class CritiqueMockProvider(MockProvider):
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+            if len(self.calls) == 1:
+                return "Sure, here is the requested artifact: Clean text."
+            return '{"summary":"Removed wrapper.","output":"Clean text."}'
+
+    cfg = AgentConfig(
+        role="Writer",
+        model="gpt-mock",
+        temperature=0.0,
+        system_prompt="You are a writer.",
+        self_critique=SelfCritiqueConfig(enabled=True),
+    )
+    llm = CritiqueMockProvider()
+    agent = WriterAgent(cfg, llm)
+
+    result = agent.process("Write final text.")
+
+    assert result == "Clean text."
+    assert agent.last_self_critique_summary == "Removed wrapper."
+    assert len(llm.calls) == 2
+    assert "[Draft Output]" in llm.calls[1]["user_prompt"]

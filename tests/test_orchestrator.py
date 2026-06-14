@@ -797,6 +797,25 @@ def test_create_orchestrator_from_config_stores_resolved_artifact_contract_metad
     assert "python-run" not in orch._writer.config.system_prompt
 
 
+def test_orchestrator_captures_short_self_critique_summary():
+    config = _make_config()
+    writer = DefaultAgent(config.agents["writer"], MockProvider())
+    orch = Orchestrator(writer=writer, config=config)
+
+    writer.last_self_critique_summary = "Removed wrapper."
+    orch._capture_self_critique_summary(writer, stage="drafting", section_name="intro")
+
+    assert orch.self_critique_summaries == [
+        {
+            "agent": "Writer",
+            "stage": "drafting",
+            "summary": "Removed wrapper.",
+            "section": "intro",
+        }
+    ]
+    assert writer.last_self_critique_summary is None
+
+
 def test_orchestrator_runtime_flags_prefer_contract_clauses_over_pipeline_boolean():
     config = _make_config()
     config.pipeline.academic_mode = True

@@ -16,6 +16,9 @@ agents:
     provider: mock # openai | custom_openai | anthropic | mock
     model: "gpt-4o"
     temperature: 0.7 # 0.0 – 2.0
+    self_critique:
+      enabled: false
+      # temperature: 0.1
     # base_url: "http://localhost:11434/v1"  # only for custom_openai
     # agent_type: "writer"      # optional: writer | reviewer | default | custom
     system_prompt:
@@ -100,6 +103,9 @@ agents:
     provider: mock
     model: "gpt-4o"
     temperature: 0.2
+    self_critique:
+      enabled: false
+      # temperature: 0.1
     system_prompt: |
       You are a professional artifact-aware template planner. Your task is to analyze the user topic and outline a structured artifact template, section topics, drafting instructions, and a quality evaluation rubric.
 

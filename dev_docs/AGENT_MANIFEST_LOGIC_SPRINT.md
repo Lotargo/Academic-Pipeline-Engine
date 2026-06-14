@@ -137,7 +137,7 @@ Tasks:
 
 ## Workstream 2: Package Boundaries And Directory Layout
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Keep the manifest/contract system debuggable by separating responsibilities into explicit packages and directories instead of adding more logic to large monolithic modules.
 
@@ -318,28 +318,33 @@ agent draft
 
 Agent-specific behavior:
 - [ ] PromptEnhancer critic checks whether enhancement changed artifact type, added bureaucracy, or lost user details; then rewrites the enhanced prompt itself.
-- [ ] Planner critic checks whether the plan follows the manifest, preserves genre/style, avoids academic drift, and handles continuation; then rewrites the plan itself.
-- [ ] Writer critic checks whether the draft obeys the contract, avoids AI markers, preserves voice, and satisfies user constraints; then rewrites the content itself.
+- [x] Planner critic checks whether the plan follows the manifest, preserves genre/style, avoids academic drift, and handles continuation; then rewrites the plan itself.
+- [x] Writer critic checks whether the draft obeys the contract, avoids AI markers, preserves voice, and satisfies user constraints; then rewrites the content itself.
 - [ ] Researcher critic checks source relevance, citation quality, and overreach; then rewrites findings itself.
 - [ ] Exporter/renderer critic checks structure/format compatibility where possible.
 
 Constraints:
-- [ ] Self-critique must not ask the user for approval.
-- [ ] Self-critique must not return a rejection state.
-- [ ] Self-critique must not create an infinite revision loop.
-- [ ] Self-critique output should be concise internally and should not leak long chain-of-thought.
-- [ ] Store only a short `self_critique_summary` in debug metadata when needed.
+- [x] Self-critique must not ask the user for approval.
+- [x] Self-critique must not return a rejection state.
+- [x] Self-critique must not create an infinite revision loop.
+- [x] Self-critique output should be concise internally and should not leak long chain-of-thought.
+- [x] Store only a short `self_critique_summary` in debug metadata when needed.
 - [ ] Reviewer remains the external quality gate, but agents should already have self-corrected before Reviewer sees the content.
 
 Academic-mode additions:
-- [ ] In academic mode, self-critique should include stronger critical thinking:
+- [~] In academic mode, self-critique should include stronger critical thinking:
   - weak assumptions;
   - unsupported claims;
   - conceptual contradictions;
   - shallow definitions;
   - missing limitations;
   - source/evidence gaps when sources are required.
-- [ ] The self-critic repairs these issues directly instead of sending the document back as a blocker.
+- [~] The self-critic repairs these issues directly instead of sending the document back as a blocker.
+
+Implementation notes:
+- `AgentConfig.self_critique.enabled` controls the extra one-pass LLM call; default is disabled to avoid surprise cost changes.
+- Self-critique returns compact JSON with `summary` and repaired `output`; invalid JSON, empty repairs, or blocking feedback fall back to the original draft.
+- Writer and Planner store only `last_self_critique_summary`; Orchestrator collects short summaries into saved run metadata.
 
 ---
 
@@ -523,7 +528,7 @@ Tasks:
 - [ ] Add continuation tests proving previous resolved manifest is inherited.
 - [ ] Add contract DSL tests proving agent prompts receive compact, stable, non-executable S-expression contracts.
 - [ ] Add standard-vs-academic mode tests for creative, technical, README, and academic artifacts.
-- [ ] Add self-critique tests proving agents repair their own draft instead of returning a blocker.
+- [x] Add self-critique tests proving agents repair their own draft instead of returning a blocker.
 
 ---
 

@@ -3,6 +3,7 @@ from typing import Callable, Optional
 
 from academic_pe.core.config import AgentConfig
 from academic_pe.core.llm import LLMProvider, _call_provider_generate
+from academic_pe.agents.self_critique import run_self_critique
 
 from typing import Callable, Optional, Dict
 
@@ -13,6 +14,7 @@ class BaseAgent(ABC):
     def __init__(self, config: AgentConfig, llm: LLMProvider):
         self.config = config
         self.llm = llm
+        self.last_self_critique_summary: Optional[str] = None
 
     @abstractmethod
     def process(
@@ -37,7 +39,7 @@ class DefaultAgent(BaseAgent):
         if context:
             system_prompt += f"\n\n[Context Data]\n{context}"
 
-        return _call_provider_generate(
+        draft = _call_provider_generate(
             self.llm,
             system_prompt=system_prompt,
             user_prompt=task_description,
@@ -45,3 +47,14 @@ class DefaultAgent(BaseAgent):
             temperature=self.config.temperature,
             on_delta=on_delta,
         )
+        result = run_self_critique(
+            agent_name=self.config.role or "default",
+            config=self.config,
+            llm=self.llm,
+            task_description=task_description,
+            draft_output=draft,
+            system_prompt=system_prompt,
+            context=context,
+        )
+        self.last_self_critique_summary = result.summary or None
+        return result.output

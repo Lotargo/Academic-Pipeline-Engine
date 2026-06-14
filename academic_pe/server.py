@@ -818,6 +818,7 @@ def run_pipeline_thread(
             "docx_filename": os.path.basename(output_path) if output_path else None,
             "context": orch.context,
             "document_plan": current_run.get("document_plan"),
+            "self_critique_summary": orch.self_critique_summaries,
             "original_context": current_run.get("original_context", {}),
             "academic_mode": config.pipeline.academic_mode,
             "logs": current_run["logs"],

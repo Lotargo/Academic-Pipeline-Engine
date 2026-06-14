@@ -39,6 +39,11 @@ class TemplateMode(str, Enum):
     auto = "auto"
 
 
+class SelfCritiqueConfig(BaseModel):
+    enabled: bool = False
+    temperature: Optional[float] = None
+
+
 class AgentConfig(BaseModel):
     role: str
     model: str = Field(..., min_length=1)
@@ -47,6 +52,7 @@ class AgentConfig(BaseModel):
     provider: ProviderEnum = ProviderEnum.mock
     base_url: Optional[str] = None
     agent_type: Optional[str] = None
+    self_critique: SelfCritiqueConfig = Field(default_factory=SelfCritiqueConfig)
 
 
 class SectionPrompt(BaseModel):
