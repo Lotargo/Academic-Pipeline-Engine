@@ -79,3 +79,13 @@ def test_get_default_examples():
     assert get_default_examples("ru") == DEFAULT_EXAMPLES_RU
     assert get_default_examples("en") == DEFAULT_EXAMPLES_EN
     assert get_default_examples("unknown") == DEFAULT_EXAMPLES_EN
+
+
+def test_default_examples_are_artifact_diverse():
+    examples = get_default_examples("en")
+    combined = " ".join(f"{item['topic']} {item['instructions']}" for item in examples)
+
+    assert "README" in combined
+    assert "Poem" in combined
+    assert "Analytical Report" in combined
+    assert "academic research topics" not in combined

@@ -19,7 +19,7 @@ DEFAULT_DRAFT_TEMPLATE = """Write a section about {{ section.topic }}.
 
 {{ language_instruction }}
 Follow the document plan and continuity context when provided.
-Preserve Markdown structure, use academic impersonal tone, and keep LaTeX formulas unchanged.
+Preserve Markdown structure, the requested tone/register, and existing LaTeX formulas when present.
 Do not call sections "chapters" unless the user explicitly requested chapter-based output.
 Avoid forward references to sections, tables, formulas, or chapters that do not exist in the current document.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
@@ -54,7 +54,7 @@ Ensure your code is clean, executable, and does not print any other text besides
 """
 
 
-DEFAULT_PLAN_TEMPLATE = """Create a compact writing plan for an academic document.
+DEFAULT_PLAN_TEMPLATE = """Create a compact writing plan for the requested artifact.
 
 {{ language_instruction }}
 User topic: {{ user_topic }}
@@ -87,11 +87,11 @@ Academic Mode: plan for stronger reasoning, clearer assumptions, evidence discip
 {% endif %}
 
 Return a concise Markdown plan with:
-- thesis / central claim;
+- core intent / central claim when applicable;
 - section-by-section goals;
-- terminology that must stay consistent;
+- terminology and style choices that must stay consistent;
 - continuation actions for preserved, revised, bridge, and newly expanded material when a continuation source is provided;
-- formulas or complexity claims that must not contradict each other;
+- facts, formulas, or complexity claims that must not contradict each other;
 - forbidden inconsistencies, including missing section numbers or references to unavailable document parts.
 """
 
@@ -102,7 +102,7 @@ Address these reviewer issues: {{ reviewer_reason }}
 
 {{ language_instruction }}
 Make the smallest possible targeted edits to the existing section.
-Preserve unaffected paragraphs, wording, Markdown structure, academic tone, and LaTeX formulas whenever they are not part of the reviewer issue.
+Preserve unaffected paragraphs, wording, Markdown structure, requested tone/register, and existing LaTeX formulas whenever they are not part of the reviewer issue.
 Do not introduce new chapter numbering schemes, new missing references, or unrelated claims.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
@@ -167,7 +167,7 @@ IMPORTANT: Ensure any visualizations (plots/charts) generated via ` ```python-ru
 """
 
 
-DEFAULT_REVIEW_TEMPLATE = """Check the provided text for material academic quality issues.
+DEFAULT_REVIEW_TEMPLATE = """Check the provided text for material quality issues against the active artifact contract and user request.
 Expected document language: {{ language }}.
 {% if review_focus %}Review focus from the previous attempt: {{ review_focus }}{% endif %}
 {% if continuation_context|default("") %}

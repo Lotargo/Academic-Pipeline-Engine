@@ -20,31 +20,31 @@ _examples_lock = asyncio.Lock()
 
 DEFAULT_EXAMPLES_RU = [
     {
-        "topic": "Конечные автоматы (FSM)",
-        "instructions": "Разработайте структуру с подробными заголовками H2/H3. Обсудите условия переходов (guards)."
+        "topic": "README для локального API сервиса",
+        "instructions": "Опишите установку, запуск, переменные окружения и примеры запросов. Сохраняйте практичный технический стиль без лишней академической структуры."
     },
     {
-        "topic": "Метрики алгоритмической сложности",
-        "instructions": "Включите математические формулы LaTeX, например $O(n \\log n)$, и блочные уравнения."
+        "topic": "Короткое стихотворение о дождливом городе",
+        "instructions": "Напишите 12-16 строк с живым образным голосом, внутренним ритмом и без пояснительного анализа."
     },
     {
-        "topic": "Принципы проектирования AI-агентов",
-        "instructions": "Обсудите кооперацию агентов, писательские агенты и контроли качества (quality gates)."
+        "topic": "Аналитический отчёт о метриках алгоритмической сложности",
+        "instructions": "Сделайте структурированный отчёт с выводами, ограничениями и формулами LaTeX только там, где они нужны для расчётов."
     }
 ]
 
 DEFAULT_EXAMPLES_EN = [
     {
-        "topic": "Finite State Machines",
-        "instructions": "Structure it with detailed H2/H3 headers. Discuss state transit guards."
+        "topic": "Technical README for a Local API Service",
+        "instructions": "Describe installation, startup, environment variables, and request examples. Keep the style practical and avoid unnecessary academic structure."
     },
     {
-        "topic": "Algorithmic Complexity Metrics",
-        "instructions": "Include LaTeX inline math e.g. $O(n \\log n)$ and display equations."
+        "topic": "Short Poem About a Rainy City",
+        "instructions": "Write 12-16 lines with vivid imagery, a natural voice, and no explanatory analysis."
     },
     {
-        "topic": "AI Agent Design Principles",
-        "instructions": "Discuss multi-agent cooperation, writer agents, and quality gates."
+        "topic": "Analytical Report on Algorithmic Complexity Metrics",
+        "instructions": "Create a structured report with findings, limitations, and LaTeX formulas only where they support the calculations."
     }
 ]
 
@@ -114,7 +114,7 @@ def clean_and_parse_json(text: str) -> List[Dict[str, str]]:
 
 async def generate_new_examples():
     """
-    Invokes the Example Generator agent to formulate 3 new academic paper topics.
+    Invokes the Example Generator agent to formulate 3 new artifact requests.
     """
     global _dynamic_examples_cache, last_generated_at
     try:
@@ -147,7 +147,7 @@ async def generate_new_examples():
 
         lang = config.ui.language
         prompt = (
-            f"Generate exactly 3 creative, diverse, and relevant academic research topics "
+            f"Generate exactly 3 creative, diverse, and relevant artifact requests "
             f"along with clear instructions for each, tailored to the '{lang}' language. "
             f"Write the topics and instructions in the language corresponding to '{lang}' "
             f"(e.g. if 'ru' write in Russian, if 'en' write in English). "

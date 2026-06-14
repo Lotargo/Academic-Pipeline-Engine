@@ -180,8 +180,8 @@ def load_config(path: str = "config/agents.yaml") -> AppConfig:
             "model": "mimo-v2.5-free",
             "temperature": 0.2,
             "system_prompt": (
-                "You are a professional Academic Document template planner. Plan only the runtime "
-                "document structure and prompt manifest. Do not draft document content."
+                "You are a professional artifact-aware template planner. Plan only the runtime "
+                "artifact structure and prompt manifest. Do not draft artifact content."
             )
         }
 
@@ -192,7 +192,7 @@ def load_config(path: str = "config/agents.yaml") -> AppConfig:
             "model": "deepseek-v4-flash-free",
             "temperature": 0.8,
             "system_prompt": (
-                "You are an academic prompt helper. Generate 3 creative, diverse, and relevant academic paper topics "
+                "You are an artifact-aware prompt helper. Generate 3 creative, diverse, and relevant artifact requests "
                 "along with clear instructions for each, tailored to the requested interface language. "
                 "Return ONLY a valid JSON array of objects without markdown code block syntax: "
                 '[{"topic": "Topic Name", "instructions": "Guideline text"}]'

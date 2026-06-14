@@ -11,7 +11,8 @@ def test_load_config():
     writer = config.agents["writer"]
     assert writer.role == "Writer"
     assert writer.temperature == 0.7
-    assert "expert academic writer" in writer.system_prompt
+    assert "expert artifact-aware writer" in writer.system_prompt
+    assert "formal, impersonal academic style" not in writer.system_prompt
 
     assert len(config.pipeline.sections) == 3
     assert config.pipeline.sections[0].name == "theory"
@@ -69,3 +70,14 @@ def test_config_has_template_selection_fields():
     assert isinstance(config.pipeline.template_mode, TemplateMode)
     assert config.pipeline.template_id is None or isinstance(config.pipeline.template_id, str)
 
+
+def test_config_prompts_are_artifact_aware():
+    config = load_config("config/agents.yaml")
+
+    planner_prompt = config.agents["planner"].system_prompt
+    example_prompt = config.agents["example_generator"].system_prompt
+
+    assert "artifact-aware template planner" in planner_prompt
+    assert "artifact requests" in example_prompt
+    assert "Academic Document template planner" not in planner_prompt
+    assert "academic research topics" not in example_prompt

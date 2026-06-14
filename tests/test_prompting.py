@@ -1,5 +1,11 @@
 from academic_pe.core.config import SectionPrompt
-from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, render_template
+from academic_pe.core.prompting import (
+    DEFAULT_DRAFT_TEMPLATE,
+    DEFAULT_PLAN_TEMPLATE,
+    DEFAULT_REVIEW_TEMPLATE,
+    DEFAULT_REVISION_TEMPLATE,
+    render_template,
+)
 
 
 def test_draft_template_uses_section_not_chapter():
@@ -28,6 +34,57 @@ def test_review_template_accepts_focus_and_limits_issues():
 
     assert "Review focus from the previous attempt: Fix inconsistent notation." in prompt
     assert "group the issues by the section" in prompt
+
+
+def test_generic_templates_are_artifact_neutral_without_academic_mode():
+    section = SectionPrompt(name="scene", topic="Summer field", instruction="Write a lyrical scene.")
+    base_context = {
+        "section": section,
+        "language_instruction": "Write the entire document in English.",
+        "user_topic": "Summer field",
+        "user_instructions": "Write a lyrical scene.",
+        "academic_mode": False,
+        "visualization_required": False,
+    }
+
+    draft_prompt = render_template(DEFAULT_DRAFT_TEMPLATE, base_context)
+    plan_prompt = render_template(
+        DEFAULT_PLAN_TEMPLATE,
+        {
+            "sections": [section],
+            "language_instruction": "Write the entire document in English.",
+            "user_topic": "Summer field",
+            "user_instructions": "Write a lyrical scene.",
+            "academic_mode": False,
+            "visualization_required": False,
+        },
+    )
+    revision_prompt = render_template(
+        DEFAULT_REVISION_TEMPLATE,
+        {
+            **base_context,
+            "reviewer_reason": "Tighten one sentence.",
+        },
+    )
+    review_prompt = render_template(
+        DEFAULT_REVIEW_TEMPLATE,
+        {
+            "language": "en",
+            "review_focus": "",
+            "academic_mode": False,
+            "visualization_required": False,
+        },
+    )
+
+    combined = "\n".join([draft_prompt, plan_prompt, revision_prompt, review_prompt])
+
+    assert "requested tone/register" in draft_prompt
+    assert "requested artifact" in plan_prompt
+    assert "active artifact contract and user request" in review_prompt
+    assert "academic impersonal tone" not in combined
+    assert "academic document" not in combined
+    assert "material academic quality" not in combined
+    assert "academic tone" not in combined
 
 
 def test_academic_mode_does_not_force_visualization_by_default():

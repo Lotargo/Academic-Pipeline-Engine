@@ -264,12 +264,12 @@ Rationale:
 - A poem, story, README, plan document, essay, or adult creative artifact can have an academic-mode treatment, but it should not automatically become a generic research paper.
 
 Mode rules:
-- [ ] Standard mode preserves the requested artifact and avoids unnecessary formal apparatus.
-- [ ] Academic mode adds rigor only where compatible with the artifact.
-- [ ] Academic mode may require evidence, definitions, method notes, conceptual framing, or source discipline for analytical artifacts.
-- [ ] Academic mode may request charts/tables/formulas only when they naturally support the artifact and user task.
-- [ ] Academic mode must not force visualization into creative writing, poetry, personal narratives, or README-style documentation unless explicitly requested.
-- [ ] Academic mode must not override adult/creative/school/technical genre constraints; it should apply a more thoughtful version of that genre.
+- [x] Standard mode preserves the requested artifact and avoids unnecessary formal apparatus.
+- [x] Academic mode adds rigor only where compatible with the artifact.
+- [x] Academic mode may require evidence, definitions, method notes, conceptual framing, or source discipline for analytical artifacts.
+- [x] Academic mode may request charts/tables/formulas only when they naturally support the artifact and user task.
+- [x] Academic mode must not force visualization into creative writing, poetry, personal narratives, or README-style documentation unless explicitly requested.
+- [x] Academic mode must not override adult/creative/school/technical genre constraints; it should apply a more thoughtful version of that genre.
 
 Examples:
 - Poem + standard mode: lyrical brief, rhythm, imagery, human voice.
@@ -279,12 +279,17 @@ Examples:
 - Academic paper + academic mode: may use methodology, citations, formulas, tables, and evidence discipline when relevant.
 
 Tasks:
-- [ ] Represent execution mode as a manifest overlay, not as scattered boolean checks.
-- [ ] Add `standard_mode` and `academic_mode` contract clauses.
-- [ ] Remove hard-coded "must include plot/chart" logic from generic academic-mode prompts.
-- [ ] Move visualization requirements into artifact-compatible manifest rules.
-- [ ] Add tests proving academic mode does not force charts/tables/formulas into incompatible artifact types.
-- [ ] Add tests proving academic paper + academic mode still receives proper scientific rigor.
+- [~] Represent execution mode as a manifest overlay, not as scattered boolean checks. Manifest `modes.*` overlays now compile into `ArtifactContract.execution_mode`; remaining cleanup is legacy config/UI naming around `academic_mode`.
+- [~] Add `standard_mode` and `academic_mode` contract clauses. Contracts carry `execution_mode` plus overlay-derived requirements/forbids; explicit named clauses still need a final schema pass if we want them.
+- [x] Remove hard-coded "must include plot/chart" logic from generic academic-mode prompts.
+- [x] Move visualization requirements into artifact-compatible manifest rules.
+- [x] Add tests proving academic mode does not force charts/tables/formulas into incompatible artifact types.
+- [x] Add tests proving academic paper + academic mode still receives proper scientific rigor.
+
+Implementation notes:
+- Generic draft/plan/revision/review prompts no longer default to `academic document`, `academic tone`, or `material academic quality`.
+- Agent config prompts and dynamic example defaults are now artifact-aware instead of academic-paper-first.
+- Default manifest tests cover poem/readme boundaries and academic-paper rigor/visualization behavior.
 
 ---
 

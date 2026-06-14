@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from academic_pe.contracts import compile_artifact_contract
 from academic_pe.manifests import ArtifactManifestLoader
 
 
@@ -55,3 +58,23 @@ artifacts:
         assert False, "Expected duplicate manifest id to be rejected."
     except ValueError as exc:
         assert "Duplicate artifact manifest id" in str(exc)
+
+
+def test_default_manifests_encode_standard_vs_academic_boundaries():
+    manifest_path = Path(__file__).resolve().parents[2] / "config" / "artifact_manifests.yaml"
+    manifests = ArtifactManifestLoader(manifest_path).load()
+
+    standard_poem = compile_artifact_contract(manifests["creative_poem"], execution_mode="standard")
+    academic_poem = compile_artifact_contract(manifests["creative_poem"], execution_mode="academic")
+    academic_readme = compile_artifact_contract(manifests["technical_readme"], execution_mode="academic")
+    academic_paper = compile_artifact_contract(manifests["academic_paper"], execution_mode="academic")
+
+    assert standard_poem.execution_mode == "standard"
+    assert standard_poem.visualization_required is False
+    assert academic_poem.visualization_required is False
+    assert "research_paper_structure" in academic_poem.forbid
+    assert "forced_visualization" in academic_poem.forbid
+    assert academic_readme.visualization_required is False
+    assert academic_readme.requirements["rigor"] == "reproducibility_and_limitations"
+    assert academic_paper.visualization_required is True
+    assert academic_paper.requirements["evidence_discipline"] is True

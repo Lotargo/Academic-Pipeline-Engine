@@ -557,7 +557,7 @@ def test_self_verification_workflow():
             
         def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
             # If called for review
-            if "Check the provided text for material academic quality issues" in user_prompt:
+            if "Check the provided text for material quality issues" in user_prompt:
                 self.review_calls += 1
                 if self.review_calls == 1:
                     return "REJECTED: contains chinese symbols like 纯洁"
@@ -1051,7 +1051,7 @@ def test_quality_gate_automated_rejection_in_loop():
             self.review_calls = 0
 
         def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
-            if "Check the provided text for material academic quality issues" in user_prompt:
+            if "Check the provided text for material quality issues" in user_prompt:
                 self.review_calls += 1
                 return "APPROVED" # LLM reviewer is lenient and approves
 
