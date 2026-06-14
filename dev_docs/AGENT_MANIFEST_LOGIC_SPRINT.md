@@ -158,22 +158,22 @@ Tasks:
   - clarify the brief;
   - preserve artifact type;
   - do not add new scope or bureaucracy.
-- [ ] Add planner adapter:
+- [x] Add planner adapter:
   - choose artifact-compatible structure;
   - avoid academic sections unless the artifact is academic;
   - preserve continuation structure when present.
-- [ ] Add writer adapter:
+- [x] Add writer adapter:
   - write final content, not instructions;
   - preserve voice, genre, audience level, and pacing;
   - respect negative constraints.
-- [ ] Add reviewer adapter:
+- [x] Add reviewer adapter:
   - detect genre drift, style drift, audience drift, structure drift, and prompt loss;
   - reject incompatible academicization or bureaucracy;
   - check missing user constraints.
-- [ ] Add researcher adapter:
+- [x] Add researcher adapter:
   - run only when the artifact needs current facts/sources or the user enabled search;
   - avoid forcing citations into creative or purely personal artifacts unless requested.
-- [ ] Add exporter adapter:
+- [x] Add exporter adapter:
   - apply formatting appropriate to artifact type;
   - avoid title pages, headings, or citation sections unless requested or manifest-required.
 
@@ -264,7 +264,7 @@ Academic-mode additions:
 
 ## Workstream 6: Artifact Contract DSL / S-Expression Layer
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Reduce LLM cognitive load and hallucination risk by compiling user intent and manifests into a compact, explicit, Lisp-like runtime contract.
 
@@ -288,10 +288,10 @@ Example rendered contract:
 ```
 
 Tasks:
-- [ ] Define an internal `ArtifactContract` Python model.
-- [ ] Support JSON/YAML serialization for metadata.
-- [ ] Add a deterministic S-expression renderer for prompt injection.
-- [ ] Add parser/validator tests for:
+- [x] Define an internal `ArtifactContract` Python model.
+- [x] Support JSON/YAML serialization for metadata.
+- [x] Add a deterministic S-expression renderer for prompt injection.
+- [~] Add parser/validator tests for:
   - nested contract data;
   - string escaping;
   - stable ordering;
@@ -306,12 +306,12 @@ Tasks:
   - exporter contract.
 - [ ] Persist the resolved contract in history metadata.
 - [ ] On continuation, inherit the previous resolved contract before applying the new user instruction.
-- [ ] Add drift checks that compare final agent output against the contract.
+- [x] Add drift checks that compare final agent output against the contract.
 
 Design constraints:
-- [ ] The DSL must stay small and boring: no arbitrary code execution, no macros, no eval.
-- [ ] Contracts should be data, not programs.
-- [ ] LLMs may receive rendered S-expressions, but validation must happen in Python.
+- [x] The DSL must stay small and boring: no arbitrary code execution, no macros, no eval.
+- [x] Contracts should be data, not programs.
+- [x] LLMs may receive rendered S-expressions, but validation must happen in Python.
 - [ ] If a real Clojure/EDN runtime is considered later, document the tradeoff first.
 
 ---

@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from academic_pe.agent_adapters import contract_guidance_for_agent
 from academic_pe.core.config import AgentConfig, AppConfig
 from academic_pe.core.templates import PromptManifest, RuntimePromptManifest
 
@@ -90,7 +91,7 @@ class PromptManifestResolver:
         if not isinstance(contract_sexpr, str) or not contract_sexpr.strip():
             return ""
 
-        guidance = self._artifact_contract_guidance(agent_name)
+        guidance = contract_guidance_for_agent(agent_name)
         return (
             "[Active Artifact Contract]\n"
             "Use this compact contract as the highest-priority artifact intent. "
@@ -98,19 +99,6 @@ class PromptManifestResolver:
             f"{guidance}\n"
             f"{contract_sexpr.strip()}"
         )
-
-    def _artifact_contract_guidance(self, agent_name: str) -> str:
-        if agent_name == "writer":
-            return "Writer: produce final content that obeys the contract; do not output analysis of the contract."
-        if agent_name == "reviewer":
-            return "Reviewer: check for genre, style, audience, structure, prompt, and forbidden-clause drift against the contract."
-        if agent_name == "planner":
-            return "Planner: choose section structure compatible with the contract; do not add academic apparatus unless compatible or requested."
-        if agent_name == "researcher":
-            return "Researcher: search only when the contract or user request requires current facts or sources."
-        if agent_name == "exporter":
-            return "Exporter: format the artifact according to the contract; do not add title pages or citation sections unless required."
-        return "Agent: perform your role without changing the contract's artifact intent."
 
     def _role_for_agent(self, agent_name: str, manifest: PromptManifest) -> Optional[str]:
         if agent_name == "writer":

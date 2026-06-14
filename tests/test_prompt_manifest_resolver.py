@@ -125,6 +125,7 @@ def test_prompt_manifest_resolver_adds_reviewer_drift_guidance():
     )
 
     assert "Reviewer: check for genre, style, audience, structure, prompt, and forbidden-clause drift" in resolved.system_prompt
+    assert "AI/meta markers" in resolved.system_prompt
     assert "(artifact creative_poem)" in resolved.system_prompt
 
 
@@ -144,6 +145,45 @@ def test_prompt_manifest_resolver_adds_planner_structure_guidance():
 
     assert "Planner: choose section structure compatible with the contract" in resolved.system_prompt
     assert "do not add academic apparatus unless compatible or requested" in resolved.system_prompt
+    assert "artifact-native sections" in resolved.system_prompt
+    assert "(artifact creative_poem)" in resolved.system_prompt
+
+
+def test_prompt_manifest_resolver_adds_researcher_source_policy():
+    cfg = AgentConfig(
+        role="Researcher",
+        model="mock",
+        temperature=0.2,
+        system_prompt="Base researcher prompt.",
+    )
+
+    resolved = PromptManifestResolver().resolve_agent_config(
+        "researcher",
+        cfg,
+        _runtime_manifest_with_contract(),
+    )
+
+    assert "Researcher: search only when the contract or user request requires" in resolved.system_prompt
+    assert "Do not force citations" in resolved.system_prompt
+    assert "(artifact creative_poem)" in resolved.system_prompt
+
+
+def test_prompt_manifest_resolver_adds_exporter_formatting_policy():
+    cfg = AgentConfig(
+        role="Exporter",
+        model="mock",
+        temperature=0.2,
+        system_prompt="Base exporter prompt.",
+    )
+
+    resolved = PromptManifestResolver().resolve_agent_config(
+        "exporter",
+        cfg,
+        _runtime_manifest_with_contract(),
+    )
+
+    assert "Exporter: format the artifact according to the contract" in resolved.system_prompt
+    assert "do not add title pages or citation sections unless required" in resolved.system_prompt
     assert "(artifact creative_poem)" in resolved.system_prompt
 
 

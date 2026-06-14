@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from academic_pe.contracts.models import ArtifactContract
+from academic_pe.contracts.validator import validate_contract
 from academic_pe.manifests.models import ArtifactManifest
 
 
@@ -31,7 +32,7 @@ def compile_artifact_contract(
         requirements.update(extra_requirements)
         visualization_required = bool(requirements.get("visualization_required", visualization_required))
 
-    return ArtifactContract(
+    contract = ArtifactContract(
         manifest_id=manifest.id,
         manifest_version=manifest.version,
         artifact=manifest.artifact_type,
@@ -45,3 +46,4 @@ def compile_artifact_contract(
         requirements=requirements,
         visualization_required=visualization_required,
     )
+    return validate_contract(contract)
