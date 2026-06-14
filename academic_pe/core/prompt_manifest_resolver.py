@@ -91,7 +91,10 @@ class PromptManifestResolver:
         if not isinstance(contract_sexpr, str) or not contract_sexpr.strip():
             return ""
 
-        guidance = contract_guidance_for_agent(agent_name)
+        resolved_manifest = metadata.get("resolved_manifest")
+        artifact_id = resolved_manifest.get("id") if isinstance(resolved_manifest, dict) else None
+
+        guidance = contract_guidance_for_agent(agent_name, artifact_id)
         return (
             "[Active Artifact Contract]\n"
             "Use this compact contract as the highest-priority artifact intent. "

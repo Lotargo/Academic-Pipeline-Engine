@@ -52,3 +52,19 @@ def test_contract_guidance_for_unknown_agent_uses_preserve_intent_fallback():
     guidance = contract_guidance_for_agent("custom_agent")
 
     assert guidance == "Agent: perform your role without changing the contract's artifact intent."
+
+
+def test_contract_guidance_for_writer_includes_poem_genre_rules():
+    guidance = contract_guidance_for_agent("writer", "creative_poem")
+
+    assert "Lyrical/Poetic writing checks" in guidance
+    assert "rhythm, imagery, and emotional coherence" in guidance
+    assert "explanations of the poem's meaning" in guidance
+
+
+def test_contract_guidance_for_reviewer_includes_readme_genre_rules():
+    guidance = contract_guidance_for_agent("reviewer", "technical_readme")
+
+    assert "Technical README Reviewer checks" in guidance
+    assert "install, run, config" in guidance
+    assert "fabricated functionality" in guidance
