@@ -146,18 +146,7 @@ async def generate_new_examples():
         )
 
         lang = config.ui.language
-        prompt = (
-            f"Generate exactly 3 creative, diverse, and relevant artifact requests "
-            f"along with clear instructions for each, tailored to the '{lang}' language. "
-            f"Write the topics and instructions in the language corresponding to '{lang}' "
-            f"(e.g. if 'ru' write in Russian, if 'en' write in English). "
-            f"Return ONLY a valid JSON array of objects without markdown code block syntax. "
-            f"Format:\n"
-            f'[\n'
-            f'  {{"topic": "...", "instructions": "..."}},\n'
-            f'  ...\n'
-            f']'
-        )
+        prompt = build_dynamic_examples_prompt(lang)
         return agent.process(prompt)
 
     try:
@@ -188,6 +177,23 @@ async def generate_new_examples():
 
     except Exception as e:
         logger.exception("Error generating dynamic examples: %s", e)
+
+
+def build_dynamic_examples_prompt(lang: str) -> str:
+    return (
+        f"Generate exactly 3 creative, diverse, and relevant artifact requests "
+        f"along with clear instructions for each, tailored to the '{lang}' language. "
+        f"Examples are illustrative entry points only, not an exhaustive list of supported artifact types; "
+        f"include diverse forms and avoid implying that unknown or niche requests must be converted into these examples. "
+        f"Write the topics and instructions in the language corresponding to '{lang}' "
+        f"(e.g. if 'ru' write in Russian, if 'en' write in English). "
+        f"Return ONLY a valid JSON array of objects without markdown code block syntax. "
+        f"Format:\n"
+        f"[\n"
+        f'  {{"topic": "...", "instructions": "..."}},\n'
+        f"  ...\n"
+        f"]"
+    )
 
 
 async def dynamic_examples_loop():

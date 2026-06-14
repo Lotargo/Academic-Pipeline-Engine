@@ -131,6 +131,10 @@ def build_prompt_enhancement_prompt(
             "8. Explicitly forbid placeholders, AI self-references, apology wrappers, and meta-text that would "
             "appear in the final generated document."
         ),
+        (
+            "9. Treat examples, presets, and candidate labels as illustrative only, never exhaustive. If the user "
+            "asks for a niche or unknown artifact, preserve that apparent form instead of mapping it to the nearest example."
+        ),
         "",
         "Internal candidate-and-critic process:",
         "- Draft a conservative enhancement that preserves the raw request.",

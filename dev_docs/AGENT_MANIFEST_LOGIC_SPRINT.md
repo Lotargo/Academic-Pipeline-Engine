@@ -409,19 +409,19 @@ Implementation notes:
 
 ## Workstream 7: Prompt Enhancer Refactor
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Replace the current single prompt-enhancement prompt with manifest-driven intent routing and controlled enhancement.
 
 Tasks:
 - [x] Add intent router for artifact type detection.
-- [ ] Treat examples as illustrative, not exhaustive.
+- [x] Treat examples as illustrative, not exhaustive.
 - [x] Add fallback behavior for unknown artifact types:
   - preserve apparent artifact type;
   - improve minimally;
   - do not convert to academic paper;
   - do not invent structure.
-- [~] Add lightweight ToT-style candidate generation internally:
+- [x] Add lightweight ToT-style candidate generation internally:
   - conservative candidate;
   - detailed candidate;
   - creative/structural candidate when appropriate.
@@ -433,6 +433,11 @@ Tasks:
   - add AI markers or meta-text.
 - [x] Return only the final `topic` and `instructions` JSON to the UI.
 - [x] Optionally store a short `decision_summary` for debug metadata, without exposing long chain-of-thought.
+
+Implementation notes:
+- Prompt enhancer instructions now state that examples, presets, and candidate labels are illustrative only, never exhaustive.
+- Dynamic example generation prompts use the same policy so examples do not imply a fixed artifact taxonomy.
+- PromptEnhancerAgent now has a deterministic fallback gate for ToT candidate maps; if self-critique is disabled or returns the raw candidates, obvious title-page/rubric/citation/placeholder drift is rejected before selection.
 
 ---
 
@@ -531,7 +536,7 @@ Status: `[ ] Planned`
 Objective: Prevent regressions where unknown or creative requests are converted into academic tasks.
 
 Tasks:
-- [ ] Add golden tests for prompt enhancement:
+- [x] Add golden tests for prompt enhancement:
   - poem -> no title page, no rubric, no citations by default;
   - children's story -> preserve childlike narrative voice;
   - erotic/adult story -> preserve narrative artifact type and requested boundaries;

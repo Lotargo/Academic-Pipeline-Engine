@@ -22,6 +22,7 @@ def test_prompt_enhancement_preserves_poem_genre():
     assert "(visualization_required false)" in prompt
     assert "PromptEnhancer adapter rules" in prompt
     assert "candidate-and-critic" in prompt
+    assert "Treat examples, presets, and candidate labels as illustrative only, never exhaustive" in prompt
 
 
 def test_prompt_enhancement_uses_preserve_first_fallback_for_unknown_artifact():
@@ -156,3 +157,52 @@ def test_prompt_enhancer_agent_tot_generation_and_selection():
     assert "Detailed Inst" in result
     assert len(provider.calls) == 2
     assert "INSTRUCTION FOR CANDIDATE GENERATION" in provider.calls[0]["user_prompt"]
+    assert "candidate labels as exhaustive" in provider.calls[0]["user_prompt"]
+
+
+def test_prompt_enhancer_agent_tot_fallback_rejects_obvious_drift():
+    import json
+    from academic_pe.agents.prompt_enhancer import PromptEnhancerAgent
+    from academic_pe.core.config import AgentConfig
+    from academic_pe.core.llm import LLMProvider
+
+    class DriftCandidateProvider(LLMProvider):
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            self.calls.append({
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+            })
+            return json.dumps({
+                "conservative": {
+                    "topic": "Moonlit field notebook",
+                    "instructions": "Keep the odd two-column fragment form and clarify details."
+                },
+                "detailed": {
+                    "topic": "Moonlit field notebook research paper",
+                    "instructions": "Add a title page, grading rubric, bibliography, and references section."
+                },
+                "creative": {
+                    "topic": "Moonlit field notebook",
+                    "instructions": "Use [insert link] and placeholder notes."
+                }
+            })
+
+    cfg = AgentConfig(
+        role="Example Generator",
+        model="mock",
+        temperature=0.8,
+        system_prompt="Enhancer system prompt",
+    )
+    provider = DriftCandidateProvider()
+    agent = PromptEnhancerAgent(cfg, provider)
+
+    result = json.loads(agent.process("Keep my odd two-column fragment form."))
+
+    assert result["topic"] == "Moonlit field notebook"
+    assert "two-column fragment form" in result["instructions"]
+    assert "title page" not in result["instructions"].lower()
+    assert "placeholder" not in result["instructions"].lower()
+    assert len(provider.calls) == 1

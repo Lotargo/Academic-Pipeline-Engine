@@ -1,6 +1,12 @@
 import pytest
 from academic_pe.core.config import AppConfig, AgentConfig
-from academic_pe.core.dynamic_examples import clean_and_parse_json, get_default_examples, DEFAULT_EXAMPLES_RU, DEFAULT_EXAMPLES_EN
+from academic_pe.core.dynamic_examples import (
+    DEFAULT_EXAMPLES_EN,
+    DEFAULT_EXAMPLES_RU,
+    build_dynamic_examples_prompt,
+    clean_and_parse_json,
+    get_default_examples,
+)
 
 
 def test_dynamic_examples_config_defaults():
@@ -89,3 +95,11 @@ def test_default_examples_are_artifact_diverse():
     assert "Poem" in combined
     assert "Analytical Report" in combined
     assert "academic research topics" not in combined
+
+
+def test_dynamic_examples_prompt_treats_examples_as_illustrative_not_exhaustive():
+    prompt = build_dynamic_examples_prompt("en")
+
+    assert "illustrative entry points only" in prompt
+    assert "not an exhaustive list of supported artifact types" in prompt
+    assert "unknown or niche requests" in prompt
