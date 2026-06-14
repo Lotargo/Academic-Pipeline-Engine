@@ -477,12 +477,12 @@ Tasks:
 
 ## Workstream 10: UI And Debug Visibility
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Make artifact routing visible enough to prevent surprises without overwhelming the user.
 
 Tasks:
-- [ ] Show compact detected mode in the UI, e.g. `Detected: Poem · Creative mode · No citations`.
+- [x] Show compact detected mode in the UI, e.g. `Detected: Poem · Creative mode · No citations`.
 - [ ] Allow user override of artifact type when confidence is low or the detection is wrong.
 - [ ] Add debug metadata view for:
   - manifest id/version;

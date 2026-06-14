@@ -27,6 +27,39 @@ import {
 import { useTheme } from "next-themes"
 import { messages, normalizeLanguage, type Messages, type UiLanguage } from "@/lib/i18n"
 
+function formatArtifactLabel(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return ""
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function artifactDetection(status: any, selectedPaper: any) {
+  const source = selectedPaper || status || {}
+  const summary = source.decision_summary || source.runtime_prompt_manifest?.metadata?.decision_summary
+  const selection = source.manifest_selection || source.runtime_prompt_manifest?.metadata?.manifest_selection
+  const contract = source.resolved_contract || source.runtime_prompt_manifest?.metadata?.resolved_contract
+  const manifest = source.resolved_manifest || source.runtime_prompt_manifest?.metadata?.resolved_manifest
+
+  const artifact = summary?.artifact || contract?.artifact || manifest?.artifact_type || manifest?.id
+  const mode = summary?.mode || contract?.execution_mode
+  const confidence = typeof summary?.confidence === "number"
+    ? summary.confidence
+    : typeof selection?.confidence === "number"
+      ? selection.confidence
+      : null
+  const summaryText = typeof summary?.summary === "string" ? summary.summary : ""
+
+  if (!artifact && !mode && confidence === null) return null
+
+  return {
+    artifact: formatArtifactLabel(artifact),
+    mode: formatArtifactLabel(mode),
+    confidence,
+    summary: summaryText,
+  }
+}
+
 export function Search() {
   const { theme, setTheme } = useTheme()
   const [language, setLanguage] = useState<UiLanguage>("en")
@@ -257,6 +290,10 @@ export function Search() {
     !selectedPaper &&
     (status?.status === "COMPLETED" || status?.state === "DONE") &&
     Object.keys(currentExportableContext).length > 0
+  const detectedArtifact = artifactDetection(status, selectedPaper)
+  const detectedConfidenceLabel = typeof detectedArtifact?.confidence === "number"
+    ? `${Math.round(detectedArtifact.confidence * 100)}%`
+    : ""
 
   const handleDownloadCurrentDocx = () => {
     if (!status?.docx_filename) return
@@ -534,6 +571,17 @@ export function Search() {
                 ? `${t.nav.running}: ${status.topic}`
                 : t.nav.activeWorkspace}
             </span>
+            {detectedArtifact && (
+              <span
+                title={detectedArtifact.summary || "Artifact detection"}
+                className="hidden shrink-0 items-center gap-1 rounded-full border border-ape-primary/25 bg-ape-primary-soft/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ape-primary-text md:inline-flex"
+              >
+                <span>Detected:</span>
+                {detectedArtifact.artifact && <span>{detectedArtifact.artifact}</span>}
+                {detectedArtifact.mode && <span>/ {detectedArtifact.mode}</span>}
+                {detectedConfidenceLabel && <span>/ {detectedConfidenceLabel}</span>}
+              </span>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -758,6 +806,34 @@ export function Search() {
                         {language === "ru" ? "Сбросить" : "Clear"}
                       </Button>
                     </div>
+                  </div>
+                )}
+
+                {detectedArtifact && (
+                  <div className="rounded-xl border border-border/70 bg-card/70 p-4 text-xs shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold uppercase tracking-wide text-muted-foreground">
+                        Artifact routing
+                      </span>
+                      {detectedArtifact.artifact && (
+                        <span className="rounded-full bg-ape-primary-soft px-2.5 py-1 font-bold text-ape-primary-text">
+                          {detectedArtifact.artifact}
+                        </span>
+                      )}
+                      {detectedArtifact.mode && (
+                        <span className="rounded-full bg-muted px-2.5 py-1 font-semibold text-muted-foreground">
+                          {detectedArtifact.mode}
+                        </span>
+                      )}
+                      {detectedConfidenceLabel && (
+                        <span className="rounded-full bg-muted px-2.5 py-1 font-semibold text-muted-foreground">
+                          {detectedConfidenceLabel}
+                        </span>
+                      )}
+                    </div>
+                    {detectedArtifact.summary && (
+                      <p className="mt-2 text-muted-foreground">{detectedArtifact.summary}</p>
+                    )}
                   </div>
                 )}
 
