@@ -877,17 +877,18 @@ def rewrite_document_topic(
     if should_preserve_topic(instructions):
         return topic
 
-    prompt = f"""You are an expert academic editor.
-Your task is to refine the document topic into a highly professional, academic, and stylized title.
+    prompt = f"""You are an artifact-aware editor.
+Your task is to refine the document topic into a clear, suitable, and artifact-appropriate title or brief.
 
 User Topic: "{topic}"
 User Instructions/Constraints: "{instructions or '(none)'}"
 
 Rules:
 1. If the User Instructions explicitly state that the topic/title must not be changed, must remain exactly as is, or must not be renamed (e.g. "не переименовывать тему", "do not rename", etc.), you MUST return the User Topic exactly as is.
-2. Otherwise, write a more correct, suitable, and stylistically refined academic title for the paper based on the topic.
-3. The title must be in the same language as the User Topic.
-4. Return ONLY the final title. Do not include any explanations, quotes, or introductory text.
+2. Otherwise, write a more correct and stylistically refined title or brief that preserves the user's requested artifact type, genre, audience, voice, and constraints.
+3. Do not turn creative, school-level, technical, plan, report, or freeform requests into academic papers.
+4. The title must be in the same language as the User Topic.
+5. Return ONLY the final title or brief. Do not include any explanations, quotes, or introductory text.
 """
     refined = writer_agent.process(prompt)
     return refined.strip().strip('"\'')

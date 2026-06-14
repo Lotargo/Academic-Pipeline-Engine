@@ -736,7 +736,10 @@ def test_rewrite_document_topic_refines_title():
     from academic_pe.core.orchestrator import rewrite_document_topic
     
     class FakeWriter(DefaultAgent):
+        prompt = ""
+
         def process(self, task_description, context=None, on_delta=None, document_sections=None):
+            self.prompt = task_description
             return "Advanced FSM Design Pattern"
 
     writer = FakeWriter(AgentConfig(role="Writer", model="mock", temperature=0.0, system_prompt=""), MockProvider())
@@ -744,6 +747,9 @@ def test_rewrite_document_topic_refines_title():
     # no constraint present
     res = rewrite_document_topic("FSM", "Use latex", writer)
     assert res == "Advanced FSM Design Pattern"
+    assert "artifact-aware editor" in writer.prompt
+    assert "academic title for the paper" not in writer.prompt
+    assert "Do not turn creative" in writer.prompt
 
 
 def test_create_orchestrator_from_config_does_not_refine_topic_for_mock_provider():
