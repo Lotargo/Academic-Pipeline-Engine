@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import yaml
 import logging
@@ -9,7 +9,7 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -62,7 +62,7 @@ app.mount("/api/exports", StaticFiles(directory="exports"), name="exports")
 
 
 # Global status tracking object
-current_run = {
+current_run: Dict[str, Any] = {
     "status": "IDLE",  # IDLE, RUNNING, COMPLETED, FAILED
     "state": "INIT",
     "logs": [],
@@ -511,12 +511,13 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
             "example_generator",
             agent_cfg,
             retry_cfg=config.retry,
-            cb_cfg=config.circuit_breaker
+            cb_cfg=config.circuit_breaker,
+            agent_type="prompt_enhancer"
         )
-        return agent.process(prompt)
+        return agent.process(prompt), agent.last_self_critique_summary
 
     try:
-        raw_response = await loop.run_in_executor(None, run_agent)
+        raw_response, self_critique_summary = await loop.run_in_executor(None, run_agent)
         
         # Parse the JSON object
         text = raw_response.strip()
@@ -542,7 +543,8 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
 
         return PromptEnhanceResponse(
             topic=data["topic"].strip(),
-            instructions=data["instructions"].strip()
+            instructions=data["instructions"].strip(),
+            self_critique_summary=self_critique_summary
         )
 
     except Exception as e:

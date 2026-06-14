@@ -2,6 +2,7 @@ from typing import Dict, Optional, Type
 
 from academic_pe.agents.base import BaseAgent, DefaultAgent
 from academic_pe.agents.writer import WriterAgent, ReviewerAgent
+from academic_pe.agents.prompt_enhancer import PromptEnhancerAgent
 from academic_pe.core.config import AppConfig, AgentConfig, RetryConfig, CircuitBreakerConfig
 from academic_pe.core.llm import create_provider, RetryConfig as LLMRetryConfig, CircuitBreakerConfig as LLMCBConfig
 
@@ -9,6 +10,7 @@ _AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "default": DefaultAgent,
     "writer": WriterAgent,
     "reviewer": ReviewerAgent,
+    "prompt_enhancer": PromptEnhancerAgent,
 }
 
 

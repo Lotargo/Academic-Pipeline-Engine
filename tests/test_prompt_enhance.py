@@ -47,3 +47,66 @@ def test_prompt_enhancement_passes_academic_mode_as_contract_clause():
     assert "(clauses academic_mode)" in prompt
     assert "(visualization_required false)" in prompt
     assert "academic_mode clause means compatible rigor" in prompt
+
+
+def test_prompt_enhancer_agent_creation_and_registration():
+    from academic_pe.agents.factory import create_agent
+    from academic_pe.agents.prompt_enhancer import PromptEnhancerAgent
+    from academic_pe.core.config import AgentConfig
+
+    cfg = AgentConfig(
+        role="Example Generator",
+        model="mock",
+        temperature=0.8,
+        system_prompt="Enhancer system prompt",
+    )
+    agent = create_agent("example_generator", cfg, agent_type="prompt_enhancer")
+    assert isinstance(agent, PromptEnhancerAgent)
+
+
+def test_prompt_enhancer_agent_self_critique_success():
+    import json
+    from academic_pe.agents.prompt_enhancer import PromptEnhancerAgent
+    from academic_pe.core.config import AgentConfig, SelfCritiqueConfig
+    from academic_pe.core.llm import LLMProvider
+
+    class DoubleGenerateProvider(LLMProvider):
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            self.calls.append({
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "model": model,
+                "temperature": temperature,
+            })
+            if len(self.calls) == 1:
+                return '{"topic": "Unrefined", "instructions": "Unrefined"}'
+            else:
+                return json.dumps({
+                    "summary": "Repaired the prompt.",
+                    "output": '{"topic": "Refined Topic", "instructions": "Refined Instructions"}'
+                })
+
+    cfg = AgentConfig(
+        role="Example Generator",
+        model="mock",
+        temperature=0.8,
+        system_prompt="Enhancer system prompt",
+        self_critique=SelfCritiqueConfig(enabled=True, temperature=0.2),
+    )
+    provider = DoubleGenerateProvider()
+    agent = PromptEnhancerAgent(cfg, provider)
+
+    result = agent.process("Raw user prompt")
+
+    assert agent.last_self_critique_summary == "Repaired the prompt."
+    assert "Refined Topic" in result
+    assert len(provider.calls) == 2
+    
+    # Verify the critique prompt used prompt_enhancer agent rules
+    critique_user_prompt = provider.calls[1]["user_prompt"]
+    assert "PromptEnhancer self-critique" in critique_user_prompt
+    assert "Agent: prompt_enhancer" in critique_user_prompt
+

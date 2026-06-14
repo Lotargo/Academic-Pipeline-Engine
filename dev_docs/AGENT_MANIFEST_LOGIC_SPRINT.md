@@ -298,13 +298,12 @@ Implementation notes:
 
 ## Workstream 5: Independent Self-Critique Phase
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Add a non-blocking critical-analysis phase inside agents so they improve their own output before handing it forward.
 
 Rationale:
-- LLMs often stay infected by the first reasoning path when critique is merely appended as the next instruction.
-- A separate critic pass can catch conceptual drift, weak structure, missing constraints, and style mismatch more reliably.
+- Prompt-level criticism can catch conceptual drift, weak structure, missing constraints, and style mismatch more reliably.
 - This critic must not become another Reviewer that blocks the pipeline. It should rewrite/improve the agent's own output directly.
 
 Pattern:
@@ -317,7 +316,7 @@ agent draft
 ```
 
 Agent-specific behavior:
-- [ ] PromptEnhancer critic checks whether enhancement changed artifact type, added bureaucracy, or lost user details; then rewrites the enhanced prompt itself.
+- [x] PromptEnhancer critic checks whether enhancement changed artifact type, added bureaucracy, or lost user details; then rewrites the enhanced prompt itself.
 - [x] Planner critic checks whether the plan follows the manifest, preserves genre/style, avoids academic drift, and handles continuation; then rewrites the plan itself.
 - [x] Writer critic checks whether the draft obeys the contract, avoids AI markers, preserves voice, and satisfies user constraints; then rewrites the content itself.
 - [ ] Researcher critic checks source relevance, citation quality, and overreach; then rewrites findings itself.
@@ -420,7 +419,7 @@ Tasks:
   - conservative candidate;
   - detailed candidate;
   - creative/structural candidate when appropriate.
-- [~] Add critic/gate that rejects candidates that:
+- [x] Add critic/gate that rejects candidates that:
   - change artifact type;
   - add title pages/rubrics/citations without request;
   - introduce academic drift;

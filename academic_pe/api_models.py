@@ -63,3 +63,4 @@ class PromptEnhanceRequest(BaseModel):
 class PromptEnhanceResponse(BaseModel):
     topic: str
     instructions: str
+    self_critique_summary: Optional[str] = None
