@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, Protocol
 
+from academic_pe.contracts import compile_agent_contract, render_agent_contract_sexpr
 from academic_pe.manifests.resolver import ArtifactManifestResolver, ResolvedArtifactManifest
 
 logger = logging.getLogger(__name__)
@@ -201,6 +202,9 @@ def _contract_section(resolved: Optional[ResolvedArtifactManifest]) -> str:
             "form instead of inventing structure."
         )
 
+    agent_contract = compile_agent_contract(contract, "prompt_enhancer")
+    agent_contract_sexpr = render_agent_contract_sexpr(agent_contract)
+
     return (
         "[Active Artifact Contract]\n"
         "Use this compact contract as the highest-priority artifact intent for prompt enhancement.\n"
@@ -208,5 +212,8 @@ def _contract_section(resolved: Optional[ResolvedArtifactManifest]) -> str:
         f"Selection confidence: {evidence.confidence:.2f}\n"
         f"Matched phrases: {', '.join(evidence.matched_phrases) if evidence.matched_phrases else 'none'}\n"
         f"Adapter guidance: {artifact_guidance}{confidence_note}\n"
-        f"{resolved.contract_sexpr.strip()}"
+        f"{resolved.contract_sexpr.strip()}\n\n"
+        "[Active Agent Contract]\n"
+        "This is the adapter-specific contract compiled for prompt enhancement.\n"
+        f"{agent_contract_sexpr}"
     )

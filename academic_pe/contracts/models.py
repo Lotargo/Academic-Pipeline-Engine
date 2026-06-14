@@ -22,3 +22,13 @@ class ArtifactContract(BaseModel):
     requirements: Dict[str, Any] = Field(default_factory=dict)
     content_boundaries: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     visualization_required: bool = False
+
+
+class AgentContract(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    agent: str = Field(..., min_length=1)
+    artifact_contract: ArtifactContract
+    responsibilities: List[str] = Field(default_factory=list)
+    checks: List[str] = Field(default_factory=list)
+    forbid: List[str] = Field(default_factory=list)

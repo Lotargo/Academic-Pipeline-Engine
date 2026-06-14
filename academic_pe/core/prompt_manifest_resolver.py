@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 import yaml
+from pydantic import ValidationError
 
 from academic_pe.agent_adapters import contract_guidance_for_agent
+from academic_pe.contracts import ArtifactContract, compile_agent_contract, render_agent_contract_sexpr
 from academic_pe.core.config import AgentConfig, AppConfig
 from academic_pe.core.templates import PromptManifest, RuntimePromptManifest
 
@@ -54,6 +56,10 @@ class PromptManifestResolver:
         if artifact_contract:
             sections.append(artifact_contract)
 
+        agent_contract = self._agent_contract_prompt(agent_name, runtime_manifest)
+        if agent_contract:
+            sections.append(agent_contract)
+
         return "\n\n".join(sections)
 
     def compose_manifest_prompt(self, agent_name: str, manifest: PromptManifest) -> str:
@@ -101,6 +107,28 @@ class PromptManifestResolver:
             "Preserve the requested artifact type, style, audience, structure, mode, and forbid clauses unless the current user request explicitly changes them.\n"
             f"{guidance}\n"
             f"{contract_sexpr.strip()}"
+        )
+
+    def _agent_contract_prompt(
+        self,
+        agent_name: str,
+        runtime_manifest: RuntimePromptManifest,
+    ) -> str:
+        metadata = runtime_manifest.metadata or {}
+        contract_data = metadata.get("resolved_contract")
+        if not isinstance(contract_data, dict):
+            return ""
+
+        try:
+            artifact_contract = ArtifactContract.model_validate(contract_data)
+            agent_contract = compile_agent_contract(artifact_contract, agent_name)
+        except (TypeError, ValueError, ValidationError):
+            return ""
+
+        return (
+            "[Active Agent Contract]\n"
+            "This is the adapter-specific contract compiled from the artifact contract and the current agent role.\n"
+            f"{render_agent_contract_sexpr(agent_contract)}"
         )
 
     def _role_for_agent(self, agent_name: str, manifest: PromptManifest) -> Optional[str]:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from academic_pe.contracts.models import ArtifactContract
+from academic_pe.contracts.models import AgentContract, ArtifactContract
 
 
 class ContractValidationError(ValueError):
@@ -31,6 +31,13 @@ _RESERVED_NAMES = {
 
 def validate_contract(contract: ArtifactContract) -> ArtifactContract:
     issues = contract_validation_issues(contract)
+    if issues:
+        raise ContractValidationError("; ".join(issues))
+    return contract
+
+
+def validate_agent_contract(contract: AgentContract) -> AgentContract:
+    issues = agent_contract_validation_issues(contract)
     if issues:
         raise ContractValidationError("; ".join(issues))
     return contract
@@ -64,6 +71,18 @@ def contract_validation_issues(contract: ArtifactContract) -> list[str]:
         _append_name_issues(issues, f"content_boundaries.{key}", key)
         _append_boundary_issues(issues, f"content_boundaries.{key}", value)
 
+    return issues
+
+
+def agent_contract_validation_issues(contract: AgentContract) -> list[str]:
+    issues = contract_validation_issues(contract.artifact_contract)
+    _append_name_issues(issues, "agent", contract.agent)
+    for index, name in enumerate(contract.responsibilities):
+        _append_name_issues(issues, f"responsibilities[{index}]", name)
+    for index, name in enumerate(contract.checks):
+        _append_name_issues(issues, f"checks[{index}]", name)
+    for index, name in enumerate(contract.forbid):
+        _append_name_issues(issues, f"forbid[{index}]", name)
     return issues
 
 

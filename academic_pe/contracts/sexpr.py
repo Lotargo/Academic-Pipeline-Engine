@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from academic_pe.contracts.models import ArtifactContract
+from academic_pe.contracts.models import AgentContract, ArtifactContract
 
 
 def render_contract_sexpr(contract: ArtifactContract) -> str:
@@ -26,6 +26,22 @@ def render_contract_sexpr(contract: ArtifactContract) -> str:
     for key in sorted(contract.requirements):
         lines.append(f"  (requirement {_atom(key)} {_value(contract.requirements[key])})")
     lines.append(f"  (visualization_required {_bool(contract.visualization_required)})")
+    lines.append(")")
+    return "\n".join(lines)
+
+
+def render_agent_contract_sexpr(contract: AgentContract) -> str:
+    lines = ["(agent_contract"]
+    lines.append(f"  (agent {_atom(contract.agent)})")
+    if contract.responsibilities:
+        lines.append("  (responsibilities " + " ".join(_atom(item) for item in contract.responsibilities) + ")")
+    if contract.checks:
+        lines.append("  (checks " + " ".join(_atom(item) for item in contract.checks) + ")")
+    if contract.forbid:
+        lines.append("  (forbid " + " ".join(_atom(item) for item in contract.forbid) + ")")
+    lines.append("  (artifact_contract")
+    lines.append(_indent(render_contract_sexpr(contract.artifact_contract), spaces=4))
+    lines.append("  )")
     lines.append(")")
     return "\n".join(lines)
 
@@ -58,3 +74,8 @@ def _bool(value: bool) -> str:
 def _string(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
     return f'"{escaped}"'
+
+
+def _indent(text: str, *, spaces: int) -> str:
+    prefix = " " * spaces
+    return "\n".join(prefix + line for line in text.splitlines())

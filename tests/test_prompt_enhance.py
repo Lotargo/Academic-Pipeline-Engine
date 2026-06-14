@@ -16,6 +16,9 @@ def test_prompt_enhancement_preserves_poem_genre():
     assert "[Active Artifact Contract]" in prompt
     assert "(artifact creative_poem)" in prompt
     assert "(clauses standard_mode)" in prompt
+    assert "[Active Agent Contract]" in prompt
+    assert "(agent prompt_enhancer)" in prompt
+    assert "(responsibilities clarify_brief reduce_ambiguity preserve_artifact_intent)" in prompt
     assert "(visualization_required false)" in prompt
     assert "PromptEnhancer adapter rules" in prompt
     assert "candidate-and-critic" in prompt
@@ -153,4 +156,3 @@ def test_prompt_enhancer_agent_tot_generation_and_selection():
     assert "Detailed Inst" in result
     assert len(provider.calls) == 2
     assert "INSTRUCTION FOR CANDIDATE GENERATION" in provider.calls[0]["user_prompt"]
-

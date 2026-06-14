@@ -382,7 +382,7 @@ Tasks:
   - stable ordering;
   - forbidden constraint names;
   - unknown artifact fallback.
-- [ ] Compile artifact manifests and agent adapters into agent-specific contracts:
+- [x] Compile artifact manifests and agent adapters into agent-specific contracts:
   - prompt enhancer contract;
   - planner contract;
   - writer contract;
@@ -398,6 +398,12 @@ Design constraints:
 - [x] Contracts should be data, not programs.
 - [x] LLMs may receive rendered S-expressions, but validation must happen in Python.
 - [ ] If a real Clojure/EDN runtime is considered later, document the tradeoff first.
+
+Implementation notes:
+- Added `AgentContract` as a deterministic, validated adapter-specific wrapper around `ArtifactContract`.
+- Added compiler policies for prompt enhancer, planner, writer, reviewer, researcher, exporter, renderer, and unknown-agent fallback behavior.
+- Runtime prompts now include both `[Active Artifact Contract]` and `[Active Agent Contract]` when full resolved contract metadata is available.
+- Prompt enhancement includes its own prompt-enhancer agent contract because it resolves manifests before the normal runtime prompt resolver path.
 
 ---
 
@@ -525,7 +531,7 @@ Tasks:
 - [ ] Add writer tests proving output instructions preserve style/genre.
 - [ ] Add reviewer tests for genre drift, academicization drift, rubric drift, and AI-marker detection.
 - [ ] Add continuation tests proving previous resolved manifest is inherited.
-- [ ] Add contract DSL tests proving agent prompts receive compact, stable, non-executable S-expression contracts.
+- [x] Add contract DSL tests proving agent prompts receive compact, stable, non-executable S-expression contracts.
 - [ ] Add standard-vs-academic mode tests for creative, technical, README, and academic artifacts.
 - [x] Add self-critique tests proving agents repair their own draft instead of returning a blocker.
 

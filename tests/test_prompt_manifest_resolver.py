@@ -48,7 +48,19 @@ def _runtime_manifest_with_contract() -> RuntimePromptManifest:
   (visualization_required false)
 )""",
                 "resolved_contract": {
+                    "manifest_id": "creative_poem",
+                    "manifest_version": 1,
                     "artifact": "creative_poem",
+                    "language": "ru",
+                    "style": ["lyrical", "human"],
+                    "audience": "general",
+                    "mode": "new",
+                    "execution_mode": "academic",
+                    "clauses": ["academic_mode"],
+                    "structure": ["lines", "stanzas"],
+                    "forbid": ["academic_drift", "forced_visualization", "research_paper_structure"],
+                    "requirements": {},
+                    "content_boundaries": {},
                     "visualization_required": False,
                 },
             }
@@ -89,7 +101,10 @@ def test_prompt_manifest_resolver_adds_artifact_contract_to_writer_prompt():
     )
 
     assert "[Active Artifact Contract]" in resolved.system_prompt
+    assert "[Active Agent Contract]" in resolved.system_prompt
     assert "Writer: produce final content that obeys the contract" in resolved.system_prompt
+    assert "(agent writer)" in resolved.system_prompt
+    assert "(responsibilities produce_final_content preserve_voice_genre_audience satisfy_user_constraints)" in resolved.system_prompt
     assert "(artifact creative_poem)" in resolved.system_prompt
     assert "(forbid academic_drift forced_visualization research_paper_structure)" in resolved.system_prompt
     assert "(visualization_required false)" in resolved.system_prompt
@@ -126,6 +141,8 @@ def test_prompt_manifest_resolver_adds_reviewer_drift_guidance():
 
     assert "Reviewer: check for genre, style, audience, structure, prompt, and forbidden-clause drift" in resolved.system_prompt
     assert "AI/meta markers" in resolved.system_prompt
+    assert "(agent reviewer)" in resolved.system_prompt
+    assert "(checks genre_drift style_drift audience_drift structure_drift ai_markers)" in resolved.system_prompt
     assert "(artifact creative_poem)" in resolved.system_prompt
 
 
@@ -146,6 +163,8 @@ def test_prompt_manifest_resolver_adds_planner_structure_guidance():
     assert "Planner: choose section structure compatible with the contract" in resolved.system_prompt
     assert "do not add academic apparatus unless compatible with mode clauses or requested" in resolved.system_prompt
     assert "artifact-native sections" in resolved.system_prompt
+    assert "(agent planner)" in resolved.system_prompt
+    assert "(responsibilities select_artifact_native_structure preserve_continuation_structure plan_deliverables)" in resolved.system_prompt
     assert "(artifact creative_poem)" in resolved.system_prompt
 
 
@@ -165,6 +184,8 @@ def test_prompt_manifest_resolver_adds_researcher_source_policy():
 
     assert "Researcher: search only when the contract or user request requires" in resolved.system_prompt
     assert "Do not force citations" in resolved.system_prompt
+    assert "(agent researcher)" in resolved.system_prompt
+    assert "(forbid unrequested_citations source_hunting_for_creative_artifacts unsupported_claims)" in resolved.system_prompt
     assert "(artifact creative_poem)" in resolved.system_prompt
 
 
@@ -184,6 +205,8 @@ def test_prompt_manifest_resolver_adds_exporter_formatting_policy():
 
     assert "Exporter: format the artifact according to the contract" in resolved.system_prompt
     assert "do not add title pages or citation sections unless required" in resolved.system_prompt
+    assert "(agent exporter)" in resolved.system_prompt
+    assert "(checks format_compatibility heading_policy citation_section_policy)" in resolved.system_prompt
     assert "(artifact creative_poem)" in resolved.system_prompt
 
 
@@ -247,4 +270,6 @@ def test_prompt_manifest_resolver_injects_contract_for_all_runtime_app_agents():
 
     assert "[Active Artifact Contract]" in resolved.agents["writer"].system_prompt
     assert "[Active Artifact Contract]" in resolved.agents["reviewer"].system_prompt
+    assert "[Active Agent Contract]" in resolved.agents["writer"].system_prompt
+    assert "[Active Agent Contract]" in resolved.agents["reviewer"].system_prompt
     assert "[Active Artifact Contract]" not in config.agents["writer"].system_prompt
