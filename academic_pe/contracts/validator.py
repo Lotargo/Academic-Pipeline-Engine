@@ -58,6 +58,9 @@ def contract_validation_issues(contract: ArtifactContract) -> list[str]:
     for key, value in contract.requirements.items():
         _append_name_issues(issues, f"requirements.{key}", key)
         _append_value_issues(issues, f"requirements.{key}", value)
+    for key, value in contract.content_boundaries.items():
+        _append_name_issues(issues, f"content_boundaries.{key}", key)
+        _append_boundary_issues(issues, f"content_boundaries.{key}", value)
 
     return issues
 
@@ -89,3 +92,19 @@ def _append_value_issues(issues: list[str], path: str, value: Any) -> None:
             _append_value_issues(issues, f"{path}.{key}", item)
         return
     issues.append(f"{path} contains unsupported value type {type(value).__name__}")
+
+
+def _append_boundary_issues(issues: list[str], path: str, value: dict[str, Any]) -> None:
+    if not isinstance(value, dict):
+        issues.append(f"{path} must be a mapping")
+        return
+    for key, item in value.items():
+        _append_name_issues(issues, f"{path}.{key}", key)
+        if key == "forbid" and isinstance(item, list):
+            for index, forbidden_name in enumerate(item):
+                if isinstance(forbidden_name, str):
+                    _append_name_issues(issues, f"{path}.forbid[{index}]", forbidden_name)
+                else:
+                    issues.append(f"{path}.forbid[{index}] must be a string")
+        else:
+            _append_value_issues(issues, f"{path}.{key}", item)

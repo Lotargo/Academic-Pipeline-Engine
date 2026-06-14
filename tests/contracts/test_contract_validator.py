@@ -22,6 +22,14 @@ def test_validate_contract_accepts_safe_data_contract():
             "motifs": ["red", "rain"],
             "nested": {"evidence_discipline": True},
         },
+        content_boundaries={
+            "adult_content": {
+                "explicitness": "user_requested",
+                "require_all_characters_adult": True,
+                "require_consent": True,
+                "forbid": ["minors", "coercion", "non_consensual"],
+            }
+        },
     )
 
     assert validate_contract(contract) is contract
@@ -81,3 +89,53 @@ def test_compile_artifact_contract_validates_manifest_constraints():
 
     with pytest.raises(ContractValidationError, match="reserved contract name 'exec'"):
         compile_artifact_contract(manifest)
+
+
+def test_validate_contract_rejects_unsafe_content_boundary_names():
+    contract = ArtifactContract(
+        manifest_id="creative_story",
+        artifact="creative_story",
+        content_boundaries={
+            "adult content": {
+                "forbid": ["minors"],
+            }
+        },
+    )
+
+    with pytest.raises(ContractValidationError, match="safe atom name"):
+        validate_contract(contract)
+
+
+def test_validate_contract_rejects_unsafe_content_boundary_forbid_values():
+    contract = ArtifactContract(
+        manifest_id="creative_story",
+        artifact="creative_story",
+        content_boundaries={
+            "adult_content": {
+                "forbid": ["os.system"],
+            }
+        },
+    )
+
+    with pytest.raises(ContractValidationError, match="reserved contract name 'os.system'"):
+        validate_contract(contract)
+
+
+def test_compile_artifact_contract_carries_content_boundaries():
+    manifest = ArtifactManifest(
+        id="creative_story",
+        artifact_type="creative_story",
+        content_boundaries={
+            "adult_content": {
+                "explicitness": "user_requested",
+                "require_all_characters_adult": True,
+                "require_consent": True,
+                "forbid": ["minors", "coercion"],
+            }
+        },
+    )
+
+    contract = compile_artifact_contract(manifest)
+
+    assert contract.content_boundaries["adult_content"]["require_consent"] is True
+    assert contract.content_boundaries["adult_content"]["forbid"] == ["minors", "coercion"]

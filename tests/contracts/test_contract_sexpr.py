@@ -9,6 +9,14 @@ def test_contract_renderer_is_stable_and_escapes_strings():
         artifact_type="unknown_freeform",
         style=["natural", "preserve_user_intent"],
         forbid=["academic_drift", "title_page"],
+        content_boundaries={
+            "adult_content": {
+                "explicitness": "user_requested",
+                "require_all_characters_adult": True,
+                "require_consent": True,
+                "forbid": ["minors", "coercion", "non_consensual"],
+            }
+        },
         requirements={
             "theme": 'quote "inside"',
             "nested": {"b": 2, "a": "first"},
@@ -27,6 +35,10 @@ def test_contract_renderer_is_stable_and_escapes_strings():
     assert '(artifact unknown_freeform)' in rendered
     assert '(language ru)' in rendered
     assert '(forbid academic_drift title_page)' in rendered
+    assert '(content_boundary adult_content ' in rendered
+    assert '(explicitness "user_requested")' in rendered
+    assert '(require_consent true)' in rendered
+    assert '(forbid ("minors" "coercion" "non_consensual"))' in rendered
     assert '(requirement min_lines 12)' in rendered
     assert '(requirement nested ((a "first") (b 2)))' in rendered
     assert '(requirement theme "quote \\"inside\\"")' in rendered

@@ -90,6 +90,7 @@ current_run = {
     "resolved_contract": None,
     "contract_sexpr": None,
     "manifest_selection": None,
+    "decision_summary": None,
 }
 
 
@@ -277,6 +278,7 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "resolved_contract": data.get("resolved_contract"),
         "contract_sexpr": data.get("contract_sexpr"),
         "manifest_selection": data.get("manifest_selection"),
+        "decision_summary": data.get("decision_summary"),
         "continuation_source": data.get("continuation_source"),
     }
 
@@ -289,7 +291,13 @@ def _artifact_manifest_metadata(runtime_prompt_manifest: Optional[dict]) -> dict
     if not isinstance(metadata, dict):
         return {}
 
-    keys = ["resolved_manifest", "resolved_contract", "contract_sexpr", "manifest_selection"]
+    keys = [
+        "resolved_manifest",
+        "resolved_contract",
+        "contract_sexpr",
+        "manifest_selection",
+        "decision_summary",
+    ]
     return {key: metadata[key] for key in keys if key in metadata}
 
 
@@ -690,6 +698,7 @@ def run_pipeline_thread(
             current_run["resolved_contract"] = artifact_metadata.get("resolved_contract")
             current_run["contract_sexpr"] = artifact_metadata.get("contract_sexpr")
             current_run["manifest_selection"] = artifact_metadata.get("manifest_selection")
+            current_run["decision_summary"] = artifact_metadata.get("decision_summary")
         
         # Store orchestrator for cancellation
         with _orchestrator_lock:
@@ -871,6 +880,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["resolved_contract"] = None
         current_run["contract_sexpr"] = None
         current_run["manifest_selection"] = None
+        current_run["decision_summary"] = None
         current_run["continuation_source"] = (
             payload.continuation_source.model_dump(mode="json")
             if payload.continuation_source is not None

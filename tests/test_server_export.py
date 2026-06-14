@@ -46,6 +46,12 @@ def test_artifact_manifest_metadata_is_flattened_for_history_items():
                 "matched_phrases": ["poem"],
                 "ambiguity_notes": [],
             },
+            "decision_summary": {
+                "selected_manifest": "creative_poem",
+                "confidence": 0.9,
+                "mode": "standard",
+                "summary": "Detected poem request.",
+            },
         }
     }
 
@@ -62,7 +68,9 @@ def test_artifact_manifest_metadata_is_flattened_for_history_items():
     assert metadata["resolved_manifest"]["id"] == "creative_poem"
     assert metadata["resolved_contract"]["artifact"] == "creative_poem"
     assert metadata["manifest_selection"]["matched_phrases"] == ["poem"]
+    assert metadata["decision_summary"]["selected_manifest"] == "creative_poem"
     assert history_item["resolved_manifest"]["id"] == "creative_poem"
+    assert history_item["decision_summary"]["summary"] == "Detected poem request."
     assert history_item["contract_sexpr"].startswith("(document")
 
 def test_export_endpoint_with_runtime_template(monkeypatch, tmp_path):

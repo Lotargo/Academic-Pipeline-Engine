@@ -34,6 +34,32 @@ class ResolvedArtifactManifest:
             "resolved_contract": self.contract.model_dump(mode="json"),
             "contract_sexpr": self.contract_sexpr,
             "manifest_selection": self.evidence.model_dump(mode="json"),
+            "decision_summary": self.decision_summary(),
+        }
+
+    def decision_summary(self) -> dict:
+        artifact_label = self.contract.artifact.replace("_", " ")
+        mode_label = self.contract.execution_mode
+        matched = list(self.evidence.matched_phrases)
+        ambiguity = list(self.evidence.ambiguity_notes[:2])
+        if matched:
+            reason = f"Matched artifact cues: {', '.join(matched[:4])}."
+        else:
+            reason = "No strong artifact cues matched; using preserve-first fallback."
+        if ambiguity and "Inherited artifact behavior" in ambiguity[0]:
+            reason = "Inherited artifact behavior from continuation metadata."
+        elif ambiguity and "legacy continuation metadata" in ambiguity[0]:
+            reason = "Inferred artifact behavior from legacy continuation metadata."
+
+        return {
+            "selected_manifest": self.manifest.id,
+            "manifest_version": self.manifest.version,
+            "artifact": self.contract.artifact,
+            "confidence": round(self.evidence.confidence, 2),
+            "matched_phrases": matched,
+            "mode": mode_label,
+            "summary": f"{reason} Preserving {artifact_label} behavior in {mode_label} mode.",
+            "ambiguity_notes": ambiguity,
         }
 
 

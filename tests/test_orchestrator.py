@@ -859,6 +859,12 @@ def test_create_orchestrator_from_config_inherits_top_level_continuation_artifac
                 "matched_phrases": ["previous resolved manifest"],
                 "ambiguity_notes": [],
             },
+            "decision_summary": {
+                "selected_manifest": "creative_poem",
+                "confidence": 0.9,
+                "mode": "standard",
+                "summary": "Inherited artifact behavior from continuation metadata.",
+            },
         },
         artifact_manifest_resolver=ArtifactManifestResolver(manifests=manifests),
     )
@@ -866,6 +872,9 @@ def test_create_orchestrator_from_config_inherits_top_level_continuation_artifac
     metadata = orch.runtime_prompt_manifest.metadata
     assert metadata["resolved_manifest"]["id"] == "creative_poem"
     assert metadata["manifest_selection"]["matched_phrases"] == ["previous resolved manifest"]
+    assert metadata["decision_summary"]["summary"].startswith(
+        "Inherited artifact behavior from continuation metadata."
+    )
 
 
 def test_create_orchestrator_from_config_infers_legacy_continuation_artifact_metadata():

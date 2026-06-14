@@ -414,7 +414,7 @@ Tasks:
   - lose user details;
   - add AI markers or meta-text.
 - [x] Return only the final `topic` and `instructions` JSON to the UI.
-- [ ] Optionally store a short `decision_summary` for debug metadata, without exposing long chain-of-thought.
+- [x] Optionally store a short `decision_summary` for debug metadata, without exposing long chain-of-thought.
 
 ---
 

@@ -17,6 +17,7 @@ def compile_artifact_contract(
 ) -> ArtifactContract:
     forbid = list(dict.fromkeys(manifest.forbid))
     requirements = dict(manifest.requirements)
+    content_boundaries = dict(manifest.content_boundaries)
     visualization_required = bool(requirements.get("visualization_required", False))
 
     overlay = manifest.modes.get(execution_mode)
@@ -44,6 +45,7 @@ def compile_artifact_contract(
         structure=manifest.structure,
         forbid=forbid,
         requirements=requirements,
+        content_boundaries=content_boundaries,
         visualization_required=visualization_required,
     )
     return validate_contract(contract)

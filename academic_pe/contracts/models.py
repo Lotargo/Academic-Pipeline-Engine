@@ -19,4 +19,5 @@ class ArtifactContract(BaseModel):
     structure: List[str] = Field(default_factory=list)
     forbid: List[str] = Field(default_factory=list)
     requirements: Dict[str, Any] = Field(default_factory=dict)
+    content_boundaries: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     visualization_required: bool = False

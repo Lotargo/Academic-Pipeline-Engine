@@ -955,7 +955,13 @@ def _continuation_manifest_metadata(continuation_source: Optional[Dict[str, Any]
 
     top_level_metadata = {
         key: continuation_source[key]
-        for key in ["resolved_manifest", "resolved_contract", "contract_sexpr", "manifest_selection"]
+        for key in [
+            "resolved_manifest",
+            "resolved_contract",
+            "contract_sexpr",
+            "manifest_selection",
+            "decision_summary",
+        ]
         if key in continuation_source
     }
     if top_level_metadata:

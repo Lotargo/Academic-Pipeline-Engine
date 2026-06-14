@@ -13,6 +13,12 @@ artifacts:
     style: lyrical
     audience: general
     forbid: [academic_drift, forced_visualization]
+    content_boundaries:
+      adult_content:
+        explicitness: user_requested
+        require_all_characters_adult: true
+        require_consent: true
+        forbid: [minors, coercion, non_consensual]
     modes:
       academic:
         add_forbid: [research_paper_structure]
@@ -26,6 +32,8 @@ artifacts:
     poem = manifests["creative_poem"]
     assert poem.version == 2
     assert poem.style == ["lyrical"]
+    assert poem.content_boundaries["adult_content"]["require_consent"] is True
+    assert "minors" in poem.content_boundaries["adult_content"]["forbid"]
     assert poem.modes["academic"].visualization_policy == "forbidden"
 
 

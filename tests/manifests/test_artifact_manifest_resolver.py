@@ -73,6 +73,16 @@ def test_resolver_selects_poem_without_forced_visualization(tmp_path):
     assert resolved.contract.visualization_required is False
     assert "research_paper_structure" in resolved.contract.forbid
     assert "(artifact creative_poem)" in resolved.contract_sexpr
+    assert resolved.metadata()["decision_summary"] == {
+        "selected_manifest": "creative_poem",
+        "manifest_version": 1,
+        "artifact": "creative_poem",
+        "confidence": 0.7,
+        "matched_phrases": ["poem"],
+        "mode": "academic",
+        "summary": "Matched artifact cues: poem. Preserving creative poem behavior in academic mode.",
+        "ambiguity_notes": [],
+    }
 
 
 def test_resolver_selects_poem_from_russian_cues(tmp_path):
@@ -139,6 +149,9 @@ def test_resolver_inherits_previous_manifest_from_continuation_metadata(tmp_path
     assert resolved.manifest.id == "creative_poem"
     assert resolved.evidence.matched_phrases == ["previous resolved manifest"]
     assert resolved.evidence.confidence == 0.9
+    assert resolved.metadata()["decision_summary"]["summary"].startswith(
+        "Inherited artifact behavior from continuation metadata."
+    )
 
 
 def test_resolver_infers_manifest_from_legacy_continuation_metadata(tmp_path):
@@ -155,6 +168,9 @@ def test_resolver_infers_manifest_from_legacy_continuation_metadata(tmp_path):
     assert "poem" in resolved.evidence.matched_phrases
     assert resolved.evidence.confidence <= 0.75
     assert "legacy continuation metadata" in resolved.evidence.ambiguity_notes[0]
+    assert resolved.metadata()["decision_summary"]["summary"].startswith(
+        "Inferred artifact behavior from legacy continuation metadata."
+    )
 
 
 def test_resolver_current_artifact_cue_overrides_previous_manifest(tmp_path):

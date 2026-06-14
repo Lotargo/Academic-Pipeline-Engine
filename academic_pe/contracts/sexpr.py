@@ -19,6 +19,8 @@ def render_contract_sexpr(contract: ArtifactContract) -> str:
         lines.append("  (structure " + " ".join(_atom(item) for item in contract.structure) + ")")
     if contract.forbid:
         lines.append("  (forbid " + " ".join(_atom(item) for item in contract.forbid) + ")")
+    for key in sorted(contract.content_boundaries):
+        lines.append(f"  (content_boundary {_atom(key)} {_value(contract.content_boundaries[key])})")
     for key in sorted(contract.requirements):
         lines.append(f"  (requirement {_atom(key)} {_value(contract.requirements[key])})")
     lines.append(f"  (visualization_required {_bool(contract.visualization_required)})")

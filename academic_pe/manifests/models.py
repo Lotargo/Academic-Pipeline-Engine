@@ -25,6 +25,7 @@ class ArtifactManifest(BaseModel):
     structure: List[str] = Field(default_factory=list)
     forbid: List[str] = Field(default_factory=list)
     requirements: Dict[str, Any] = Field(default_factory=dict)
+    content_boundaries: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     modes: Dict[str, ArtifactModeOverlay] = Field(default_factory=dict)
 
     @field_validator("style", "structure", "forbid", mode="before")
