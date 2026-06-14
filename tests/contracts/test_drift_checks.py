@@ -5,6 +5,7 @@ from academic_pe.contracts.drift import (
     check_forbidden_rubric,
     check_forbidden_title_page,
     check_forbidden_visualization,
+    check_genre_style_markers,
     run_all,
 )
 from academic_pe.contracts.models import ArtifactContract
@@ -157,3 +158,68 @@ def test_detects_new_ai_smoothness_markers():
         )
         assert not result.passed, f"Failed to detect AI smoothness marker: {word}"
         assert "AI/meta" in result.issues[0]
+
+
+def test_detects_poem_explanation_instead_of_poetic_text():
+    result = check_genre_style_markers(
+        _contract(artifact="creative_poem"),
+        {"poem": "Analysis:\nThis poem explores the symbolic role of rain."},
+    )
+
+    assert not result.passed
+    assert "poetic text" in result.issues[0]
+
+
+def test_detects_story_summary_wrapper_instead_of_narrative():
+    result = check_genre_style_markers(
+        _contract(artifact="creative_story"),
+        {"story": "In this story, a child learns to be brave."},
+    )
+
+    assert not result.passed
+    assert "artifact-native narrative" in result.issues[0]
+
+
+def test_detects_research_register_in_school_essay():
+    result = check_genre_style_markers(
+        _contract(artifact="school_essay"),
+        {"essay": "The methodological framework is supported by peer-reviewed literature."},
+    )
+
+    assert not result.passed
+    assert "school essay" in result.issues[0]
+
+
+def test_detects_academic_prose_in_readme():
+    result = check_genre_style_markers(
+        _contract(artifact="technical_readme"),
+        {"readme": "The present study describes the package methodology."},
+    )
+
+    assert not result.passed
+    assert "technical README" in result.issues[0]
+
+
+def test_detects_generic_filler_in_academic_paper():
+    result = check_genre_style_markers(
+        _contract(artifact="academic_paper"),
+        {"paper": "In today's world, this topic is very interesting."},
+    )
+
+    assert not result.passed
+    assert "generic filler" in result.issues[0]
+
+
+def test_genre_style_check_passes_artifact_native_examples():
+    examples = [
+        (_contract(artifact="creative_poem"), {"poem": "Red silk in rain\nA quiet window glows."}),
+        (_contract(artifact="creative_story"), {"story": "Mira opened the blue door and heard the sea inside."}),
+        (_contract(artifact="school_essay"), {"essay": "I think summer holidays are important because we rest and learn new things."}),
+        (_contract(artifact="technical_readme"), {"readme": "# Usage\nRun `ape start` after installation."}),
+        (_contract(artifact="academic_paper"), {"paper": "The analysis defines the dataset, assumptions, and limitations."}),
+    ]
+
+    for contract, context in examples:
+        result = check_genre_style_markers(contract, context)
+
+        assert result.passed

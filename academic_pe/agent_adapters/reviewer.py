@@ -37,6 +37,7 @@ def contract_guidance(artifact_id: Optional[str] = None) -> str:
         "contract. Treat standard_mode and academic_mode clauses as binding. Reject incompatible academicization, "
         "bureaucracy, missing user constraints, and AI/meta markers. Look for and reject artificial smoothness, "
         "repeated syntactic patterns, generic transitions, meaningless balance phrases, disclaimers, or meta-text."
+        " Natural human style means artifact-appropriate prose, not false claims about authorship, provenance, or process."
     )
     genre = _GENRE_GUIDANCE_REVIEWER.get(artifact_id) if artifact_id else None
     if genre:

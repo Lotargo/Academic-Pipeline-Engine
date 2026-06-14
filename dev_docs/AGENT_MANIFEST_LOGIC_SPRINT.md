@@ -464,12 +464,12 @@ Tasks:
 
 ## Workstream 9: AI-Marker And Human-Style Guardrails
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Ensure all agents avoid obvious AI-generated markers and machine-like artifacts while preserving the requested genre.
 
 Tasks:
-- [~] Add global negative constraints for final content:
+- [x] Add global negative constraints for final content:
   - no AI self-reference;
   - no "as an AI" phrasing;
   - no meta-comments about generation;
@@ -478,18 +478,26 @@ Tasks:
   - no apology/explanation wrappers;
   - no evaluation rubric unless requested;
   - no mechanical over-structuring.
-- [ ] Add genre-specific human-style checks:
+- [x] Add genre-specific human-style checks:
   - creative writing: natural voice, non-mechanical imagery, no sterile summary tone;
   - school writing: age-appropriate, natural student-like register when requested;
   - README: practical, concrete, no invented features;
   - academic writing: formal but not empty, no generic AI-style filler.
-- [~] Add reviewer drift checks for:
+- [x] Add reviewer drift checks for:
   - artificial smoothness;
   - repeated syntactic patterns;
   - generic transitions;
   - meaningless balance phrases;
   - disclaimers or meta-text.
-- [ ] Ensure "human style" does not mean hiding provenance through deception; it means producing natural prose appropriate to the requested artifact without obvious machine artifacts.
+- [x] Ensure "human style" does not mean hiding provenance through deception; it means producing natural prose appropriate to the requested artifact without obvious machine artifacts.
+
+Implementation notes:
+- Contract drift checks now include deterministic genre/style markers keyed by artifact type.
+- Creative poem/story checks reject obvious explanatory wrappers and sterile summary prose.
+- School essay checks reject professional research-paper register when the artifact is school-level.
+- README checks reject academic-paper prose in practical technical documentation.
+- Academic paper checks reject generic filler phrases while leaving formal analytical prose intact.
+- Writer and Reviewer adapter guidance explicitly define natural human style as artifact-appropriate prose, not false claims about authorship, provenance, or process.
 
 ---
 

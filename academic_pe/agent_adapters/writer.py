@@ -34,7 +34,8 @@ _GENRE_GUIDANCE_WRITER = {
 def contract_guidance(artifact_id: Optional[str] = None) -> str:
     base = (
         "Writer: produce final content that obeys the contract; do not output analysis of the contract. Preserve "
-        "voice, genre, audience level, pacing, structure, mode clauses, and negative constraints."
+        "voice, genre, audience level, pacing, structure, mode clauses, and negative constraints. Natural human style "
+        "means artifact-appropriate prose, not false claims about authorship, provenance, or process."
     )
     genre = _GENRE_GUIDANCE_WRITER.get(artifact_id) if artifact_id else None
     if genre:

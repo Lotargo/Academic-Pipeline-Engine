@@ -18,6 +18,7 @@ def run_all(contract: ArtifactContract, context: Dict[str, str]) -> DriftCheckRe
     combined: List[str] = []
     for check_fn in [
         check_ai_markers,
+        check_genre_style_markers,
         check_academic_drift,
         check_forbidden_visualization,
         check_forbidden_citations,
@@ -64,6 +65,73 @@ def check_ai_markers(contract: ArtifactContract, context: Dict[str, str]) -> Dri
         r"\btestament\b",
     ]
     return _scan_patterns(context, patterns, "contains AI/meta or placeholder marker")
+
+
+def check_genre_style_markers(contract: ArtifactContract, context: Dict[str, str]) -> DriftCheckResult:
+    if contract.artifact == "creative_poem":
+        return _scan_patterns(
+            context,
+            [
+                r"^\s{0,3}#{1,3}\s*(?:analysis|meaning|explanation)\s*$",
+                r"^\s*(?:analysis|meaning|explanation)\s*:\s+",
+                r"\bthis poem (?:explores|shows|symbolizes|is about)\b",
+                r"\bthe poem (?:explores|shows|symbolizes|is about)\b",
+            ],
+            "contains explanatory prose instead of artifact-native poetic text",
+        )
+
+    if contract.artifact == "creative_story":
+        return _scan_patterns(
+            context,
+            [
+                r"^\s{0,3}#{1,3}\s*(?:summary|story summary|moral)\s*$",
+                r"^\s*(?:summary|story summary)\s*:\s+",
+                r"\bthis story (?:is about|follows|explores|teaches)\b",
+                r"\bthe story (?:is about|follows|explores|teaches)\b",
+                r"\bin this story,?\s+",
+            ],
+            "contains summary or explanatory prose instead of artifact-native narrative",
+        )
+
+    if contract.artifact == "school_essay":
+        return _scan_patterns(
+            context,
+            [
+                r"\bmethodological framework\b",
+                r"\bpeer-reviewed literature\b",
+                r"\bstatistically significant\b",
+                r"\bempirical evidence demonstrates\b",
+                r"\bthis research paper\b",
+            ],
+            "contains professional research register inappropriate for a school essay",
+        )
+
+    if contract.artifact == "technical_readme":
+        return _scan_patterns(
+            context,
+            [
+                r"\bthis paper (?:examines|analyzes|argues)\b",
+                r"\bthe present study\b",
+                r"\bliterature review\b",
+                r"\bmethodology\b",
+            ],
+            "contains academic prose inappropriate for a technical README",
+        )
+
+    if contract.artifact == "academic_paper":
+        return _scan_patterns(
+            context,
+            [
+                r"\bit is important to note that\b",
+                r"\bin today's world\b",
+                r"\bthere are many different perspectives\b",
+                r"\bthis topic is very interesting\b",
+                r"\bthroughout history,?\s+",
+            ],
+            "contains generic filler inappropriate for academic prose",
+        )
+
+    return DriftCheckResult(passed=True)
 
 
 def check_academic_drift(contract: ArtifactContract, context: Dict[str, str]) -> DriftCheckResult:
