@@ -105,13 +105,13 @@ Implications:
 
 ## Workstream 1: Manifest Architecture
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Introduce layered manifests that define document/artifact intent separately from agent execution behavior.
 
 Tasks:
-- [ ] Add `config/artifact_manifests.yaml`.
-- [ ] Define artifact manifests for common types:
+- [x] Add `config/artifact_manifests.yaml`.
+- [x] Define artifact manifests for common types:
   - creative poem;
   - creative story / fairy tale;
   - school essay / composition;
@@ -121,8 +121,8 @@ Tasks:
   - report;
   - continuation source;
   - unknown / freeform fallback.
-- [ ] Add manifest versioning (`id`, `version`) so old history items can keep stable behavior.
-- [ ] Support manifest composition instead of one giant template per case:
+- [x] Add manifest versioning (`id`, `version`) so old history items can keep stable behavior.
+- [x] Support manifest composition instead of one giant template per case:
   - artifact type;
   - style;
   - audience;
@@ -130,14 +130,19 @@ Tasks:
   - mode (`new`, `continuation`, `revision`);
   - safety/content boundaries where relevant;
   - negative constraints.
-- [ ] Add `ArtifactManifestResolver` that selects and composes a runtime manifest from the user request and optional continuation metadata.
-- [ ] Store the resolved runtime manifest in generation metadata.
+- [x] Add `ArtifactManifestResolver` that selects and composes a runtime manifest from the user request and optional continuation metadata.
+- [x] Store the resolved runtime manifest in generation metadata.
+
+Implementation notes:
+- Artifact manifests are loaded from `config/artifact_manifests.yaml` into Pydantic models.
+- Runtime resolution stores `resolved_manifest`, `resolved_contract`, `contract_sexpr`, `manifest_selection`, and `decision_summary` in metadata.
+- Continuation metadata can inherit or infer previous artifact behavior and compile preservation requirements into the runtime contract.
 
 ---
 
 ## Workstream 2: Package Boundaries And Directory Layout
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Keep the manifest/contract system debuggable by separating responsibilities into explicit packages and directories instead of adding more logic to large monolithic modules.
 
@@ -209,20 +214,24 @@ tests/
 ```
 
 Boundary rules:
-- [ ] `server.py` may call the orchestration API but must not contain manifest selection, contract compilation, or adapter logic.
-- [ ] Agents may receive rendered contract instructions but must not load manifests directly.
-- [ ] Manifest loading must be isolated from prompt rendering.
-- [ ] Contract rendering must be deterministic and testable without LLM calls.
-- [ ] Drift checks must be callable independently from the Reviewer LLM.
-- [ ] Config files must remain data-only; no embedded executable code.
-- [ ] Each package must expose a small public API and keep implementation helpers private.
-- [ ] Add architecture docs before broad integration so future changes know where new logic belongs.
+- [x] `server.py` may call the orchestration API but must not contain manifest selection, contract compilation, or adapter logic.
+- [x] Agents may receive rendered contract instructions but must not load manifests directly.
+- [x] Manifest loading must be isolated from prompt rendering.
+- [x] Contract rendering must be deterministic and testable without LLM calls.
+- [x] Drift checks must be callable independently from the Reviewer LLM.
+- [x] Config files must remain data-only; no embedded executable code.
+- [x] Each package must expose a small public API and keep implementation helpers private.
+- [x] Add architecture docs before broad integration so future changes know where new logic belongs.
+
+Implementation notes:
+- Added `docs/MANIFEST_CONTRACT_ARCHITECTURE.md` to record package ownership, allowed dependencies, configuration boundaries, contract DSL rules, and review/drift boundaries.
+- Manifest loading, contract compilation/rendering, prompt composition, agent adapter guidance, orchestration, and HTTP handling now have explicit ownership boundaries.
 
 ---
 
 ## Workstream 3: Agent Adapter Manifests
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Give each agent a manifest adapter so the same artifact manifest is interpreted correctly for that agent's job.
 
@@ -399,7 +408,7 @@ Design constraints:
 - [x] The DSL must stay small and boring: no arbitrary code execution, no macros, no eval.
 - [x] Contracts should be data, not programs.
 - [x] LLMs may receive rendered S-expressions, but validation must happen in Python.
-- [ ] If a real Clojure/EDN runtime is considered later, document the tradeoff first.
+- [x] If a real Clojure/EDN runtime is considered later, document the tradeoff first.
 
 Implementation notes:
 - Added `AgentContract` as a deterministic, validated adapter-specific wrapper around `ArtifactContract`.
