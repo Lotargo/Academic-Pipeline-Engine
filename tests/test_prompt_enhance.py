@@ -110,3 +110,47 @@ def test_prompt_enhancer_agent_self_critique_success():
     assert "PromptEnhancer self-critique" in critique_user_prompt
     assert "Agent: prompt_enhancer" in critique_user_prompt
 
+
+def test_prompt_enhancer_agent_tot_generation_and_selection():
+    import json
+    from academic_pe.agents.prompt_enhancer import PromptEnhancerAgent
+    from academic_pe.core.config import AgentConfig, SelfCritiqueConfig
+    from academic_pe.core.llm import LLMProvider
+
+    class TotStaticProvider(LLMProvider):
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            self.calls.append({
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+            })
+            if len(self.calls) == 1:
+                return json.dumps({
+                    "conservative": {"topic": "Cons Topic", "instructions": "Cons Inst"},
+                    "detailed": {"topic": "Detailed Topic", "instructions": "Detailed Inst"},
+                    "creative": {"topic": "Creative Topic", "instructions": "Creative Inst"}
+                })
+            else:
+                return json.dumps({
+                    "summary": "Selected detailed candidate.",
+                    "output": json.dumps({"topic": "Detailed Topic Repaired", "instructions": "Detailed Inst"})
+                })
+
+    cfg = AgentConfig(
+        role="Example Generator",
+        model="mock",
+        temperature=0.8,
+        system_prompt="Enhancer system prompt",
+        self_critique=SelfCritiqueConfig(enabled=True, temperature=0.2),
+    )
+    provider = TotStaticProvider()
+    agent = PromptEnhancerAgent(cfg, provider)
+    result = agent.process("Raw topic")
+
+    assert "Detailed Topic Repaired" in result
+    assert "Detailed Inst" in result
+    assert len(provider.calls) == 2
+    assert "INSTRUCTION FOR CANDIDATE GENERATION" in provider.calls[0]["user_prompt"]
+

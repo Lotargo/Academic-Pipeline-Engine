@@ -140,8 +140,10 @@ def _agent_rules(agent_name: str) -> str:
         )
     if normalized == "prompt_enhancer":
         return (
-            "PromptEnhancer self-critique: ensure the enhancement preserves artifact type, keeps user details, "
-            "and does not add bureaucracy or unrelated academic structure."
+            "PromptEnhancer self-critique: evaluate the generated candidates (conservative, detailed, creative) "
+            "against the contract. Reject candidates that change artifact type, introduce academic drift, lose user details, "
+            "or add bureaucracy. Select the best surviving candidate, repair it if needed, and return ONLY that final selected "
+            "candidate as a single JSON object with 'topic' and 'instructions' keys."
         )
     if normalized == "researcher":
         return (
