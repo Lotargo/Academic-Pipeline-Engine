@@ -21,6 +21,79 @@ The pipeline has two execution modes:
 - **Standard mode**: preserve the requested artifact type and produce a good natural result without unnecessary academic apparatus.
 - **Academic mode**: apply scientific/critical thinking, stronger argumentation, evidence discipline, conceptual rigor, and structured analysis appropriate to the artifact. Academic mode must not blindly force plots, tables, formulas, citations, or research-paper structure into every artifact. It should adapt the artifact into an academically rigorous version of itself when appropriate.
 
+## Architecture Decisions
+
+These decisions resolve the initial open design questions and should guide implementation unless a later ADR explicitly changes them.
+
+### Manifest Source And Runtime Boundary
+
+Decision: Use YAML as the editable source of truth for manifests, with Python/Pydantic models as the runtime schema, validation, and compilation boundary.
+
+Implications:
+- Manifest files remain data-only and must not contain executable code.
+- YAML manifests are loaded into Pydantic models before use.
+- Contract compilation, validation, fallback behavior, and prompt rendering happen in Python.
+- Future JSON import/export is acceptable, but runtime behavior still goes through the same models and validators.
+
+### UI Artifact Override
+
+Decision: Always show compact detection state, always make override available, and visually promote override only when confidence is low.
+
+Target behavior:
+- Normal display: `Detected: Poem · Standard · No citations`.
+- If confidence is below the selected threshold, e.g. `< 0.65`, highlight that the user can correct the artifact type.
+- The user can still open the detected artifact chip/dropdown and override even when confidence is high.
+
+### Decision Summary Metadata
+
+Decision: Store short factual audit metadata, not reasoning transcripts or chain-of-thought.
+
+Allowed shape:
+
+```json
+{
+  "selected_manifest": "creative_poem",
+  "confidence": 0.85,
+  "matched_phrases": ["poem", "12 lines"],
+  "mode": "standard",
+  "summary": "Detected poem request; preserving creative form and forbidding academic apparatus."
+}
+```
+
+Rules:
+- Keep summaries brief and diagnostic.
+- Include selection facts, active mode, and one concise ambiguity note when useful.
+- Do not store rejected candidate chains, private reasoning, or long internal critique text.
+
+### Human-Style Checks
+
+Decision: Use a hybrid guardrail system.
+
+Policy:
+- Rule-based checks act as hard gates for obvious markers: AI self-reference, placeholders, apology wrappers, template filler, title-page/rubric drift, forced citations, and forbidden academic apparatus.
+- LLM reviewer checks act as soft qualitative review for genre fit, natural voice, audience appropriateness, mechanical structure, and stale or generic prose.
+- "Human style" means natural prose appropriate to the requested artifact. It must not mean deception, provenance hiding, or attempts to bypass AI detectors.
+
+### Adult Creative Boundaries
+
+Decision: Represent adult/erotic material as a content-boundary overlay on top of the artifact type, not as a separate primary artifact identity.
+
+Example:
+
+```yaml
+content_boundaries:
+  adult_content:
+    explicitness: user_requested
+    require_all_characters_adult: true
+    require_consent: true
+    forbid: [minors, coercion, non_consensual, incest, sexual_violence]
+```
+
+Implications:
+- A requested adult story remains a `creative_story` with additional content boundaries.
+- Story structure, voice, pacing, and genre preservation still come from the artifact manifest.
+- Safety/content policy is composed as an overlay and must not force academicization, rubric text, or moralizing wrappers.
+
 ## Status Legend
 
 - `[x] Completed`
@@ -446,10 +519,10 @@ Tasks:
 
 ---
 
-## Open Design Questions
+## Resolved Design Questions
 
-- [!] Should artifact manifests be YAML-only, Python models, or both?
-- [!] Should UI expose artifact override always, or only when confidence is below a threshold?
-- [!] How detailed should `decision_summary` be without leaking chain-of-thought?
-- [!] Should "human-style" checks be rule-based, LLM-reviewed, or hybrid?
-- [!] How should adult/erotic creative writing boundaries be represented in manifests without overfitting?
+- [x] Artifact manifests are YAML source data plus Python/Pydantic runtime models and validators.
+- [x] UI should always show detection and keep override available, with stronger prompting only on low confidence.
+- [x] `decision_summary` should be a short factual audit record, not chain-of-thought.
+- [x] Human-style checks should be hybrid: rule-based hard gates plus LLM qualitative review.
+- [x] Adult/erotic creative boundaries should be content-boundary overlays, not separate primary artifact identities.
