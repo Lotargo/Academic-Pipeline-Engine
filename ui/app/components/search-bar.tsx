@@ -9,23 +9,36 @@ import { toast } from "sonner"
 interface SearchBarProps {
   onSearch?: (topic: string, instructions: string, academicMode: boolean, artifactOverride: string) => void
   onEnhance?: (data: any) => void
+  onArtifactOverrideChange?: (artifactOverride: string) => void
   disabled?: boolean
   t: Messages
   initialTopic?: string
   initialInstructions?: string
+  artifactOverride?: string
+  detectedConfidence?: number | null
 }
 
-export function SearchBar({ onSearch, onEnhance, disabled, t, initialTopic = "", initialInstructions = "" }: SearchBarProps) {
+export function SearchBar({
+  onSearch,
+  onEnhance,
+  onArtifactOverrideChange,
+  disabled,
+  t,
+  initialTopic = "",
+  initialInstructions = "",
+  artifactOverride = "",
+  detectedConfidence = null,
+}: SearchBarProps) {
   const [topic, setTopic] = useState(initialTopic)
   const [instructions, setInstructions] = useState(initialInstructions)
   const [isFocused, setIsFocused] = useState(false)
   const [academicMode, setAcademicMode] = useState(false)
-  const [artifactOverride, setArtifactOverride] = useState("")
   const [examples, setExamples] = useState<{ topic: string; instructions: string }[]>([])
   const [ttl, setTtl] = useState<number>(0)
   const [refreshing, setRefreshing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [isEnhancing, setIsEnhancing] = useState(false)
+  const isLowConfidenceDetection = typeof detectedConfidence === "number" && detectedConfidence < 0.65 && !artifactOverride
 
   useEffect(() => {
     setTopic(initialTopic)
@@ -50,7 +63,7 @@ export function SearchBar({ onSearch, onEnhance, disabled, t, initialTopic = "",
         const data = await res.json()
         setTopic(data.topic)
         setInstructions(data.instructions)
-        onEnhance?.(data)
+        onEnhance?.({ ...data, artifact_override: artifactOverride || null })
         toast.success(t.search.enhanceSuccess)
       } else {
         let errMsg = t.search.enhanceError
@@ -162,6 +175,10 @@ export function SearchBar({ onSearch, onEnhance, disabled, t, initialTopic = "",
     onSearch?.(topic.trim(), instructions.trim(), academicMode, artifactOverride)
   }
 
+  const handleArtifactOverrideChange = (value: string) => {
+    onArtifactOverrideChange?.(value)
+  }
+
   const loadSuggestion = (sTopic: string, sInst: string) => {
     setTopic(sTopic)
     setInstructions(sInst)
@@ -231,6 +248,12 @@ export function SearchBar({ onSearch, onEnhance, disabled, t, initialTopic = "",
             </div>
           )}
 
+          {isLowConfidenceDetection && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-300 rounded-lg border border-ape-warning/40 bg-ape-warning-soft px-3 py-2 text-[11px] font-semibold text-ape-warning-text">
+              Low confidence detection. Use Type to correct the artifact before generating.
+            </div>
+          )}
+
           {/* Action Footer */}
           <div className="flex items-center justify-between pt-2 border-t border-border/40 gap-4 flex-wrap">
             <div className="flex items-center gap-1.5 ape-micro">
@@ -240,15 +263,22 @@ export function SearchBar({ onSearch, onEnhance, disabled, t, initialTopic = "",
             
             <div className="flex items-center gap-2 flex-wrap">
               {/* Artifact Type Selector */}
-              <div className="flex items-center gap-1 bg-muted/60 dark:bg-ape-surface-subtle px-2.5 py-1 rounded-xl border border-border/50 text-[11px] font-bold">
+              <div
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[11px] font-bold ${
+                  isLowConfidenceDetection
+                    ? "ape-status-warning border-ape-warning/50 animate-pulse"
+                    : "bg-muted/60 dark:bg-ape-surface-subtle border-border/50"
+                }`}
+              >
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider px-0.5">
                   {t.search.modeStandard === "Стандартный" ? "Тип:" : "Type:"}
                 </span>
                 <select
                   value={artifactOverride}
-                  onChange={(e) => setArtifactOverride(e.target.value)}
+                  onChange={(e) => handleArtifactOverrideChange(e.target.value)}
                   disabled={disabled || isEnhancing}
                   className="bg-transparent text-[11px] font-bold text-foreground focus:outline-none border-0 cursor-pointer pr-1"
+                  title="Override detected artifact type"
                 >
                   <option value="" className="bg-card font-semibold text-foreground">
                     {t.search.modeStandard === "Стандартный" ? "Автоопределение" : "Auto-Detect"}

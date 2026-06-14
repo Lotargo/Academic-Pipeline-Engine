@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from academic_pe.server import (
     _artifact_manifest_metadata,
     _history_item_from_metadata,
+    _write_export_metadata,
     _with_artifact_manifest_metadata,
     app,
     current_run,
@@ -10,6 +11,7 @@ from academic_pe.server import (
 from academic_pe.api_models import ExportRequest
 import json
 import os
+from types import SimpleNamespace
 
 def test_export_request_validation():
     # Verify that ExportRequest accepts runtime_template
@@ -72,6 +74,64 @@ def test_artifact_manifest_metadata_is_flattened_for_history_items():
     assert history_item["resolved_manifest"]["id"] == "creative_poem"
     assert history_item["decision_summary"]["summary"] == "Detected poem request."
     assert history_item["contract_sexpr"].startswith("(document")
+
+
+def test_export_metadata_persists_artifact_override(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    class DummyExportResult:
+        filename = "paper.docx"
+
+        def to_dict(self):
+            return {"status": "passed", "filename": self.filename, "issues": []}
+
+    config = SimpleNamespace(
+        pipeline=SimpleNamespace(
+            template_mode=SimpleNamespace(value="auto"),
+            template_id=None,
+            academic_mode=False,
+        )
+    )
+
+    with run_lock:
+        previous_run = dict(current_run)
+        current_run.update(
+            {
+                "instructions": "Write a poem.",
+                "artifact_override": "creative_poem",
+                "template_mode": "auto",
+                "template_id": None,
+                "runtime_template": None,
+                "runtime_prompt_manifest": None,
+                "document_plan": None,
+                "original_context": {},
+                "academic_mode": False,
+                "logs": [],
+                "reviewer_feedback": [],
+            }
+        )
+
+    try:
+        _write_export_metadata(
+            DummyExportResult(),
+            config,
+            "Poem",
+            "2026-06-13 12:00:00",
+            "Lotargo",
+            None,
+            {"text": "A quiet poem."},
+            None,
+        )
+    finally:
+        with run_lock:
+            current_run.clear()
+            current_run.update(previous_run)
+
+    metadata_files = list((tmp_path / "exports" / "_metadata").glob("*.metadata.json"))
+    assert len(metadata_files) == 1
+    metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
+    assert metadata["artifact_override"] == "creative_poem"
+
 
 def test_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
     # Mock export_docx_with_qa to avoid actual LibreOffice call or file rendering

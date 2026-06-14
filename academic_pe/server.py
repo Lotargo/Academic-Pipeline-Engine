@@ -91,6 +91,7 @@ current_run: Dict[str, Any] = {
     "contract_sexpr": None,
     "manifest_selection": None,
     "decision_summary": None,
+    "artifact_override": None,
 }
 
 
@@ -560,6 +561,7 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
             topic=data["topic"].strip(),
             instructions=data["instructions"].strip(),
             self_critique_summary=self_critique_summary,
+            artifact_override=payload.artifact_override,
             resolved_manifest=artifact_metadata.get("resolved_manifest"),
             resolved_contract=artifact_metadata.get("resolved_contract"),
             contract_sexpr=artifact_metadata.get("contract_sexpr"),
@@ -1099,6 +1101,7 @@ def _write_export_metadata(
         "template_id": current_run.get("template_id") or config.pipeline.template_id,
         "runtime_template": current_run.get("runtime_template"),
         "runtime_prompt_manifest": current_run.get("runtime_prompt_manifest"),
+        "artifact_override": current_run.get("artifact_override"),
         "timestamp": timestamp,
         "status": "COMPLETED",
         "docx_filename": result.filename if result.filename.lower().endswith(".docx") else current_run.get("docx_filename"),

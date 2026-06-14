@@ -27,8 +27,22 @@ import {
 import { useTheme } from "next-themes"
 import { messages, normalizeLanguage, type Messages, type UiLanguage } from "@/lib/i18n"
 
+const ARTIFACT_OVERRIDE_OPTIONS = [
+  { value: "", label: "Auto-Detect" },
+  { value: "creative_poem", label: "Poem" },
+  { value: "creative_story", label: "Story / Fiction" },
+  { value: "school_essay", label: "School Essay" },
+  { value: "academic_paper", label: "Academic Paper" },
+  { value: "technical_readme", label: "README" },
+  { value: "plan_document", label: "Plan" },
+  { value: "report", label: "Report" },
+  { value: "unknown_freeform", label: "Freeform Fallback" },
+]
+
 function formatArtifactLabel(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return ""
+  const knownOption = ARTIFACT_OVERRIDE_OPTIONS.find((option) => option.value === value)
+  if (knownOption) return knownOption.label
   return value
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase())
@@ -40,8 +54,9 @@ function artifactDetection(status: any, selectedPaper: any) {
   const selection = source.manifest_selection || source.runtime_prompt_manifest?.metadata?.manifest_selection
   const contract = source.resolved_contract || source.runtime_prompt_manifest?.metadata?.resolved_contract
   const manifest = source.resolved_manifest || source.runtime_prompt_manifest?.metadata?.resolved_manifest
+  const override = source.artifact_override || source.runtime_prompt_manifest?.metadata?.artifact_override
 
-  const artifact = summary?.artifact || contract?.artifact || manifest?.artifact_type || manifest?.id
+  const artifact = summary?.artifact || summary?.selected_manifest || contract?.artifact || manifest?.artifact_type || manifest?.id
   const mode = summary?.mode || contract?.execution_mode
   const confidence = typeof summary?.confidence === "number"
     ? summary.confidence
@@ -50,13 +65,15 @@ function artifactDetection(status: any, selectedPaper: any) {
       : null
   const summaryText = typeof summary?.summary === "string" ? summary.summary : ""
 
-  if (!artifact && !mode && confidence === null) return null
+  if (!artifact && !mode && confidence === null && !override) return null
 
   return {
     artifact: formatArtifactLabel(artifact),
     mode: formatArtifactLabel(mode),
     confidence,
     summary: summaryText,
+    override: formatArtifactLabel(override),
+    lowConfidence: confidence !== null && confidence < 0.65,
   }
 }
 
@@ -78,6 +95,7 @@ export function Search() {
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const [showDebugInfo, setShowDebugInfo] = useState<boolean>(false)
+  const [artifactOverride, setArtifactOverride] = useState<string>("")
   const notifiedRef = useRef(false)
   const fsmScrollRef = useRef<HTMLDivElement | null>(null)
   const lastFsmScrollResetKeyRef = useRef<string>("")
@@ -295,6 +313,11 @@ export function Search() {
   const detectedConfidenceLabel = typeof detectedArtifact?.confidence === "number"
     ? `${Math.round(detectedArtifact.confidence * 100)}%`
     : ""
+  const artifactSource = selectedPaper || status || {}
+  const artifactSummary = artifactSource.decision_summary || artifactSource.runtime_prompt_manifest?.metadata?.decision_summary
+  const artifactSelection = artifactSource.manifest_selection || artifactSource.runtime_prompt_manifest?.metadata?.manifest_selection
+  const artifactContract = artifactSource.resolved_contract || artifactSource.runtime_prompt_manifest?.metadata?.resolved_contract
+  const artifactManifest = artifactSource.resolved_manifest || artifactSource.runtime_prompt_manifest?.metadata?.resolved_manifest
 
   const handleDownloadCurrentDocx = () => {
     if (!status?.docx_filename) return
@@ -492,7 +515,8 @@ export function Search() {
       error: null,
       topic: topic,
       author: nickname.trim() || null,
-      active_section: null
+      active_section: null,
+      artifact_override: artifactOverride || null,
     })
     
     try {
@@ -577,7 +601,7 @@ export function Search() {
               <span
                 title={detectedArtifact.summary || "Artifact detection"}
                 className={`hidden shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide md:inline-flex ${
-                  detectedArtifact.confidence !== null && detectedArtifact.confidence < 0.65
+                  detectedArtifact.lowConfidence && !detectedArtifact.override
                     ? "ape-status-warning animate-pulse border-ape-warning/40"
                     : "border-ape-primary/25 bg-ape-primary-soft/60 text-ape-primary-text"
                 }`}
@@ -788,10 +812,20 @@ export function Search() {
                       resolved_contract: data.resolved_contract,
                       manifest_selection: data.manifest_selection,
                       decision_summary: data.decision_summary,
+                      artifact_override: data.artifact_override || null,
+                    }))
+                  }}
+                  onArtifactOverrideChange={(value) => {
+                    setArtifactOverride(value)
+                    setStatus((prev: any) => ({
+                      ...prev,
+                      artifact_override: value || null,
                     }))
                   }}
                   disabled={status.status === "RUNNING" || status.status === "STARTING"}
                   t={t}
+                  artifactOverride={artifactOverride}
+                  detectedConfidence={detectedArtifact?.confidence ?? null}
                   initialTopic={continuationSource?.topic || ""}
                   initialInstructions={
                     continuationSource
@@ -847,12 +881,50 @@ export function Search() {
                           {detectedConfidenceLabel}
                         </span>
                       )}
+                      {detectedArtifact.override && (
+                        <span className="rounded-full border border-ape-primary/25 bg-ape-primary-soft px-2.5 py-1 font-bold text-ape-primary-text">
+                          Override: {detectedArtifact.override}
+                        </span>
+                      )}
                     </div>
                     {detectedArtifact.summary && (
                       <p className="mt-2 text-muted-foreground">{detectedArtifact.summary}</p>
                     )}
+                    {detectedArtifact.lowConfidence && !detectedArtifact.override && (
+                      <p className="mt-2 rounded-lg border border-ape-warning/40 bg-ape-warning-soft px-3 py-2 font-semibold text-ape-warning-text">
+                        Low confidence. Correct the artifact type before generating if this detection looks wrong.
+                      </p>
+                    )}
                     
                     <div className="mt-3 border-t border-border/40 pt-2.5">
+                      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                          Correct type
+                        </span>
+                        <select
+                          value={artifactOverride}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setArtifactOverride(value)
+                            setStatus((prev: any) => ({
+                              ...prev,
+                              artifact_override: value || null,
+                            }))
+                          }}
+                          disabled={status.status === "RUNNING" || status.status === "STARTING"}
+                          className={`rounded-lg border bg-background px-2 py-1 text-[11px] font-bold text-foreground focus:outline-none ${
+                            detectedArtifact.lowConfidence && !artifactOverride
+                              ? "border-ape-warning/50 text-ape-warning-text"
+                              : "border-border/60"
+                          }`}
+                        >
+                          {ARTIFACT_OVERRIDE_OPTIONS.map((option) => (
+                            <option key={option.value || "auto"} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setShowDebugInfo(!showDebugInfo)}
@@ -867,19 +939,23 @@ export function Search() {
                         <div className="mt-2 space-y-2 rounded bg-muted/30 p-2.5 font-mono text-[10px] border border-border/30 text-muted-foreground">
                           <div>
                             <span className="font-bold text-foreground">Manifest ID:</span>{" "}
-                            {status.resolved_manifest?.id || status.resolved_contract?.artifact || status.decision_summary?.selected_manifest || "N/A"}
+                            {artifactManifest?.id || artifactContract?.artifact || artifactSummary?.selected_manifest || "N/A"}
                           </div>
                           <div>
                             <span className="font-bold text-foreground">Version:</span>{" "}
-                            {status.resolved_manifest?.version || "N/A"}
+                            {artifactManifest?.version || "N/A"}
                           </div>
                           <div>
                             <span className="font-bold text-foreground">Matched Cues:</span>{" "}
-                            {JSON.stringify(status.decision_summary?.matched_phrases || status.manifest_selection?.matched_phrases || [])}
+                            {JSON.stringify(artifactSummary?.matched_phrases || artifactSelection?.matched_phrases || [])}
                           </div>
                           <div>
                             <span className="font-bold text-foreground">Forbid List:</span>{" "}
-                            {JSON.stringify(status.resolved_manifest?.forbid || status.resolved_contract?.forbid || [])}
+                            {JSON.stringify(artifactManifest?.forbid || artifactContract?.forbid || [])}
+                          </div>
+                          <div>
+                            <span className="font-bold text-foreground">Override:</span>{" "}
+                            {artifactSource.artifact_override || "N/A"}
                           </div>
                         </div>
                       )}

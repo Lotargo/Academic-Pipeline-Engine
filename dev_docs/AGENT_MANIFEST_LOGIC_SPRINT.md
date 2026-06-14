@@ -525,25 +525,31 @@ Implementation notes:
 
 ## Workstream 10: UI And Debug Visibility
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Make artifact routing visible enough to prevent surprises without overwhelming the user.
 
 Tasks:
 - [x] Show compact detected mode in the UI, e.g. `Detected: Poem · Creative mode · No citations`.
-- [ ] Allow user override of artifact type when confidence is low or the detection is wrong.
-- [ ] Add debug metadata view for:
+- [x] Allow user override of artifact type when confidence is low or the detection is wrong.
+- [x] Add debug metadata view for:
   - manifest id/version;
   - confidence;
   - selection evidence;
   - active negative constraints.
-- [ ] Persist user override into run metadata.
+- [x] Persist user override into run metadata.
+
+Implementation notes:
+- The workspace shows compact artifact routing metadata and promotes correction when confidence is below the UI threshold.
+- Artifact override is available from both the input controls and the routing metadata card.
+- Debug metadata surfaces manifest id/version, confidence cues, matched phrases, negative constraints, and active override.
+- `artifact_override` is carried through status, prompt enhancement metadata, run history, and export metadata.
 
 ---
 
 ## Workstream 11: Tests
 
-Status: `[ ] Planned`
+Status: `[x] Complete`
 
 Objective: Prevent regressions where unknown or creative requests are converted into academic tasks.
 
@@ -557,13 +563,17 @@ Tasks:
   - plan document -> deliverables/tasks, not essay;
   - unknown artifact -> minimal preserve-first enhancement;
   - academic paper -> academic apparatus allowed.
-- [ ] Add planner tests proving selected sections match artifact type.
-- [ ] Add writer tests proving output instructions preserve style/genre.
-- [ ] Add reviewer tests for genre drift, academicization drift, rubric drift, and AI-marker detection.
-- [ ] Add continuation tests proving previous resolved manifest is inherited.
+- [x] Add planner tests proving selected sections match artifact type.
+- [x] Add writer tests proving output instructions preserve style/genre.
+- [x] Add reviewer tests for genre drift, academicization drift, rubric drift, and AI-marker detection.
+- [x] Add continuation tests proving previous resolved manifest is inherited.
 - [x] Add contract DSL tests proving agent prompts receive compact, stable, non-executable S-expression contracts.
-- [ ] Add standard-vs-academic mode tests for creative, technical, README, and academic artifacts.
+- [x] Add standard-vs-academic mode tests for creative, technical, README, and academic artifacts.
 - [x] Add self-critique tests proving agents repair their own draft instead of returning a blocker.
+
+Implementation notes:
+- Planner, writer adapter, reviewer drift, continuation inheritance, execution mode, contract DSL, prompt enhancement, and self-critique regression tests are present and passing.
+- Export metadata now also has a focused regression test for preserving `artifact_override`.
 
 ---
 

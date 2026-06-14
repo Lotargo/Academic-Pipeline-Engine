@@ -66,9 +66,9 @@ class PromptEnhanceResponse(BaseModel):
     topic: str
     instructions: str
     self_critique_summary: Optional[str] = None
+    artifact_override: Optional[str] = None
     resolved_manifest: Optional[dict] = None
     resolved_contract: Optional[dict] = None
     contract_sexpr: Optional[str] = None
     manifest_selection: Optional[dict] = None
     decision_summary: Optional[dict] = None
-
