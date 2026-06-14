@@ -50,6 +50,18 @@ def check_ai_markers(contract: ArtifactContract, context: Dict[str, str]) -> Dri
         r"<(?:insert|placeholder|todo|tbd)[^>]*>",
         r"\blorem ipsum\b",
         r"\btemplate filler\b",
+        r"\bdisclaimer\b",
+        r"\bthis document does not\b",
+        r"\bplease note that\b",
+        r"\bfeel free to\b",
+        r"\bhope this helps\b",
+        r"\bif you have any questions\b",
+        r"\bimportant note\b",
+        r"\bnote:\s",
+        r"\bfor the purposes of this\b",
+        r"\bdue to safety guidelines\b",
+        r"\bdelve\b",
+        r"\btestament\b",
     ]
     return _scan_patterns(context, patterns, "contains AI/meta or placeholder marker")
 

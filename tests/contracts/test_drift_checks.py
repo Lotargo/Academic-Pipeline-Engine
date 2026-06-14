@@ -134,3 +134,26 @@ def test_detects_forbidden_rubric():
 
     assert not result.passed
     assert "rubric" in result.issues[0]
+
+
+def test_detects_new_ai_smoothness_markers():
+    for word in [
+        "disclaimer",
+        "this document does not",
+        "please note that",
+        "feel free to",
+        "hope this helps",
+        "if you have any questions",
+        "important note",
+        "note: ",
+        "for the purposes of this",
+        "due to safety guidelines",
+        "delve",
+        "testament",
+    ]:
+        result = check_ai_markers(
+            _contract(),
+            {"essay": f"Let us {word} into the matter."},
+        )
+        assert not result.passed, f"Failed to detect AI smoothness marker: {word}"
+        assert "AI/meta" in result.issues[0]

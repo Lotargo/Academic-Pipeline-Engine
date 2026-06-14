@@ -30,6 +30,7 @@ class RunRequest(BaseModel):
     academic_mode: Optional[bool] = None
     author: Optional[str] = None
     continuation_source: Optional[ContinuationSource] = None
+    artifact_override: Optional[str] = None
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -58,9 +59,16 @@ class PromptEnhanceRequest(BaseModel):
     topic: str
     instructions: Optional[str] = None
     academic_mode: Optional[bool] = None
+    artifact_override: Optional[str] = None
 
 
 class PromptEnhanceResponse(BaseModel):
     topic: str
     instructions: str
     self_critique_summary: Optional[str] = None
+    resolved_manifest: Optional[dict] = None
+    resolved_contract: Optional[dict] = None
+    contract_sexpr: Optional[str] = None
+    manifest_selection: Optional[dict] = None
+    decision_summary: Optional[dict] = None
+

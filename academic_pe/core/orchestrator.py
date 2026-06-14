@@ -902,6 +902,7 @@ def create_orchestrator_from_config(
     user_topic: str = "",
     user_instructions: str = "",
     continuation_source: Optional[Dict[str, Any]] = None,
+    artifact_override: Optional[str] = None,
 ) -> Orchestrator:
     from academic_pe.agents.factory import create_agent
 
@@ -939,6 +940,7 @@ def create_orchestrator_from_config(
         instructions=user_instructions,
         continuation_source=continuation_source,
         artifact_manifest_resolver=artifact_manifest_resolver,
+        artifact_override=artifact_override,
     )
     resolved_config = _apply_runtime_template(config, runtime_template)
     
@@ -975,6 +977,7 @@ def _apply_artifact_manifest_metadata(
     instructions: str,
     continuation_source: Optional[Dict[str, Any]],
     artifact_manifest_resolver: Optional[ArtifactManifestResolver],
+    artifact_override: Optional[str] = None,
 ) -> RuntimePromptManifest:
     resolver = artifact_manifest_resolver or ArtifactManifestResolver()
     try:
@@ -985,6 +988,7 @@ def _apply_artifact_manifest_metadata(
             language=str(getattr(getattr(config.pipeline, "language", "auto"), "value", getattr(config.pipeline, "language", "auto"))),
             mode="continuation" if continuation_source else "new",
             continuation_metadata=_continuation_manifest_metadata(continuation_source),
+            artifact_override=artifact_override,
         )
     except Exception as exc:
         logger.warning("Artifact manifest resolution skipped: %s", exc)

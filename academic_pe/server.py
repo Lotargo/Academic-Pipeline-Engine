@@ -280,6 +280,7 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "manifest_selection": data.get("manifest_selection"),
         "decision_summary": data.get("decision_summary"),
         "continuation_source": data.get("continuation_source"),
+        "artifact_override": data.get("artifact_override"),
     }
 
 
@@ -466,6 +467,7 @@ def _build_prompt_enhancement_prompt(
     instructions: Optional[str],
     lang: str,
     academic_mode: bool = False,
+    artifact_override: Optional[str] = None,
 ) -> str:
     from academic_pe.agent_adapters import build_prompt_enhancement_prompt
 
@@ -474,6 +476,7 @@ def _build_prompt_enhancement_prompt(
         instructions=instructions,
         language=lang,
         academic_mode=academic_mode,
+        artifact_override=artifact_override,
     )
 
 
@@ -485,6 +488,7 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
     """
     import re
     from academic_pe.agents.factory import create_agent
+    from academic_pe.manifests import ArtifactManifestResolver
 
     try:
         config = load_config("config/agents.yaml")
@@ -502,6 +506,7 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
         payload.instructions,
         lang,
         academic_mode=payload.academic_mode if payload.academic_mode is not None else config.pipeline.academic_mode,
+        artifact_override=payload.artifact_override,
     )
 
     loop = asyncio.get_running_loop()
@@ -541,10 +546,25 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
         if not isinstance(data, dict) or "topic" not in data or "instructions" not in data:
             raise ValueError("Parsed JSON is not in the expected format (missing topic or instructions)")
 
+        resolver = ArtifactManifestResolver()
+        resolved = resolver.resolve(
+            topic=data["topic"].strip(),
+            instructions=data["instructions"].strip(),
+            academic_mode=payload.academic_mode if payload.academic_mode is not None else config.pipeline.academic_mode,
+            language=lang,
+            artifact_override=payload.artifact_override,
+        )
+        artifact_metadata = resolved.metadata()
+
         return PromptEnhanceResponse(
             topic=data["topic"].strip(),
             instructions=data["instructions"].strip(),
-            self_critique_summary=self_critique_summary
+            self_critique_summary=self_critique_summary,
+            resolved_manifest=artifact_metadata.get("resolved_manifest"),
+            resolved_contract=artifact_metadata.get("resolved_contract"),
+            contract_sexpr=artifact_metadata.get("contract_sexpr"),
+            manifest_selection=artifact_metadata.get("manifest_selection"),
+            decision_summary=artifact_metadata.get("decision_summary"),
         )
 
     except Exception as e:
@@ -639,6 +659,7 @@ def run_pipeline_thread(
     run_id: Optional[str] = None,
     author: Optional[str] = None,
     continuation_source: Optional[dict] = None,
+    artifact_override: Optional[str] = None,
 ):
     global current_run, _current_orchestrator
     
@@ -666,6 +687,7 @@ def run_pipeline_thread(
             current_run["academic_mode"] = config.pipeline.academic_mode
             current_run["document_plan"] = None
             current_run["continuation_source"] = continuation_source
+            current_run["artifact_override"] = artifact_override
 
         # Apply legacy section-topic overrides only for the current custom structure.
         # Fixed templates must remain structurally bound to the selected template.
@@ -693,6 +715,7 @@ def run_pipeline_thread(
             user_topic=topic or "",
             user_instructions=instructions or "",
             continuation_source=continuation_source,
+            artifact_override=artifact_override,
         )
         with run_lock:
             current_run["topic"] = orch.user_topic
@@ -803,6 +826,7 @@ def run_pipeline_thread(
             "author": author,
             "run_id": run_id,
             "continuation_source": continuation_source,
+            "artifact_override": artifact_override,
             "template_mode": config.pipeline.template_mode.value,
             "template_id": config.pipeline.template_id,
             "runtime_template": (
@@ -900,6 +924,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
             if payload.continuation_source is not None
             else None
         )
+        current_run["artifact_override"] = payload.artifact_override
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -915,6 +940,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
             if payload.continuation_source is not None
             else None
         ),
+        payload.artifact_override,
     )
     return {"status": "started", "message": "Pipeline execution started in the background"}
 

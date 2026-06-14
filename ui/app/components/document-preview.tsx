@@ -15,9 +15,11 @@ interface DocumentPreviewProps {
   runtimeTemplate?: any
   t: Messages
   author?: string | null
+  language?: string
+  metadata?: any
 }
 
-export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTemplate, t, author }: DocumentPreviewProps) {
+export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTemplate, t, author, language, metadata }: DocumentPreviewProps) {
   const runtimeSections = Array.isArray(runtimeTemplate?.sections)
     ? runtimeTemplate.sections
         .filter((section: any) => section?.name)
@@ -26,6 +28,24 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
           title: section.title || section.topic || humanizeSectionName(section.name),
         }))
     : []
+
+  // Resolve debug metadata from the source
+  const source = metadata || {}
+  const summary = source.decision_summary || source.runtime_prompt_manifest?.metadata?.decision_summary
+  const selection = source.manifest_selection || source.runtime_prompt_manifest?.metadata?.manifest_selection
+  const contract = source.resolved_contract || source.runtime_prompt_manifest?.metadata?.resolved_contract
+  const manifest = source.resolved_manifest || source.runtime_prompt_manifest?.metadata?.resolved_manifest
+
+  const manifestId = manifest?.id || contract?.artifact || summary?.selected_manifest || ""
+  const version = manifest?.version || ""
+  const confidence = typeof summary?.confidence === "number"
+    ? summary.confidence
+    : typeof selection?.confidence === "number"
+      ? selection.confidence
+      : null
+  const matchedPhrases = summary?.matched_phrases || selection?.matched_phrases || []
+  const forbidList = manifest?.forbid || contract?.forbid || []
+  const hasDebugInfo = !!manifestId || !!version || confidence !== null || matchedPhrases.length > 0 || forbidList.length > 0
 
   const exportableContext = Object.fromEntries(
     Object.entries(context).filter(([key]) => key !== "document_plan")
@@ -542,6 +562,63 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
             </div>
           </CardContent>
         </Card>
+
+        {/* Debug Metadata */}
+        {hasDebugInfo && (
+          <Card className="rounded-2xl border border-border bg-card p-4 shadow-sm hidden lg:block mt-4">
+            <CardHeader className="p-1 pb-3">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {language === "ru" ? "Отладочные метаданные" : "Debug Metadata"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 space-y-2.5 text-xs">
+              {manifestId && (
+                <div className="flex justify-between border-b pb-1.5 border-border/40">
+                  <span className="text-muted-foreground">Manifest ID:</span>
+                  <span className="font-mono font-semibold">{manifestId}</span>
+                </div>
+              )}
+              {version && (
+                <div className="flex justify-between border-b pb-1.5 border-border/40">
+                  <span className="text-muted-foreground">Version:</span>
+                  <span className="font-mono font-semibold">{version}</span>
+                </div>
+              )}
+              {confidence !== null && (
+                <div className="flex justify-between border-b pb-1.5 border-border/40">
+                  <span className="text-muted-foreground">Confidence:</span>
+                  <span className={`font-semibold ${confidence < 0.65 ? "text-amber-500 animate-pulse" : ""}`}>
+                    {Math.round(confidence * 100)}%
+                  </span>
+                </div>
+              )}
+              {matchedPhrases.length > 0 && (
+                <div className="border-b pb-1.5 border-border/40 space-y-1">
+                  <span className="text-muted-foreground">Matched Cues:</span>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {matchedPhrases.map((phrase: string, idx: number) => (
+                      <span key={idx} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                        {phrase}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {forbidList.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Negative Constraints:</span>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {forbidList.map((constraint: string, idx: number) => (
+                      <span key={idx} className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-mono text-destructive">
+                        {constraint}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Preview Workspace */}

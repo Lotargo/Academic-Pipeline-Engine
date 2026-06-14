@@ -202,3 +202,25 @@ def test_resolver_current_artifact_cue_overrides_previous_manifest(tmp_path):
 
     assert resolved.manifest.id == "technical_readme"
     assert "readme" in resolved.evidence.matched_phrases
+
+
+def test_resolver_respects_user_artifact_override(tmp_path):
+    resolved = _resolver(tmp_path).resolve(
+        topic="Project README",
+        instructions="Add installation and usage sections.",
+        artifact_override="creative_poem",
+    )
+    assert resolved.manifest.id == "creative_poem"
+    assert resolved.evidence.confidence == 1.0
+    assert resolved.evidence.matched_phrases == ["user override"]
+
+
+def test_resolver_enforces_style_preservation_on_low_confidence_continuation(tmp_path):
+    resolved = _resolver(tmp_path).resolve(
+        topic="A strange niche artifact",
+        instructions="Make it exactly in this odd structure.",
+        mode="continuation",
+    )
+    assert resolved.manifest.id == "unknown_freeform"
+    assert resolved.evidence.confidence == 0.25
+    assert resolved.contract.requirements.get("preserve_style_and_avoid_new_structure") is True

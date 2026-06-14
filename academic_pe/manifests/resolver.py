@@ -82,48 +82,62 @@ class ArtifactManifestResolver:
         language: str = "auto",
         mode: str = "new",
         continuation_metadata: Optional[dict] = None,
+        artifact_override: Optional[str] = None,
     ) -> ResolvedArtifactManifest:
         manifests = self._load_manifests()
 
-        previous_manifest_id = self._previous_manifest_id(continuation_metadata)
-        current_manifest, current_evidence = self._select_manifest(manifests, topic, instructions)
-        if current_evidence.matched_phrases and (
-            previous_manifest_id is None or current_manifest.id != previous_manifest_id
-        ):
-            manifest = current_manifest
-            evidence = current_evidence
-        else:
-            manifest = None
-            evidence = None
-
-        if manifest is None and previous_manifest_id and previous_manifest_id in manifests:
-            manifest = manifests[previous_manifest_id]
+        if artifact_override and artifact_override in manifests:
+            manifest = manifests[artifact_override]
             evidence = ManifestSelectionEvidence(
                 manifest_id=manifest.id,
-                confidence=0.9,
-                matched_phrases=["previous resolved manifest"],
-                ambiguity_notes=["Inherited artifact behavior from continuation metadata."],
+                confidence=1.0,
+                matched_phrases=["user override"],
+                ambiguity_notes=[f"User explicitly selected artifact type: {manifest.id}"],
             )
+        else:
+            previous_manifest_id = self._previous_manifest_id(continuation_metadata)
+            current_manifest, current_evidence = self._select_manifest(manifests, topic, instructions)
+            if current_evidence.matched_phrases and (
+                previous_manifest_id is None or current_manifest.id != previous_manifest_id
+            ):
+                manifest = current_manifest
+                evidence = current_evidence
+            else:
+                manifest = None
+                evidence = None
 
-        if manifest is None:
-            legacy_text = self._legacy_continuation_text(continuation_metadata)
-            if legacy_text:
-                legacy_manifest, legacy_evidence = self._select_manifest(manifests, "", legacy_text)
-                if legacy_evidence.matched_phrases:
-                    manifest = legacy_manifest
-                    evidence = ManifestSelectionEvidence(
-                        manifest_id=legacy_manifest.id,
-                        confidence=min(0.75, legacy_evidence.confidence),
-                        matched_phrases=legacy_evidence.matched_phrases,
-                        ambiguity_notes=[
-                            "Inferred artifact behavior from legacy continuation metadata.",
-                            *legacy_evidence.ambiguity_notes,
-                        ],
-                    )
+            if manifest is None and previous_manifest_id and previous_manifest_id in manifests:
+                manifest = manifests[previous_manifest_id]
+                evidence = ManifestSelectionEvidence(
+                    manifest_id=manifest.id,
+                    confidence=0.9,
+                    matched_phrases=["previous resolved manifest"],
+                    ambiguity_notes=["Inherited artifact behavior from continuation metadata."],
+                )
 
-        if manifest is None or evidence is None:
-            manifest = current_manifest
-            evidence = current_evidence
+            if manifest is None:
+                legacy_text = self._legacy_continuation_text(continuation_metadata)
+                if legacy_text:
+                    legacy_manifest, legacy_evidence = self._select_manifest(manifests, "", legacy_text)
+                    if legacy_evidence.matched_phrases:
+                        manifest = legacy_manifest
+                        evidence = ManifestSelectionEvidence(
+                            manifest_id=legacy_manifest.id,
+                            confidence=min(0.75, legacy_evidence.confidence),
+                            matched_phrases=legacy_evidence.matched_phrases,
+                            ambiguity_notes=[
+                                "Inferred artifact behavior from legacy continuation metadata.",
+                                *legacy_evidence.ambiguity_notes,
+                            ],
+                        )
+
+            if manifest is None or evidence is None:
+                manifest = current_manifest
+                evidence = current_evidence
+
+        extra_reqs = {}
+        if mode == "continuation" and evidence.confidence < 0.65:
+            extra_reqs["preserve_style_and_avoid_new_structure"] = True
 
         resolved_execution_mode = execution_mode or ("academic" if academic_mode else "standard")
         contract = compile_artifact_contract(
@@ -131,6 +145,7 @@ class ArtifactManifestResolver:
             language=language,
             mode=mode,
             execution_mode=resolved_execution_mode,
+            extra_requirements=extra_reqs,
         )
         return ResolvedArtifactManifest(
             manifest=manifest,

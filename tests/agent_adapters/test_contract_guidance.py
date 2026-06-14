@@ -26,6 +26,10 @@ def test_contract_guidance_for_reviewer_checks_drift_and_ai_markers():
     assert "forbidden-clause drift" in guidance
     assert "standard_mode and academic_mode clauses" in guidance
     assert "AI/meta markers" in guidance
+    assert "artificial smoothness" in guidance
+    assert "generic transitions" in guidance
+    assert "meaningless balance phrases" in guidance
+    assert "disclaimers" in guidance
 
 
 def test_contract_guidance_for_researcher_does_not_force_sources():

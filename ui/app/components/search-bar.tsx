@@ -7,18 +7,20 @@ import type { Messages } from "@/lib/i18n"
 import { toast } from "sonner"
 
 interface SearchBarProps {
-  onSearch?: (topic: string, instructions: string, academicMode: boolean) => void
+  onSearch?: (topic: string, instructions: string, academicMode: boolean, artifactOverride: string) => void
+  onEnhance?: (data: any) => void
   disabled?: boolean
   t: Messages
   initialTopic?: string
   initialInstructions?: string
 }
 
-export function SearchBar({ onSearch, disabled, t, initialTopic = "", initialInstructions = "" }: SearchBarProps) {
+export function SearchBar({ onSearch, onEnhance, disabled, t, initialTopic = "", initialInstructions = "" }: SearchBarProps) {
   const [topic, setTopic] = useState(initialTopic)
   const [instructions, setInstructions] = useState(initialInstructions)
   const [isFocused, setIsFocused] = useState(false)
   const [academicMode, setAcademicMode] = useState(false)
+  const [artifactOverride, setArtifactOverride] = useState("")
   const [examples, setExamples] = useState<{ topic: string; instructions: string }[]>([])
   const [ttl, setTtl] = useState<number>(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -41,12 +43,14 @@ export function SearchBar({ onSearch, disabled, t, initialTopic = "", initialIns
           topic: topic.trim(),
           instructions: instructions.trim(),
           academic_mode: academicMode,
+          artifact_override: artifactOverride || undefined,
         }),
       })
       if (res.ok) {
         const data = await res.json()
         setTopic(data.topic)
         setInstructions(data.instructions)
+        onEnhance?.(data)
         toast.success(t.search.enhanceSuccess)
       } else {
         let errMsg = t.search.enhanceError
@@ -155,7 +159,7 @@ export function SearchBar({ onSearch, disabled, t, initialTopic = "", initialIns
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!topic.trim()) return
-    onSearch?.(topic.trim(), instructions.trim(), academicMode)
+    onSearch?.(topic.trim(), instructions.trim(), academicMode, artifactOverride)
   }
 
   const loadSuggestion = (sTopic: string, sInst: string) => {
@@ -234,32 +238,75 @@ export function SearchBar({ onSearch, disabled, t, initialTopic = "", initialIns
               <span>{t.search.footer}</span>
             </div>
             
-            {/* Mode Switcher */}
-            <div className="flex items-center gap-1 bg-muted/60 dark:bg-ape-surface-subtle p-1 rounded-xl border border-border/50 text-[11px] font-bold">
-              <button
-                type="button"
-                onClick={() => setAcademicMode(false)}
-                disabled={disabled || isEnhancing}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
-                  !academicMode
-                    ? "ape-status-primary border"
-                    : "text-muted-foreground hover:text-foreground bg-transparent"
-                }`}
-              >
-                {t.search.modeStandard}
-              </button>
-              <button
-                type="button"
-                onClick={() => setAcademicMode(true)}
-                disabled={disabled || isEnhancing}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
-                  academicMode
-                    ? "ape-status-warning border"
-                    : "text-muted-foreground hover:text-foreground bg-transparent"
-                }`}
-              >
-                {t.search.modeAcademic}
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Artifact Type Selector */}
+              <div className="flex items-center gap-1 bg-muted/60 dark:bg-ape-surface-subtle px-2.5 py-1 rounded-xl border border-border/50 text-[11px] font-bold">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider px-0.5">
+                  {t.search.modeStandard === "Стандартный" ? "Тип:" : "Type:"}
+                </span>
+                <select
+                  value={artifactOverride}
+                  onChange={(e) => setArtifactOverride(e.target.value)}
+                  disabled={disabled || isEnhancing}
+                  className="bg-transparent text-[11px] font-bold text-foreground focus:outline-none border-0 cursor-pointer pr-1"
+                >
+                  <option value="" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "Автоопределение" : "Auto-Detect"}
+                  </option>
+                  <option value="creative_poem" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "Стихотворение" : "Poem"}
+                  </option>
+                  <option value="creative_story" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "Рассказ / Сказка" : "Story / Fiction"}
+                  </option>
+                  <option value="school_essay" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "Сочинение" : "School Essay"}
+                  </option>
+                  <option value="academic_paper" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "Статья" : "Academic Paper"}
+                  </option>
+                  <option value="technical_readme" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "README" : "README"}
+                  </option>
+                  <option value="plan_document" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "План" : "Plan"}
+                  </option>
+                  <option value="report" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "Отчет" : "Report"}
+                  </option>
+                  <option value="unknown_freeform" className="bg-card font-semibold text-foreground">
+                    {t.search.modeStandard === "Стандартный" ? "Свободный" : "Freeform Fallback"}
+                  </option>
+                </select>
+              </div>
+
+              {/* Mode Switcher */}
+              <div className="flex items-center gap-1 bg-muted/60 dark:bg-ape-surface-subtle p-1 rounded-xl border border-border/50 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setAcademicMode(false)}
+                  disabled={disabled || isEnhancing}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
+                    !academicMode
+                      ? "ape-status-primary border"
+                      : "text-muted-foreground hover:text-foreground bg-transparent"
+                  }`}
+                >
+                  {t.search.modeStandard}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAcademicMode(true)}
+                  disabled={disabled || isEnhancing}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer border-0 flex items-center gap-1 ${
+                    academicMode
+                      ? "ape-status-warning border"
+                      : "text-muted-foreground hover:text-foreground bg-transparent"
+                  }`}
+                >
+                  {t.search.modeAcademic}
+                </button>
+              </div>
             </div>
             
             <Button

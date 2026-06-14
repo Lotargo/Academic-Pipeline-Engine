@@ -19,6 +19,7 @@ class PromptEnhancerManifestResolver(Protocol):
         language: str = "auto",
         mode: str = "new",
         continuation_metadata: Optional[dict] = None,
+        artifact_override: Optional[str] = None,
     ) -> ResolvedArtifactManifest:
         ...
 
@@ -71,6 +72,7 @@ def build_prompt_enhancement_prompt(
     academic_mode: bool = False,
     continuation_metadata: Optional[dict] = None,
     resolver: Optional[PromptEnhancerManifestResolver] = None,
+    artifact_override: Optional[str] = None,
 ) -> str:
     resolved = _resolve_manifest(
         topic=topic,
@@ -79,6 +81,7 @@ def build_prompt_enhancement_prompt(
         academic_mode=academic_mode,
         continuation_metadata=continuation_metadata,
         resolver=resolver,
+        artifact_override=artifact_override,
     )
 
     sections = [
@@ -159,6 +162,7 @@ def _resolve_manifest(
     academic_mode: bool,
     continuation_metadata: Optional[dict],
     resolver: Optional[PromptEnhancerManifestResolver],
+    artifact_override: Optional[str] = None,
 ) -> Optional[ResolvedArtifactManifest]:
     selected_resolver = resolver or ArtifactManifestResolver()
     try:
@@ -169,6 +173,7 @@ def _resolve_manifest(
             language=language,
             mode="continuation" if continuation_metadata else "new",
             continuation_metadata=continuation_metadata,
+            artifact_override=artifact_override,
         )
     except Exception as exc:
         logger.warning("Prompt enhancer artifact manifest resolution skipped: %s", exc)
@@ -190,7 +195,7 @@ def _contract_section(resolved: Optional[ResolvedArtifactManifest]) -> str:
         "Preserve the detected artifact and improve only what the user asked to improve.",
     )
     confidence_note = ""
-    if evidence.confidence < 0.5:
+    if evidence.confidence < 0.65:
         confidence_note = (
             "\nSelection confidence is low; treat the manifest as a fallback hint and preserve the user's apparent "
             "form instead of inventing structure."

@@ -98,10 +98,23 @@ def _build_self_critique_prompt(
     context: Optional[str],
 ) -> str:
     agent_rules = _agent_rules(agent_name)
+    is_academic = "academic_mode" in system_prompt or "execution_mode academic" in system_prompt
+    
+    academic_rules = ""
+    if is_academic:
+        academic_rules = (
+            "\nStrong academic-mode critical thinking rules:\n"
+            "- Identify and repair weak assumptions, unsupported claims, or conceptual contradictions.\n"
+            "- Avoid shallow definitions; ensure methodological clarity and conceptual precision.\n"
+            "- Call out and describe limitations of the analysis or method where appropriate.\n"
+            "- Verify that necessary source/evidence gaps are repaired directly if the contract requires evidence/sources."
+        )
+
     context_block = f"\n\n[Context]\n{context}" if context else ""
     return (
         f"Agent: {agent_name}\n"
-        f"{agent_rules}\n\n"
+        f"{agent_rules}\n"
+        f"{academic_rules}\n\n"
         "[Active System Prompt And Contract]\n"
         f"{system_prompt}\n"
         f"{context_block}\n\n"
@@ -129,6 +142,18 @@ def _agent_rules(agent_name: str) -> str:
         return (
             "PromptEnhancer self-critique: ensure the enhancement preserves artifact type, keeps user details, "
             "and does not add bureaucracy or unrelated academic structure."
+        )
+    if normalized == "researcher":
+        return (
+            "Researcher self-critique: check source relevance, citation quality, and evidence overreach. "
+            "Avoid forcing citations or bibliography into non-academic/creative works unless requested. "
+            "Directly rewrite findings to repair any issues."
+        )
+    if normalized in {"exporter", "renderer"}:
+        return (
+            "Exporter/renderer self-critique: check structure and format compatibility against the contract. "
+            "Ensure proper headings, spacing, and output constraints without adding title pages, rubrics, "
+            "or academic apparatus unless requested. Directly rewrite to fix formatting."
         )
     return "Self-critique: repair only material contract, consistency, style, and user-constraint issues."
 

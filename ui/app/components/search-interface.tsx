@@ -77,6 +77,7 @@ export function Search() {
   const [continuationSource, setContinuationSource] = useState<any>(null)
   const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false)
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
+  const [showDebugInfo, setShowDebugInfo] = useState<boolean>(false)
   const notifiedRef = useRef(false)
   const fsmScrollRef = useRef<HTMLDivElement | null>(null)
   const lastFsmScrollResetKeyRef = useRef<string>("")
@@ -472,7 +473,7 @@ export function Search() {
     toast.info(language === "ru" ? "Режим продолжения включён" : "Continuation mode enabled")
   }
 
-  const handleStartGeneration = async (topic: string, instructions: string, academicMode: boolean) => {
+  const handleStartGeneration = async (topic: string, instructions: string, academicMode: boolean, artifactOverride?: string) => {
     notifiedRef.current = false
     
     // Switch to FSM visualization tab immediately; the backend status becomes
@@ -502,6 +503,7 @@ export function Search() {
           topic,
           instructions,
           academic_mode: academicMode,
+          artifact_override: artifactOverride || undefined,
           author: nickname.trim() || undefined,
           continuation_source: continuationSource || undefined,
         })
@@ -574,7 +576,11 @@ export function Search() {
             {detectedArtifact && (
               <span
                 title={detectedArtifact.summary || "Artifact detection"}
-                className="hidden shrink-0 items-center gap-1 rounded-full border border-ape-primary/25 bg-ape-primary-soft/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ape-primary-text md:inline-flex"
+                className={`hidden shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide md:inline-flex ${
+                  detectedArtifact.confidence !== null && detectedArtifact.confidence < 0.65
+                    ? "ape-status-warning animate-pulse border-ape-warning/40"
+                    : "border-ape-primary/25 bg-ape-primary-soft/60 text-ape-primary-text"
+                }`}
               >
                 <span>Detected:</span>
                 {detectedArtifact.artifact && <span>{detectedArtifact.artifact}</span>}
@@ -714,6 +720,8 @@ export function Search() {
                   runtimeTemplate={selectedPaper?.runtime_template}
                   author={selectedPaper?.author}
                   t={t}
+                  language={language}
+                  metadata={selectedPaper}
                 />
               </div>
             </div>
@@ -773,6 +781,15 @@ export function Search() {
                 {/* Input Panel */}
                 <SearchBar
                   onSearch={handleStartGeneration}
+                  onEnhance={(data) => {
+                    setStatus((prev: any) => ({
+                      ...prev,
+                      resolved_manifest: data.resolved_manifest,
+                      resolved_contract: data.resolved_contract,
+                      manifest_selection: data.manifest_selection,
+                      decision_summary: data.decision_summary,
+                    }))
+                  }}
                   disabled={status.status === "RUNNING" || status.status === "STARTING"}
                   t={t}
                   initialTopic={continuationSource?.topic || ""}
@@ -834,6 +851,39 @@ export function Search() {
                     {detectedArtifact.summary && (
                       <p className="mt-2 text-muted-foreground">{detectedArtifact.summary}</p>
                     )}
+                    
+                    <div className="mt-3 border-t border-border/40 pt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowDebugInfo(!showDebugInfo)}
+                        className="text-[10px] font-bold uppercase text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0"
+                      >
+                        {showDebugInfo
+                          ? (language === "ru" ? "Скрыть отладку" : "Hide debug info")
+                          : (language === "ru" ? "Показать отладку" : "Show debug info")}
+                      </button>
+                      
+                      {showDebugInfo && (
+                        <div className="mt-2 space-y-2 rounded bg-muted/30 p-2.5 font-mono text-[10px] border border-border/30 text-muted-foreground">
+                          <div>
+                            <span className="font-bold text-foreground">Manifest ID:</span>{" "}
+                            {status.resolved_manifest?.id || status.resolved_contract?.artifact || status.decision_summary?.selected_manifest || "N/A"}
+                          </div>
+                          <div>
+                            <span className="font-bold text-foreground">Version:</span>{" "}
+                            {status.resolved_manifest?.version || "N/A"}
+                          </div>
+                          <div>
+                            <span className="font-bold text-foreground">Matched Cues:</span>{" "}
+                            {JSON.stringify(status.decision_summary?.matched_phrases || status.manifest_selection?.matched_phrases || [])}
+                          </div>
+                          <div>
+                            <span className="font-bold text-foreground">Forbid List:</span>{" "}
+                            {JSON.stringify(status.resolved_manifest?.forbid || status.resolved_contract?.forbid || [])}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 

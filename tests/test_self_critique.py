@@ -82,3 +82,57 @@ def test_self_critique_blocking_feedback_keeps_original_output():
 
     assert result.output == "Original text."
     assert result.skipped_reason == "blocking_feedback"
+
+
+def test_self_critique_applies_researcher_rules():
+    provider = StaticCritiqueProvider(
+        '{"summary":"Fixed overreach.","output":"Clean findings."}'
+    )
+
+    run_self_critique(
+        agent_name="researcher",
+        config=_config(),
+        llm=provider,
+        task_description="Task",
+        draft_output="Findings.",
+        system_prompt="Contract prompt.",
+    )
+
+    assert "check source relevance" in provider.calls[0]["user_prompt"]
+    assert "forcing citations" in provider.calls[0]["user_prompt"]
+
+
+def test_self_critique_applies_exporter_rules():
+    provider = StaticCritiqueProvider(
+        '{"summary":"Fixed structure.","output":"Clean structure."}'
+    )
+
+    run_self_critique(
+        agent_name="exporter",
+        config=_config(),
+        llm=provider,
+        task_description="Task",
+        draft_output="Structure.",
+        system_prompt="Contract prompt.",
+    )
+
+    assert "format compatibility" in provider.calls[0]["user_prompt"]
+    assert "headings, spacing" in provider.calls[0]["user_prompt"]
+
+
+def test_self_critique_applies_academic_mode_rules():
+    provider = StaticCritiqueProvider(
+        '{"summary":"Fixed assumption.","output":"Rigorous text."}'
+    )
+
+    run_self_critique(
+        agent_name="writer",
+        config=_config(),
+        llm=provider,
+        task_description="Task",
+        draft_output="Draft.",
+        system_prompt="academic_mode",
+    )
+
+    assert "unsupported claims" in provider.calls[0]["user_prompt"]
+    assert "methodological clarity" in provider.calls[0]["user_prompt"]
