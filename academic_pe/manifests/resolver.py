@@ -7,6 +7,7 @@ from academic_pe.contracts.compiler import compile_artifact_contract
 from academic_pe.contracts.models import ArtifactContract
 from academic_pe.contracts.sexpr import render_contract_sexpr
 from academic_pe.manifests.evidence import ManifestSelectionEvidence
+from academic_pe.manifests.fallback import fallback_evidence, select_fallback_manifest
 from academic_pe.manifests.loader import ArtifactManifestLoader
 from academic_pe.manifests.models import ArtifactManifest
 
@@ -58,7 +59,17 @@ class ArtifactManifestResolver:
         manifests = self._load_manifests()
 
         previous_manifest_id = self._previous_manifest_id(continuation_metadata)
-        if previous_manifest_id and previous_manifest_id in manifests:
+        current_manifest, current_evidence = self._select_manifest(manifests, topic, instructions)
+        if current_evidence.matched_phrases and (
+            previous_manifest_id is None or current_manifest.id != previous_manifest_id
+        ):
+            manifest = current_manifest
+            evidence = current_evidence
+        else:
+            manifest = None
+            evidence = None
+
+        if manifest is None and previous_manifest_id and previous_manifest_id in manifests:
             manifest = manifests[previous_manifest_id]
             evidence = ManifestSelectionEvidence(
                 manifest_id=manifest.id,
@@ -66,8 +77,26 @@ class ArtifactManifestResolver:
                 matched_phrases=["previous resolved manifest"],
                 ambiguity_notes=["Inherited artifact behavior from continuation metadata."],
             )
-        else:
-            manifest, evidence = self._select_manifest(manifests, topic, instructions)
+
+        if manifest is None:
+            legacy_text = self._legacy_continuation_text(continuation_metadata)
+            if legacy_text:
+                legacy_manifest, legacy_evidence = self._select_manifest(manifests, "", legacy_text)
+                if legacy_evidence.matched_phrases:
+                    manifest = legacy_manifest
+                    evidence = ManifestSelectionEvidence(
+                        manifest_id=legacy_manifest.id,
+                        confidence=min(0.75, legacy_evidence.confidence),
+                        matched_phrases=legacy_evidence.matched_phrases,
+                        ambiguity_notes=[
+                            "Inferred artifact behavior from legacy continuation metadata.",
+                            *legacy_evidence.ambiguity_notes,
+                        ],
+                    )
+
+        if manifest is None or evidence is None:
+            manifest = current_manifest
+            evidence = current_evidence
 
         execution_mode = "academic" if academic_mode else "standard"
         contract = compile_artifact_contract(
@@ -132,20 +161,10 @@ class ArtifactManifestResolver:
             return manifests[manifest_id], evidence
 
         fallback = self._fallback_manifest(manifests)
-        evidence = ManifestSelectionEvidence(
-            manifest_id=fallback.id,
-            confidence=0.25,
-            matched_phrases=[],
-            ambiguity_notes=["No strong artifact cues matched; using preserve-first fallback."],
-        )
-        return fallback, evidence
+        return fallback, fallback_evidence(fallback)
 
     def _fallback_manifest(self, manifests: Dict[str, ArtifactManifest]) -> ArtifactManifest:
-        if "unknown_freeform" in manifests:
-            return manifests["unknown_freeform"]
-        if manifests:
-            return next(iter(manifests.values()))
-        raise ValueError("No artifact manifests are available.")
+        return select_fallback_manifest(manifests)
 
     def _previous_manifest_id(self, continuation_metadata: Optional[dict]) -> Optional[str]:
         if not continuation_metadata:
@@ -161,3 +180,39 @@ class ArtifactManifestResolver:
             if isinstance(manifest_id, str):
                 return manifest_id
         return None
+
+    def _legacy_continuation_text(self, continuation_metadata: Optional[dict]) -> str:
+        if not continuation_metadata:
+            return ""
+
+        parts: list[str] = []
+        for key in ["previous_prompt", "topic", "instructions", "document_plan"]:
+            value = continuation_metadata.get(key)
+            if isinstance(value, str) and value.strip():
+                parts.append(value.strip())
+
+        runtime_template = continuation_metadata.get("runtime_template")
+        if isinstance(runtime_template, dict):
+            for key in ["name", "category"]:
+                value = runtime_template.get(key)
+                if isinstance(value, str) and value.strip():
+                    parts.append(value.strip())
+            sections = runtime_template.get("sections")
+            if isinstance(sections, list):
+                for section in sections:
+                    if not isinstance(section, dict):
+                        continue
+                    for key in ["name", "title", "instruction"]:
+                        value = section.get(key)
+                        if isinstance(value, str) and value.strip():
+                            parts.append(value.strip())
+
+        context = continuation_metadata.get("context")
+        if isinstance(context, dict):
+            for key, value in context.items():
+                if key == "document_plan":
+                    continue
+                if isinstance(value, str) and value.strip():
+                    parts.append(value.strip())
+
+        return "\n".join(parts)[:12000]

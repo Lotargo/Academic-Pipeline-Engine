@@ -358,7 +358,7 @@ Tasks:
   - confidence;
   - user phrases that triggered selection;
   - ambiguity notes.
-- [ ] Continuation priority order:
+- [~] Continuation priority order:
   1. explicit current user instruction;
   2. previous resolved manifest;
   3. previous user prompt;
@@ -366,7 +366,7 @@ Tasks:
   5. previous document text/style;
   6. artifact manifest defaults;
   7. unknown fallback manifest.
-- [ ] If old history metadata lacks `resolved_manifest`, infer from stored prompt, plan, runtime template, and document text.
+- [x] If old history metadata lacks `resolved_manifest`, infer from stored prompt, plan, runtime template, and document text.
 - [ ] If inference confidence is low, preserve style from the existing text and avoid adding new structure.
 
 ---

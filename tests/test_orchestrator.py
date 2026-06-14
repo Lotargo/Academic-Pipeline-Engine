@@ -868,6 +868,39 @@ def test_create_orchestrator_from_config_inherits_top_level_continuation_artifac
     assert metadata["manifest_selection"]["matched_phrases"] == ["previous resolved manifest"]
 
 
+def test_create_orchestrator_from_config_infers_legacy_continuation_artifact_metadata():
+    config = _make_config()
+    manifests = {
+        "creative_poem": ArtifactManifest(
+            id="creative_poem",
+            artifact_type="creative_poem",
+            forbid=["academic_drift", "forced_visualization"],
+        ),
+        "unknown_freeform": ArtifactManifest(
+            id="unknown_freeform",
+            artifact_type="unknown_freeform",
+        ),
+    }
+
+    orch = create_orchestrator_from_config(
+        config,
+        user_topic="Continue",
+        user_instructions="Add another part in the same style.",
+        continuation_source={
+            "previous_prompt": "Topic: Lady in Red\nInstructions: Write a poem with 12 lines.",
+            "context": {
+                "poem": "Red silk in rain\nA quiet window glows",
+            },
+        },
+        artifact_manifest_resolver=ArtifactManifestResolver(manifests=manifests),
+    )
+
+    metadata = orch.runtime_prompt_manifest.metadata
+    assert metadata["resolved_manifest"]["id"] == "creative_poem"
+    assert "legacy continuation metadata" in metadata["manifest_selection"]["ambiguity_notes"][0]
+    assert "(artifact creative_poem)" in metadata["contract_sexpr"]
+
+
 def test_pipeline_fails_on_contract_drift_without_reviewer():
     class DriftMockProvider(MockProvider):
         def __init__(self):

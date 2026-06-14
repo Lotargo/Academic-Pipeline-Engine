@@ -968,7 +968,12 @@ def _continuation_manifest_metadata(continuation_source: Optional[Dict[str, Any]
             return metadata
         return runtime_prompt_manifest
 
-    return None
+    legacy_metadata = {
+        key: continuation_source[key]
+        for key in ["previous_prompt", "topic", "instructions", "document_plan", "runtime_template", "context"]
+        if key in continuation_source
+    }
+    return legacy_metadata or None
 
 
 def _create_template_selector(config: AppConfig) -> TemplateSelector:

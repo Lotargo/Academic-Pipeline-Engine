@@ -139,3 +139,35 @@ def test_resolver_inherits_previous_manifest_from_continuation_metadata(tmp_path
     assert resolved.manifest.id == "creative_poem"
     assert resolved.evidence.matched_phrases == ["previous resolved manifest"]
     assert resolved.evidence.confidence == 0.9
+
+
+def test_resolver_infers_manifest_from_legacy_continuation_metadata(tmp_path):
+    resolved = _resolver(tmp_path).resolve(
+        topic="Continue",
+        instructions="Add one more part in the same style.",
+        continuation_metadata={
+            "previous_prompt": "Topic: Lady in Red\nInstructions: Write a poem with 12 lines.",
+            "document_plan": "A short stanza-based poetic plan.",
+        },
+    )
+
+    assert resolved.manifest.id == "creative_poem"
+    assert "poem" in resolved.evidence.matched_phrases
+    assert resolved.evidence.confidence <= 0.75
+    assert "legacy continuation metadata" in resolved.evidence.ambiguity_notes[0]
+
+
+def test_resolver_current_artifact_cue_overrides_previous_manifest(tmp_path):
+    resolved = _resolver(tmp_path).resolve(
+        topic="Project README",
+        instructions="Convert this into installation and usage documentation.",
+        continuation_metadata={
+            "resolved_manifest": {
+                "id": "creative_poem",
+                "version": 1,
+            }
+        },
+    )
+
+    assert resolved.manifest.id == "technical_readme"
+    assert "readme" in resolved.evidence.matched_phrases

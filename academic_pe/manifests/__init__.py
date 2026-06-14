@@ -1,6 +1,7 @@
 from academic_pe.manifests.loader import ArtifactManifestLoader, ManifestLoadError
 from academic_pe.manifests.models import ArtifactManifest, ArtifactModeOverlay
 from academic_pe.manifests.evidence import ManifestSelectionEvidence
+from academic_pe.manifests.fallback import ManifestFallbackError, fallback_evidence, select_fallback_manifest
 
 __all__ = [
     "ArtifactManifest",
@@ -8,8 +9,11 @@ __all__ = [
     "ArtifactModeOverlay",
     "ArtifactManifestResolver",
     "ManifestSelectionEvidence",
+    "ManifestFallbackError",
     "ManifestLoadError",
     "ResolvedArtifactManifest",
+    "fallback_evidence",
+    "select_fallback_manifest",
 ]
 
 
