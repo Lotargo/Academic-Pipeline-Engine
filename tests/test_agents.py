@@ -174,3 +174,63 @@ def test_writer_agent_self_critique_repairs_final_output():
     assert agent.last_self_critique_summary == "Removed wrapper."
     assert len(llm.calls) == 2
     assert "[Draft Output]" in llm.calls[1]["user_prompt"]
+
+
+def test_default_agent_researcher_self_critique_uses_research_rules():
+    class ResearchCritiqueProvider(MockProvider):
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+            if len(self.calls) == 1:
+                return "Findings with weak source relevance."
+            return '{"summary":"Fixed source relevance.","output":"Clean relevant findings."}'
+
+    cfg = AgentConfig(
+        role="Source Researcher",
+        model="gpt-mock",
+        temperature=0.0,
+        system_prompt="Researcher prompt.",
+        self_critique=SelfCritiqueConfig(enabled=True),
+    )
+    llm = ResearchCritiqueProvider()
+    agent = DefaultAgent(cfg, llm)
+
+    result = agent.process("Find sources.")
+
+    assert result == "Clean relevant findings."
+    assert agent.last_self_critique_summary == "Fixed source relevance."
+    assert "Researcher self-critique" in llm.calls[1]["user_prompt"]
+    assert "source relevance" in llm.calls[1]["user_prompt"]
+    assert "evidence overreach" in llm.calls[1]["user_prompt"]
+
+
+def test_default_agent_exporter_self_critique_uses_format_rules():
+    class ExportCritiqueProvider(MockProvider):
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+            if len(self.calls) == 1:
+                return "# Title Page\nDraft export structure."
+            return '{"summary":"Removed title page.","output":"Clean export structure."}'
+
+    cfg = AgentConfig(
+        role="Document Exporter",
+        model="gpt-mock",
+        temperature=0.0,
+        system_prompt="Exporter prompt.",
+        self_critique=SelfCritiqueConfig(enabled=True),
+    )
+    llm = ExportCritiqueProvider()
+    agent = DefaultAgent(cfg, llm)
+
+    result = agent.process("Prepare export.")
+
+    assert result == "Clean export structure."
+    assert agent.last_self_critique_summary == "Removed title page."
+    assert "Exporter/renderer self-critique" in llm.calls[1]["user_prompt"]
+    assert "format compatibility" in llm.calls[1]["user_prompt"]
+    assert "without adding title pages" in llm.calls[1]["user_prompt"]

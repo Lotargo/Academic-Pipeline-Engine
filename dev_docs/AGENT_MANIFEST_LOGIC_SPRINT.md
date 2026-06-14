@@ -298,7 +298,7 @@ Implementation notes:
 
 ## Workstream 5: Independent Self-Critique Phase
 
-Status: `[~] In progress`
+Status: `[x] Complete`
 
 Objective: Add a non-blocking critical-analysis phase inside agents so they improve their own output before handing it forward.
 
@@ -319,8 +319,8 @@ Agent-specific behavior:
 - [x] PromptEnhancer critic checks whether enhancement changed artifact type, added bureaucracy, or lost user details; then rewrites the enhanced prompt itself.
 - [x] Planner critic checks whether the plan follows the manifest, preserves genre/style, avoids academic drift, and handles continuation; then rewrites the plan itself.
 - [x] Writer critic checks whether the draft obeys the contract, avoids AI markers, preserves voice, and satisfies user constraints; then rewrites the content itself.
-- [ ] Researcher critic checks source relevance, citation quality, and overreach; then rewrites findings itself.
-- [ ] Exporter/renderer critic checks structure/format compatibility where possible.
+- [x] Researcher critic checks source relevance, citation quality, and overreach; then rewrites findings itself.
+- [x] Exporter/renderer critic checks structure/format compatibility where possible.
 
 Constraints:
 - [x] Self-critique must not ask the user for approval.
@@ -328,22 +328,24 @@ Constraints:
 - [x] Self-critique must not create an infinite revision loop.
 - [x] Self-critique output should be concise internally and should not leak long chain-of-thought.
 - [x] Store only a short `self_critique_summary` in debug metadata when needed.
-- [ ] Reviewer remains the external quality gate, but agents should already have self-corrected before Reviewer sees the content.
+- [x] Reviewer remains the external quality gate, but agents should already have self-corrected before Reviewer sees the content.
 
 Academic-mode additions:
-- [~] In academic mode, self-critique should include stronger critical thinking:
+- [x] In academic mode, self-critique should include stronger critical thinking:
   - weak assumptions;
   - unsupported claims;
   - conceptual contradictions;
   - shallow definitions;
   - missing limitations;
   - source/evidence gaps when sources are required.
-- [~] The self-critic repairs these issues directly instead of sending the document back as a blocker.
+- [x] The self-critic repairs these issues directly instead of sending the document back as a blocker.
 
 Implementation notes:
 - `AgentConfig.self_critique.enabled` controls the extra one-pass LLM call; default is disabled to avoid surprise cost changes.
 - Self-critique returns compact JSON with `summary` and repaired `output`; invalid JSON, empty repairs, or blocking feedback fall back to the original draft.
 - Writer and Planner store only `last_self_critique_summary`; Orchestrator collects short summaries into saved run metadata.
+- Researcher and exporter/renderer roles now receive role-specific self-critique rules through `DefaultAgent` as well as direct self-critique calls.
+- Agent role matching accepts common labels such as `Source Researcher` and `Document Exporter`, while still storing only compact summaries.
 
 ---
 

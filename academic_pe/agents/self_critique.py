@@ -127,37 +127,44 @@ def _build_self_critique_prompt(
 
 
 def _agent_rules(agent_name: str) -> str:
-    normalized = agent_name.strip().lower()
-    if normalized == "planner":
+    normalized = _normalize_agent_name(agent_name)
+    tokens = set(normalized.split("_"))
+    if "planner" in tokens:
         return (
             "Planner self-critique: ensure the plan/template follows the active manifest, preserves genre/style, "
             "avoids academic drift, handles continuation, and remains valid JSON when JSON was requested."
         )
-    if normalized == "writer":
+    if "writer" in tokens:
         return (
             "Writer self-critique: ensure the draft obeys the contract, preserves voice/genre/audience, satisfies "
             "user constraints, avoids AI/meta markers, and keeps academic_mode rigor compatible with the artifact."
         )
-    if normalized == "prompt_enhancer":
+    if normalized == "prompt_enhancer" or {"prompt", "enhancer"}.issubset(tokens):
         return (
             "PromptEnhancer self-critique: evaluate the generated candidates (conservative, detailed, creative) "
             "against the contract. Reject candidates that change artifact type, introduce academic drift, lose user details, "
             "or add bureaucracy. Select the best surviving candidate, repair it if needed, and return ONLY that final selected "
             "candidate as a single JSON object with 'topic' and 'instructions' keys."
         )
-    if normalized == "researcher":
+    if "researcher" in tokens or "research" in tokens:
         return (
             "Researcher self-critique: check source relevance, citation quality, and evidence overreach. "
             "Avoid forcing citations or bibliography into non-academic/creative works unless requested. "
             "Directly rewrite findings to repair any issues."
         )
-    if normalized in {"exporter", "renderer"}:
+    if "exporter" in tokens or "renderer" in tokens:
         return (
             "Exporter/renderer self-critique: check structure and format compatibility against the contract. "
             "Ensure proper headings, spacing, and output constraints without adding title pages, rubrics, "
             "or academic apparatus unless requested. Directly rewrite to fix formatting."
         )
     return "Self-critique: repair only material contract, consistency, style, and user-constraint issues."
+
+
+def _normalize_agent_name(agent_name: str) -> str:
+    normalized = agent_name.strip().lower().replace("-", "_").replace(" ", "_")
+    normalized = re.sub(r"[^a-z0-9_]+", "_", normalized)
+    return re.sub(r"_+", "_", normalized).strip("_")
 
 
 def _parse_self_critique_response(raw: str) -> tuple[str, str] | None:
