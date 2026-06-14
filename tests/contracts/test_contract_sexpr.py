@@ -1,4 +1,5 @@
 from academic_pe.contracts import compile_artifact_contract, render_contract_sexpr
+from academic_pe.manifests import ArtifactManifestResolver
 from academic_pe.manifests.models import ArtifactManifest, ArtifactModeOverlay
 
 
@@ -43,6 +44,49 @@ def test_contract_renderer_is_stable_and_escapes_strings():
     assert '(requirement min_lines 12)' in rendered
     assert '(requirement nested ((a "first") (b 2)))' in rendered
     assert '(requirement theme "quote \\"inside\\"")' in rendered
+
+
+def test_contract_renderer_escapes_newlines_and_backslashes():
+    manifest = ArtifactManifest(
+        id="unknown_freeform",
+        artifact_type="unknown_freeform",
+        requirements={
+            "path_note": "C:\\tmp\\artifact\nnext line",
+        },
+    )
+
+    rendered = render_contract_sexpr(compile_artifact_contract(manifest))
+
+    assert '(requirement path_note "C:\\\\tmp\\\\artifact\\nnext line")' in rendered
+
+
+def test_unknown_artifact_fallback_renders_preserve_first_contract():
+    manifests = {
+        "academic_paper": ArtifactManifest(
+            id="academic_paper",
+            artifact_type="academic_paper",
+            forbid=["unsupported_claims"],
+        ),
+        "unknown_freeform": ArtifactManifest(
+            id="unknown_freeform",
+            artifact_type="unknown_freeform",
+            style=["preserve_user_intent", "natural"],
+            structure=["preserve_apparent_structure"],
+            forbid=["academic_drift", "invented_structure", "rubric"],
+        ),
+    }
+
+    resolved = ArtifactManifestResolver(manifests=manifests).resolve(
+        topic="Odd moon ledger",
+        instructions="Keep my custom two-column fragment form.",
+    )
+
+    assert resolved.manifest.id == "unknown_freeform"
+    assert resolved.evidence.confidence == 0.25
+    assert "(artifact unknown_freeform)" in resolved.contract_sexpr
+    assert "(style preserve_user_intent natural)" in resolved.contract_sexpr
+    assert "(structure preserve_apparent_structure)" in resolved.contract_sexpr
+    assert "(forbid academic_drift invented_structure rubric)" in resolved.contract_sexpr
 
 
 def test_academic_overlay_does_not_force_visualization_for_poem():

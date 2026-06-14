@@ -70,6 +70,36 @@ def test_validate_contract_rejects_unsafe_requirement_keys():
         validate_contract(contract)
 
 
+def test_validate_contract_rejects_nested_unsafe_requirement_keys():
+    contract = ArtifactContract(
+        manifest_id="creative_poem",
+        artifact="creative_poem",
+        requirements={
+            "nested": {
+                "shell": True,
+            }
+        },
+    )
+
+    with pytest.raises(ContractValidationError, match="reserved contract name 'shell'"):
+        validate_contract(contract)
+
+
+def test_validate_contract_rejects_nested_non_string_requirement_keys():
+    contract = ArtifactContract(
+        manifest_id="creative_poem",
+        artifact="creative_poem",
+        requirements={
+            "nested": {
+                1: "bad",
+            }
+        },
+    )
+
+    with pytest.raises(ContractValidationError, match="contains non-string key 1"):
+        validate_contract(contract)
+
+
 def test_validate_contract_rejects_unsafe_clause_names():
     contract = ArtifactContract(
         manifest_id="creative_poem",
