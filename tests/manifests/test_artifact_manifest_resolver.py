@@ -182,10 +182,42 @@ def test_resolver_infers_manifest_from_legacy_continuation_metadata(tmp_path):
     assert resolved.manifest.id == "creative_poem"
     assert "poem" in resolved.evidence.matched_phrases
     assert resolved.evidence.confidence <= 0.75
-    assert "legacy continuation metadata" in resolved.evidence.ambiguity_notes[0]
+    assert "previous user prompt" in resolved.evidence.ambiguity_notes[0]
     assert resolved.metadata()["decision_summary"]["summary"].startswith(
-        "Inferred artifact behavior from legacy continuation metadata."
+        "Inferred artifact behavior from previous user prompt."
     )
+
+
+def test_resolver_prioritizes_previous_prompt_over_plan(tmp_path):
+    resolved = _resolver(tmp_path).resolve(
+        topic="Continue",
+        instructions="Add sections.",
+        continuation_metadata={
+            "previous_prompt": "Write a poem with 12 lines.",
+            "document_plan": "A technical readme documentation plan.",
+        },
+    )
+
+    # previous_prompt (poem) should win over document_plan (readme) due to priority 3 vs 4
+    assert resolved.manifest.id == "creative_poem"
+    assert round(resolved.evidence.confidence, 2) == 0.7  # Capped at 0.75 (0.55 + 0.15 matches)
+    assert "previous user prompt" in resolved.evidence.ambiguity_notes[0]
+
+
+def test_resolver_infers_manifest_from_previous_document_context(tmp_path):
+    resolved = _resolver(tmp_path).resolve(
+        topic="Continue",
+        instructions="Add sections.",
+        continuation_metadata={
+            "context": {
+                "introduction": "This is a technical readme for the project.",
+            }
+        },
+    )
+
+    assert resolved.manifest.id == "technical_readme"
+    assert resolved.evidence.confidence == 0.65  # Capped at 0.65 (Priority 5 cap)
+    assert "previous document text and structure" in resolved.evidence.ambiguity_notes[0]
 
 
 def test_resolver_current_artifact_cue_overrides_previous_manifest(tmp_path):

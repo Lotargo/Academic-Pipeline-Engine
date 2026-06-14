@@ -48,8 +48,8 @@ class ResolvedArtifactManifest:
             reason = "No strong artifact cues matched; using preserve-first fallback."
         if ambiguity and "Inherited artifact behavior" in ambiguity[0]:
             reason = "Inherited artifact behavior from continuation metadata."
-        elif ambiguity and "legacy continuation metadata" in ambiguity[0]:
-            reason = "Inferred artifact behavior from legacy continuation metadata."
+        elif ambiguity and "Inferred artifact behavior" in ambiguity[0]:
+            reason = ambiguity[0]
 
         return {
             "selected_manifest": self.manifest.id,
@@ -115,10 +115,11 @@ class ArtifactManifestResolver:
                     ambiguity_notes=["Inherited artifact behavior from continuation metadata."],
                 )
 
-            if manifest is None:
-                legacy_text = self._legacy_continuation_text(continuation_metadata)
-                if legacy_text:
-                    legacy_manifest, legacy_evidence = self._select_manifest(manifests, "", legacy_text)
+            # Priority 3: previous user prompt
+            if manifest is None and continuation_metadata:
+                prev_prompt = continuation_metadata.get("previous_prompt")
+                if isinstance(prev_prompt, str) and prev_prompt.strip():
+                    legacy_manifest, legacy_evidence = self._select_manifest(manifests, "", prev_prompt)
                     if legacy_evidence.matched_phrases:
                         manifest = legacy_manifest
                         evidence = ManifestSelectionEvidence(
@@ -126,7 +127,63 @@ class ArtifactManifestResolver:
                             confidence=min(0.75, legacy_evidence.confidence),
                             matched_phrases=legacy_evidence.matched_phrases,
                             ambiguity_notes=[
-                                "Inferred artifact behavior from legacy continuation metadata.",
+                                "Inferred artifact behavior from previous user prompt.",
+                                *legacy_evidence.ambiguity_notes,
+                            ],
+                        )
+
+            # Priority 4: previous document plan
+            if manifest is None and continuation_metadata:
+                doc_plan = continuation_metadata.get("document_plan")
+                if isinstance(doc_plan, str) and doc_plan.strip():
+                    legacy_manifest, legacy_evidence = self._select_manifest(manifests, "", doc_plan)
+                    if legacy_evidence.matched_phrases:
+                        manifest = legacy_manifest
+                        evidence = ManifestSelectionEvidence(
+                            manifest_id=legacy_manifest.id,
+                            confidence=min(0.70, legacy_evidence.confidence),
+                            matched_phrases=legacy_evidence.matched_phrases,
+                            ambiguity_notes=[
+                                "Inferred artifact behavior from previous document plan.",
+                                *legacy_evidence.ambiguity_notes,
+                            ],
+                        )
+
+            # Priority 5: previous document text / style / template
+            if manifest is None and continuation_metadata:
+                legacy_text_parts = []
+                runtime_template = continuation_metadata.get("runtime_template")
+                if isinstance(runtime_template, dict):
+                    for key in ["name", "category"]:
+                        val = runtime_template.get(key)
+                        if isinstance(val, str) and val.strip():
+                            legacy_text_parts.append(val.strip())
+                    sections = runtime_template.get("sections")
+                    if isinstance(sections, list):
+                        for section in sections:
+                            if isinstance(section, dict):
+                                for key in ["name", "title", "instruction"]:
+                                    val = section.get(key)
+                                    if isinstance(val, str) and val.strip():
+                                        legacy_text_parts.append(val.strip())
+                
+                context = continuation_metadata.get("context")
+                if isinstance(context, dict):
+                    for key, val in context.items():
+                        if key != "document_plan" and isinstance(val, str) and val.strip():
+                            legacy_text_parts.append(val.strip())
+
+                if legacy_text_parts:
+                    combined_legacy_text = "\n".join(legacy_text_parts)
+                    legacy_manifest, legacy_evidence = self._select_manifest(manifests, "", combined_legacy_text)
+                    if legacy_evidence.matched_phrases:
+                        manifest = legacy_manifest
+                        evidence = ManifestSelectionEvidence(
+                            manifest_id=legacy_manifest.id,
+                            confidence=min(0.65, legacy_evidence.confidence),
+                            matched_phrases=legacy_evidence.matched_phrases,
+                            ambiguity_notes=[
+                                "Inferred artifact behavior from previous document text and structure.",
                                 *legacy_evidence.ambiguity_notes,
                             ],
                         )
@@ -223,38 +280,3 @@ class ArtifactManifestResolver:
                 return manifest_id
         return None
 
-    def _legacy_continuation_text(self, continuation_metadata: Optional[dict]) -> str:
-        if not continuation_metadata:
-            return ""
-
-        parts: list[str] = []
-        for key in ["previous_prompt", "topic", "instructions", "document_plan"]:
-            value = continuation_metadata.get(key)
-            if isinstance(value, str) and value.strip():
-                parts.append(value.strip())
-
-        runtime_template = continuation_metadata.get("runtime_template")
-        if isinstance(runtime_template, dict):
-            for key in ["name", "category"]:
-                value = runtime_template.get(key)
-                if isinstance(value, str) and value.strip():
-                    parts.append(value.strip())
-            sections = runtime_template.get("sections")
-            if isinstance(sections, list):
-                for section in sections:
-                    if not isinstance(section, dict):
-                        continue
-                    for key in ["name", "title", "instruction"]:
-                        value = section.get(key)
-                        if isinstance(value, str) and value.strip():
-                            parts.append(value.strip())
-
-        context = continuation_metadata.get("context")
-        if isinstance(context, dict):
-            for key, value in context.items():
-                if key == "document_plan":
-                    continue
-                if isinstance(value, str) and value.strip():
-                    parts.append(value.strip())
-
-        return "\n".join(parts)[:12000]

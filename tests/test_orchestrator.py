@@ -956,7 +956,7 @@ def test_create_orchestrator_from_config_infers_legacy_continuation_artifact_met
 
     metadata = orch.runtime_prompt_manifest.metadata
     assert metadata["resolved_manifest"]["id"] == "creative_poem"
-    assert "legacy continuation metadata" in metadata["manifest_selection"]["ambiguity_notes"][0]
+    assert "previous user prompt" in metadata["manifest_selection"]["ambiguity_notes"][0]
     assert "(artifact creative_poem)" in metadata["contract_sexpr"]
 
 
