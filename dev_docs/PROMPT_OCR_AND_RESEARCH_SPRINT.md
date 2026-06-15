@@ -245,6 +245,7 @@ Latest local run:
 
 - [x] 2026-06-16: all six scenarios passed locally. Notes are written to `dev_docs/OCR_RESEARCH_SMOKE_NOTES.md`; JSONL logs are written under `exports/_smoke_ocr_research/`.
 - [x] 2026-06-16: `real_llm_web_research` passed locally with real `zen` Planner/Writer calls. Search findings were non-empty, Planner produced a source-aware plan, and Writer did not leak the raw reference marker.
+- [x] Generated smoke artifacts are local-only diagnostics and are ignored by git.
 
 ---
 
@@ -278,3 +279,4 @@ Latest local quality runs:
 
 - [x] 2026-06-16: `uploaded_continuation_micro_report` passed after normalization/title fixes. Output headings: Overview, Findings, Practical Recommendations, References.
 - [x] 2026-06-16: `web_research_operational_brief` passed with `writer=zen/deepseek-v4-flash-free`, `planner=zen/big-pickle`, `researcher=zen/big-pickle`; no `References` heading, no raw marker leak, and no internal labels.
+- [x] Generated quality artifacts are local-only diagnostics and are ignored by git.

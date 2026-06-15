@@ -126,6 +126,8 @@ ui/next-env.d.ts
 *.png
 exports/_metadata/
 exports/_smoke/
+exports/_smoke_ocr_research/
+exports/_quality_ocr_research/
 exports_metadata/
 
 docs/PROJECT_STRENGTHS.md*
