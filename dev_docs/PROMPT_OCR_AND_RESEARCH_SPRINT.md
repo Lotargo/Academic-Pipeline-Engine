@@ -1,7 +1,7 @@
 # Prompt Enhancement, Mistral OCR Attachments & Web Research Sprint
 
 Date: 2026-06-13  
-Status: In progress - prompt enhancement and export/archive hardening completed; OCR attachments and Researcher remain planned.
+Status: In progress - prompt enhancement and export/archive hardening completed; OCR attachments and Researcher partially implemented, with role-boundary audit fixes remaining.
 Scope: Prompt engineering helper, attachment uploads, Mistral OCR pipeline, token limits, and optional Researcher search agent.
 
 ## Sprint Goal
@@ -10,6 +10,22 @@ Enhance the pipeline's intelligence and input flexibility by introducing:
 1. An LLM-powered prompt enhancer to refine user prompts before generation.
 2. File attachments processed via Mistral OCR to allow continuing/analyzing external documents, with a 20k token safety limit.
 3. An optional web-search-based Researcher agent integrated directly into the FSM Planning phase to source current data and inject citations.
+
+## Required Role Boundary / Research Activation Contract
+
+This contract supersedes any earlier ambiguous wording about Researcher or Writer responsibilities.
+
+- Standard pipeline behavior must remain unchanged unless the user explicitly enables the web-search activator (`web_search_enabled` / "Enable Web Search").
+- When the activator is off, no new web-search/research agent should run, no search queries should be generated, and the pipeline should behave as the normal Planner -> Writer -> Reviewer flow.
+- When the activator is on, research must be owned by the Planning phase:
+  - the Planner decides what information is needed;
+  - the Planner generates the search queries or target research tasks;
+  - one or more Researcher workers execute those tasks and return findings with source URLs/citations;
+  - the Planner uses those findings to produce the document plan and embeds only the necessary facts, source notes, and citation instructions into that plan.
+- The Writer must not search, crawl, parse research sources, choose sources, or receive raw search findings as a separate research context.
+- The Writer's responsibility is only to write the requested document sections from the prepared plan, continuity context, and normal drafting instructions.
+- Passive reference attachments should follow the same boundary: the Planner may inspect and summarize/select relevant information, but the Writer should receive only planner-curated instructions or selected excerpts needed for drafting.
+- If web search is enabled but no dedicated Planner agent is configured, the system must not silently fall back to using the Writer as the Planner/Research Director. It should either require a Planner configuration or fail clearly before starting research.
 
 ## Status Legend
 
@@ -125,40 +141,73 @@ The attachment/OCR feature is not only a passive reference-material upload. It m
 - The Reviewer should check continuity: no duplicated introductions/conclusions, no contradiction with the previous work, no abrupt style shift, and no loss of the user's requested continuation details.
 
 Tasks:
-- [ ] Create file upload component in the UI workspace panel supporting PDF, DOCX, and MD.
+- [x] Create file upload component in the UI workspace panel supporting PDF, DOCX, and MD.
 - [x] Add UI action to continue from an existing generated/archive document directly from the document/archive controls.
-- [ ] Integrate **Mistral OCR API** client in the backend to parse uploaded documents into clean Markdown.
-- [ ] Add a visual list of active attachments in the UI.
-- [~] Add attachment metadata distinguishing passive reference material from continuation source documents.
-- [ ] **Token Guardrail**:
-  - [ ] Add `tiktoken` dependency in backend (`o200k_base` encoding).
-  - [ ] Measure the token length of OCR-processed Markdown.
-  - [ ] Make the token limit configurable (stored in the application configuration e.g. `config/agents.yaml`, default 20,000 tokens) to easily increase/decrease it.
-  - [ ] Reject files exceeding the configured token limit with a clear validation message.
-- [ ] Inject parsed reference documents into the Planner context as background material/continuity source.
+- [~] Integrate **Mistral OCR API** client in the backend to parse uploaded documents into clean Markdown.
+  - Implemented: backend upload endpoint, Mistral file upload + OCR call, page Markdown merge, cleanup attempt, and local PDF/DOCX/MD fallback.
+  - Remaining: verify against a real Mistral OCR account/key and confirm file/document payload shape against current API behavior.
+- [x] Add a visual list of active attachments in the UI.
+- [x] Add attachment metadata distinguishing passive reference material from continuation source documents.
+- [x] **Token Guardrail**:
+  - [x] Add `tiktoken` dependency in backend (`o200k_base` encoding).
+  - [x] Measure the token length of OCR-processed Markdown.
+  - [x] Make the token limit configurable (stored in the application configuration e.g. `config/agents.yaml`, default 20,000 tokens) to easily increase/decrease it.
+  - [x] Reject files exceeding the configured token limit with a clear validation message.
+- [~] Inject parsed reference documents into the Planner context as background material/continuity source.
+  - Implemented: passive reference attachments are passed into the Planner prompt.
+  - Remaining: enforce the role boundary so raw passive reference materials are not also sent directly to the Writer; the Planner should curate the relevant information for the Writer through the document plan.
 - [x] Update Planner prompts so continuation sources are analyzed as existing document state, including preserved content, sections to revise/trim, bridge requirements, and new continuation sections.
 - [x] Update Writer prompts so generated content extends the existing document and can revise ending/transition sections instead of producing a separate standalone paper.
 - [x] Update Reviewer prompts/quality checks to validate continuity, avoid duplicated endings, and ensure the resulting output reads as one coherent document.
+
+### Remaining Attachment/OCR Audit Fixes
+
+- [ ] Add tests for `/api/attachments/upload` success, unsupported file type, and token-limit rejection.
+- [ ] Add a UI affordance to choose "reference material" vs "continuation source" before upload, or make the post-upload toggle clearer.
+- [ ] Confirm continuation-source uploads preserve enough previous-work metadata when available; uploaded external documents can only infer structure from Markdown unless the user provides prior prompt/instructions.
 
 ---
 
 ## Workstream 3: Researcher Agent (DuckDuckGo + URL Parsing)
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Implement an optional Researcher agent that performs internet search and feeds citations directly into the document plan.
 
 Tasks:
-- [ ] Add an "Enable Web Search" toggle in the UI generation settings.
-- [ ] Create a `ResearcherAgent` in the backend.
-- [ ] **Search Anti-Blocking Guard**:
-  - [ ] Implement browser request simulation by mimicking headers of a real web browser (e.g. customized User-Agent, Accept-Language, Referrer) and adding rate limits to avoid being flagged as a bot by DuckDuckGo and crawled sites.
-- [ ] **Parallel Execution & File-Based Exchange**:
-  - [ ] Support spawning a pool of parallel search agents, each assigned a specific search query or target URL.
-  - [ ] For each search agent, write its fetched findings (crawled markdown/text, links, metadata) to a separate temporary file inside the run directory. This avoids keeping massive scraped documents in memory.
-  - [ ] The Planner agent reads these files on-demand to index findings and build the document plan.
-- [ ] Integrate search logic in the Planning state:
-  - [ ] The Planner generates research queries and calls the Researcher.
-  - [ ] The Researcher executes searches and crawls top matches.
-  - [ ] The Researcher returns synthesized findings with citations/URLs back to the Planner.
-- [ ] Update FSM Planning to build the outline specifically around the retrieved research data and embed the citations (links) so the writer can output them.
+- [x] Add an "Enable Web Search" toggle in the UI generation settings.
+- [x] Add `web_search_enabled` request plumbing from UI -> API model -> backend thread -> Orchestrator.
+- [~] Create a `ResearcherAgent` in the backend.
+  - Implemented: `academic_pe/core/researcher.py` with a `Researcher` worker, DuckDuckGo search/crawl, pool runner, and findings loader.
+  - Remaining: align naming/contract with the planned `ResearcherAgent` role if the codebase expects agent-style adapters, and keep it outside Writer responsibilities.
+- [~] **Search Anti-Blocking Guard**:
+  - [x] Implement browser request simulation by mimicking headers of a real web browser (e.g. customized User-Agent, Accept-Language, Referrer).
+  - [x] Add basic per-request delay/rate limiting.
+  - [ ] Add stronger timeout/error policy, retry/backoff, and tests for blocked/empty DDG result pages.
+- [~] **Parallel Execution & File-Based Exchange**:
+  - [x] Support spawning a pool of parallel search workers, each assigned a specific search query.
+  - [x] For each search worker, write fetched findings (crawled text, links, metadata) to a separate temporary JSON file inside the run directory.
+  - [~] The Planner reads these files to build the document plan.
+    - Implemented: findings files are loaded into a combined Planner context string.
+    - Remaining: avoid massive raw context by returning concise, citation-ready synthesized findings and/or reading files on demand.
+- [~] Integrate search logic in the Planning state:
+  - [x] The Planning state checks the web-search activator before any search work starts.
+  - [x] The Planner model is used to generate research queries.
+  - [x] The Researcher executes searches and crawls top matches.
+  - [~] The Researcher returns findings with citations/URLs back to the Planner.
+    - Implemented: returned findings include URLs/snippets/content previews.
+    - Remaining: synthesize findings instead of passing raw crawled previews.
+- [~] Update FSM Planning to build the outline specifically around the retrieved research data and embed the citations (links) so the writer can output them.
+  - Implemented: retrieved findings are injected into the Planner prompt and the Planner prompt asks for citation/link embedding.
+  - Remaining: ensure the Writer receives only the Planner-curated plan/source notes, not raw `search_findings` or raw research context.
+
+### Remaining Researcher Audit Fixes
+
+- [ ] Enforce the activator contract with tests: when `web_search_enabled=False`, no query generation, researcher import/calls, or research files are created.
+- [ ] Enforce the Planner-only research contract with tests: when `web_search_enabled=True`, the system must use a dedicated Planner and must not fall back to the Writer as planner/research director.
+- [ ] Remove `search_findings` support and research-drafting rules from the Writer draft template; search data should only reach Writer through the Planner's document plan.
+- [ ] Stop passing raw passive reference attachments directly into the Writer draft template; let the Planner curate/summarize them first.
+- [ ] Fix DuckDuckGo result parsing to use the real result link element/redirect format, not the displayed URL element only.
+- [ ] Add tests using realistic DuckDuckGo HTML and crawled-page failure modes.
+- [ ] Fix query-list parsing edge cases in `_generate_search_queries` and add tests for numbered lists, bullet lists, and malformed model output.
+- [ ] Decide whether Researcher should summarize each source itself or whether Planner should synthesize from structured JSON; document the chosen boundary.

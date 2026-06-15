@@ -159,6 +159,7 @@ class AppConfig(BaseModel):
     ])
     dynamic_examples_enabled: bool = True
     dynamic_examples_interval_mins: int = 15
+    ocr_token_limit: int = 20000
 
 
 _CONFIG_CACHE: Dict[str, AppConfig] = {}

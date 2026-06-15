@@ -24,6 +24,9 @@ Jinja2 = "^3.1.0"
 pandas = "^2.2"
 sympy = "^1.12"
 scipy = "^1.12"
+tiktoken = "^0.7.0"
+python-multipart = "^0.0.9"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

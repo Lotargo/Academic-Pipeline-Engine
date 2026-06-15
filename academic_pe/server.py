@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Callable, Any
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
@@ -811,6 +811,8 @@ def run_pipeline_thread(
     author: Optional[str] = None,
     continuation_source: Optional[dict] = None,
     artifact_override: Optional[str] = None,
+    web_search_enabled: bool = False,
+    attachments: Optional[List[dict]] = None,
 ):
     global current_run, _current_orchestrator
     
@@ -831,6 +833,33 @@ def run_pipeline_thread(
         if run_id:
             config.pipeline.output_dir = os.path.join("exports", run_id)
             os.makedirs(config.pipeline.output_dir, exist_ok=True)
+
+        # Resolve continuation source from attachments if uploaded
+        if not continuation_source and attachments:
+            continuation_attachment = next((a for a in attachments if a.get("attachment_type") == "continuation_source"), None)
+            if continuation_attachment:
+                from academic_pe.core.ocr import split_markdown_into_sections
+                content = continuation_attachment.get("content", "")
+                filename = continuation_attachment.get("filename", "Uploaded Document")
+                context_data, runtime_tpl = split_markdown_into_sections(content)
+                continuation_source = {
+                    "source_type": "uploaded",
+                    "topic": filename,
+                    "instructions": instructions or "",
+                    "context": context_data,
+                    "runtime_template": runtime_tpl,
+                    "template_mode": "custom"
+                }
+
+        # Sift reference materials
+        reference_materials = []
+        if attachments:
+            reference_materials = [
+                {"filename": a["filename"], "content": a["content"]}
+                for a in attachments
+                if a.get("attachment_type") == "passive_reference"
+            ]
+
         config = _apply_continuation_structure(config, continuation_source)
         with run_lock:
             current_run["template_mode"] = config.pipeline.template_mode.value
@@ -867,6 +896,8 @@ def run_pipeline_thread(
             user_instructions=instructions or "",
             continuation_source=continuation_source,
             artifact_override=artifact_override,
+            reference_materials=reference_materials,
+            web_search_enabled=web_search_enabled,
         )
         with run_lock:
             current_run["topic"] = orch.user_topic
@@ -1119,8 +1150,52 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
             else None
         ),
         payload.artifact_override,
+        payload.web_search_enabled or False,
+        [a.model_dump() for a in payload.attachments] if payload.attachments else None,
     )
     return {"status": "started", "message": "Pipeline execution started in the background"}
+
+
+@app.post("/api/attachments/upload")
+async def upload_attachment(
+    file: UploadFile = File(...),
+    attachment_type: str = Form("passive_reference")
+):
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
+
+    filename = file.filename or "uploaded_file"
+    mime_type = file.content_type or "application/octet-stream"
+
+    # 1. Process/parse the file
+    from academic_pe.core.ocr import parse_document
+    try:
+        content = parse_document(filename, file_bytes, mime_type)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 2. Count tokens using tiktoken (o200k_base)
+    from academic_pe.core.ocr import count_tokens
+    token_count = count_tokens(content)
+
+    # 3. Check token guardrail
+    config = load_config("config/agents.yaml")
+    token_limit = getattr(config, "ocr_token_limit", 20000)
+
+    if token_count > token_limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File '{filename}' exceeds the configured token limit of {token_limit} tokens (contains {token_count} tokens)."
+        )
+
+    return {
+        "filename": filename,
+        "content": content,
+        "attachment_type": attachment_type,
+        "token_count": token_count
+    }
 
 
 @app.post("/api/cancel")

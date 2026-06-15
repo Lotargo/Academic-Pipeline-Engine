@@ -1,4 +1,6 @@
 import pytest
+from unittest.mock import patch, MagicMock
+
 
 from academic_pe.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError, create_orchestrator_from_config
 from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig, SectionPrompt, TemplateMode, LanguagePolicy
@@ -1435,3 +1437,41 @@ def test_quality_gate_automated_rejection_in_loop():
     # But after revision to "Clean section content." Quality Gate passes, and LLM reviewer is called and approves.
     assert llm.review_calls == 1
     assert orch.context["theory"] == "Clean section content."
+
+
+@patch("academic_pe.core.researcher.run_researcher_pool")
+@patch("academic_pe.core.researcher.load_research_findings", return_value="### Research query: 'test query'\nSource 1: Title (http://url)\nSnippet: Snippet...\n")
+def test_orchestrator_web_search_integration(mock_load, mock_run):
+
+    config = _make_config()
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    planner = DefaultAgent(config.agents["writer"], llm)
+    
+    # Mock planner process to return a distinct document plan
+    planner.process = MagicMock(return_value="My Custom Document Plan")
+    
+    orch = Orchestrator(
+        writer=writer,
+        planner=planner,
+        config=config,
+        web_search_enabled=True,
+    )
+    
+    # Mock search query generation to avoid calling LLM
+    orch._generate_search_queries = MagicMock(return_value=["test query"])
+    
+    result = orch.run_pipeline(render_artifact=False)
+    
+    assert orch.state == PipelineState.DONE
+    assert orch.web_search_enabled is True
+    orch._generate_search_queries.assert_called_once()
+    mock_run.assert_called_once_with(["test query"], config.pipeline.output_dir)
+    mock_load.assert_called_once_with(config.pipeline.output_dir)
+    assert orch.search_findings == "### Research query: 'test query'\nSource 1: Title (http://url)\nSnippet: Snippet...\n"
+    
+    # Verify that it was the planner that created the plan
+    planner.process.assert_called_once()
+    assert orch.context["document_plan"] == "My Custom Document Plan"
+
+

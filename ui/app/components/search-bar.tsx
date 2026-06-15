@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Search, Sparkles, BookOpen, ChevronRight, HelpCircle, RotateCw, Loader2 } from "lucide-react"
+import { Search, Sparkles, BookOpen, ChevronRight, HelpCircle, RotateCw, Loader2, Globe } from "lucide-react"
 import type { Messages } from "@/lib/i18n"
 import { toast } from "sonner"
 
 interface SearchBarProps {
-  onSearch?: (topic: string, instructions: string, academicMode: boolean, artifactOverride: string) => void
+  onSearch?: (topic: string, instructions: string, academicMode: boolean, artifactOverride: string, webSearchEnabled: boolean) => void
   onEnhance?: (data: any) => void
   onArtifactOverrideChange?: (artifactOverride: string) => void
   disabled?: boolean
@@ -33,6 +33,7 @@ export function SearchBar({
   const [instructions, setInstructions] = useState(initialInstructions)
   const [isFocused, setIsFocused] = useState(false)
   const [academicMode, setAcademicMode] = useState(false)
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [examples, setExamples] = useState<{ topic: string; instructions: string }[]>([])
   const [ttl, setTtl] = useState<number>(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -183,7 +184,7 @@ export function SearchBar({
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!topic.trim()) return
-    onSearch?.(topic.trim(), instructions.trim(), academicMode, artifactOverride)
+    onSearch?.(topic.trim(), instructions.trim(), academicMode, artifactOverride, webSearchEnabled)
   }
 
   const handleArtifactOverrideChange = (value: string) => {
@@ -320,6 +321,22 @@ export function SearchBar({
                   </option>
                 </select>
               </div>
+
+              {/* Web Search Toggle */}
+              <button
+                type="button"
+                onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                disabled={disabled || isEnhancing}
+                className={`px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 text-[11px] font-bold ${
+                  webSearchEnabled
+                    ? "ape-status-primary border-ape-primary/30"
+                    : "bg-muted/60 dark:bg-ape-surface-subtle border-border/50 text-muted-foreground hover:text-foreground"
+                }`}
+                title="Enable Web Search"
+              >
+                <Globe className="h-3.5 w-3.5 shrink-0" />
+                <span>{t.search.modeStandard === "Стандартный" ? "Поиск в сети" : "Web Search"}</span>
+              </button>
 
               {/* Mode Switcher */}
               <div className="flex items-center gap-1 bg-muted/60 dark:bg-ape-surface-subtle p-1 rounded-xl border border-border/50 text-[11px] font-bold">

@@ -10,7 +10,7 @@ import { LiveDocumentCanvas } from "./live-document-canvas"
 import { ConsolePanel } from "./console-panel"
 import { ArchivedWorksModal } from "./archived-works-modal"
 import { toast } from "sonner"
-import { Archive, Sparkles, FileText, ArrowRight, XCircle, Terminal, FileDown, Loader2, Trash2, PlayCircle } from "lucide-react"
+import { Archive, Sparkles, FileText, ArrowRight, XCircle, Terminal, FileDown, Loader2, Trash2, PlayCircle, Paperclip, UploadCloud } from "lucide-react"
 import { AcademicLogoIcon } from "./academic-logo-icon"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -128,6 +128,8 @@ export function Search() {
   const [showDebugInfo, setShowDebugInfo] = useState<boolean>(false)
   const [artifactOverride, setArtifactOverride] = useState<string>("")
   const [continuationIntentOverride, setContinuationIntentOverride] = useState<string>("")
+  const [activeAttachments, setActiveAttachments] = useState<any[]>([])
+  const [uploadingFile, setUploadingFile] = useState(false)
   const notifiedRef = useRef(false)
   const fsmScrollRef = useRef<HTMLDivElement | null>(null)
   const lastFsmScrollResetKeyRef = useRef<string>("")
@@ -532,7 +534,13 @@ export function Search() {
     toast.info(language === "ru" ? "Режим продолжения включён" : "Continuation mode enabled")
   }
 
-  const handleStartGeneration = async (topic: string, instructions: string, academicMode: boolean, artifactOverride?: string) => {
+  const handleStartGeneration = async (
+    topic: string,
+    instructions: string,
+    academicMode: boolean,
+    artifactOverride?: string,
+    webSearchEnabled: boolean = false
+  ) => {
     notifiedRef.current = false
     
     // Switch to FSM visualization tab immediately; the backend status becomes
@@ -571,6 +579,8 @@ export function Search() {
                 intent_override: continuationIntentOverride || undefined,
               }
             : undefined,
+          web_search_enabled: webSearchEnabled,
+          attachments: activeAttachments.length > 0 ? activeAttachments : undefined,
         })
       })
       if (!res.ok) {
@@ -589,6 +599,7 @@ export function Search() {
       }
       setContinuationSource(null)
       setContinuationIntentOverride("")
+      setActiveAttachments([])
       toast.info(t.nav.pipelineDrafting)
     } catch (e: any) {
       toast.error(e.message || "Failed to start execution")
@@ -877,6 +888,134 @@ export function Search() {
                       : ""
                   }
                 />
+
+                {/* Document Attachments Upload Section */}
+                <div className="rounded-xl border border-border/50 bg-card p-4 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Paperclip className="h-4.5 w-4.5 text-ape-primary-text" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                        {language === "ru" ? "Прикрепленные файлы" : "Document Attachments"}
+                      </h3>
+                    </div>
+                    {uploadingFile && (
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin text-ape-primary" />
+                        {language === "ru" ? "Обработка..." : "Parsing..."}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Drag-and-drop / Upload Area */}
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-border/60 hover:border-ape-primary/40 rounded-lg py-4 px-6 cursor-pointer bg-muted/20 dark:bg-ape-surface-subtle/20 transition-all hover:bg-muted/40 group">
+                    <UploadCloud className="h-8 w-8 text-muted-foreground group-hover:text-ape-primary transition-colors" />
+                    <span className="mt-2 text-xs font-bold text-foreground">
+                      {language === "ru" ? "Загрузить документ (PDF, DOCX, MD)" : "Upload document (PDF, DOCX, MD)"}
+                    </span>
+                    <span className="mt-1 text-[10px] text-muted-foreground">
+                      {language === "ru" ? "Лимит: 20k токенов на файл" : "Limit: 20k tokens per file"}
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.md"
+                      disabled={uploadingFile}
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploadingFile(true);
+                        const formData = new FormData();
+                        formData.append("file", file);
+                        formData.append("attachment_type", "passive_reference");
+                        try {
+                          const res = await fetch("/api/attachments/upload", {
+                            method: "POST",
+                            body: formData
+                          });
+                          if (!res.ok) {
+                            const err = await res.json();
+                            throw new Error(err.detail || "Upload failed");
+                          }
+                          const data = await res.json();
+                          // If adding continuation source, ensure other source toggles are turned off
+                          if (data.attachment_type === "continuation_source") {
+                            setActiveAttachments(prev => [
+                              ...prev.map(a => ({ ...a, attachment_type: "passive_reference" })),
+                              data
+                            ]);
+                          } else {
+                            setActiveAttachments(prev => [...prev, data]);
+                          }
+                          toast.success(language === "ru" ? `Файл '${data.filename}' успешно прикреплен` : `File '${data.filename}' attached successfully`);
+                        } catch (err: any) {
+                          toast.error(err.message || "Failed to process document");
+                        } finally {
+                          setUploadingFile(false);
+                        }
+                      }}
+                    />
+                  </label>
+
+                  {/* Active Attachments list */}
+                  {activeAttachments.length > 0 && (
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {activeAttachments.map((att, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-border/40 bg-muted/40 dark:bg-ape-surface-subtle/30 text-xs">
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <p className="font-semibold text-foreground truncate break-words">
+                              {att.filename}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                              <span>Size: {(att.token_count).toLocaleString()} tokens</span>
+                              <span className="h-1 w-1 rounded-full bg-border" />
+                              <span className="font-semibold text-ape-primary-text">
+                                {att.attachment_type === "continuation_source"
+                                  ? (language === "ru" ? "Источник продолжения" : "Continuation Source")
+                                  : (language === "ru" ? "Справочный материал" : "Reference Material")}
+                              </span>
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Toggle type button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newType = att.attachment_type === "continuation_source" ? "passive_reference" : "continuation_source";
+                                setActiveAttachments(prev => prev.map((a, i) => {
+                                  if (i === idx) {
+                                    return { ...a, attachment_type: newType };
+                                  }
+                                  // Ensure there is only at most one continuation source active
+                                  if (newType === "continuation_source" && a.attachment_type === "continuation_source") {
+                                    return { ...a, attachment_type: "passive_reference" };
+                                  }
+                                  return a;
+                                }));
+                              }}
+                              className="px-2 py-1 rounded text-[10px] font-bold border border-border hover:bg-muted dark:hover:bg-ape-surface-subtle transition-colors cursor-pointer bg-card text-foreground"
+                            >
+                              {language === "ru" ? "Сменить тип" : "Change Type"}
+                            </button>
+
+                            {/* Delete button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveAttachments(prev => prev.filter((_, i) => i !== idx));
+                                toast.info(language === "ru" ? "Файл удален из списка" : "Attachment removed");
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-ape-danger transition-colors cursor-pointer border-0 bg-transparent"
+                              title="Delete attachment"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {continuationSource && (
                   <div className="rounded-xl border border-ape-primary/25 bg-ape-primary-soft/60 p-4 text-xs text-ape-primary-text">

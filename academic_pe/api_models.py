@@ -23,6 +23,13 @@ class ContinuationSource(BaseModel):
     run_id: Optional[str] = None
 
 
+class Attachment(BaseModel):
+    filename: str
+    content: str
+    attachment_type: str  # "passive_reference" or "continuation_source"
+    token_count: int
+
+
 class RunRequest(BaseModel):
     topic: str
     instructions: Optional[str] = None
@@ -32,6 +39,8 @@ class RunRequest(BaseModel):
     author: Optional[str] = None
     continuation_source: Optional[ContinuationSource] = None
     artifact_override: Optional[str] = None
+    web_search_enabled: Optional[bool] = None
+    attachments: Optional[List[Attachment]] = None
 
 
 class ConfigUpdateRequest(BaseModel):

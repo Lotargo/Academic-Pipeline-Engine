@@ -315,14 +315,23 @@ class Orchestrator:
         runtime_template: Optional[RuntimeTemplate] = None,
         runtime_prompt_manifest: Optional[RuntimePromptManifest] = None,
         continuation_source: Optional[Dict[str, Any]] = None,
+        reference_materials: Optional[List[Dict[str, Any]]] = None,
+        web_search_enabled: bool = False,
+        planner: Optional[BaseAgent] = None,
     ):
         self._writer = writer
         self._reviewer = reviewer
+        self._planner = planner or writer
         self._renderer = renderer
         self._config = config
         self.runtime_template = runtime_template
         self.runtime_prompt_manifest = runtime_prompt_manifest
+        self.reference_materials = reference_materials or []
+        self.web_search_enabled = web_search_enabled
         self.continuation_source = continuation_source
+        self.search_findings = ""
+
+
         self._state: PipelineState = PipelineState.INIT
         self.context: Dict[str, str] = {}
         self.user_topic: str = ""
@@ -383,6 +392,37 @@ class Orchestrator:
                 parts.append("[Previous Document Sections]\n" + "\n\n".join(section_parts))
 
         return "\n\n".join(parts)
+
+    def _generate_search_queries(self) -> List[str]:
+        from academic_pe.core.llm import _call_provider_generate
+        system_prompt = (
+            "You are a professional academic research director. Based on the user topic and instructions, "
+            "generate exactly 3 distinct search queries to find the most relevant current academic papers, data, and context on the internet. "
+            "Return them as a simple numbered list, one query per line (e.g. '1. query one'). Do not include any other text, no markdown, no quotes."
+        )
+        user_prompt = f"Topic: {self.user_topic}\nInstructions: {self.user_instructions}"
+        try:
+            raw_queries = _call_provider_generate(
+                self._planner.llm,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                model=self._planner.config.model,
+                temperature=0.3,
+            )
+            queries = []
+            for line in raw_queries.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                match = re.match(r"^(?:\d+[\b.)]|-|\*)\s*(.+)$", line)
+                if match:
+                    queries.append(match.group(1).strip())
+                elif len(line) > 5:
+                    queries.append(line)
+            return queries[:3]
+        except Exception as e:
+            logger.error("Failed to generate search queries: %s", e)
+            return []
 
     def _resolved_contract_data(self) -> Optional[dict]:
         manifest = self.runtime_prompt_manifest
@@ -597,6 +637,8 @@ class Orchestrator:
                 "user_instructions": self.user_instructions,
                 "edit_plan_json": json.dumps(edit_plan.model_dump(mode="json"), ensure_ascii=False, indent=2),
                 "document_state_json": json.dumps(document_state.model_dump(mode="json"), ensure_ascii=False, indent=2),
+                "reference_materials": self.reference_materials,
+                "search_findings": None,
             },
         )
         raw_payload = self._writer.process(
@@ -716,6 +758,18 @@ class Orchestrator:
         try:
             # --- PLANNING ---
             self.transition_to(PipelineState.PLANNING)
+            if self.web_search_enabled:
+                logger.info("[Researcher] Spawning search agent: Generating research queries...")
+                queries = self._generate_search_queries()
+                logger.info(f"[Researcher] Generated queries: {queries}")
+                if queries:
+                    from academic_pe.core.researcher import run_researcher_pool, load_research_findings
+                    run_dir = self._config.pipeline.output_dir
+                    logger.info("[Researcher] Spawning parallel search agents to retrieve search results...")
+                    run_researcher_pool(queries, run_dir)
+                    logger.info("[Researcher] Parallel search completed. Sourcing findings...")
+                    self.search_findings = load_research_findings(run_dir)
+
             plan_task = render_template(
                 DEFAULT_PLAN_TEMPLATE,
                 {
@@ -728,11 +782,13 @@ class Orchestrator:
                     "academic_mode": self._academic_mode_enabled(),
                     "visualization_required": self._visualization_required(),
                     "output_dir": self._config.pipeline.output_dir,
+                    "reference_materials": self.reference_materials,
+                    "search_findings": self.search_findings,
                 },
             )
             logger.info("Creating document plan before drafting sections.")
-            self._draft_plan = self._writer.process(plan_task)
-            self._capture_self_critique_summary(self._writer, stage="planning", section_name="document_plan")
+            self._draft_plan = self._planner.process(plan_task)
+            self._capture_self_critique_summary(self._planner, stage="planning", section_name="document_plan")
             self._set_section_content("document_plan", self._draft_plan)
 
             # --- DRAFTING ---
@@ -753,6 +809,8 @@ class Orchestrator:
                             "academic_mode": self._academic_mode_enabled(),
                             "visualization_required": self._visualization_required(),
                             "output_dir": self._config.pipeline.output_dir,
+                            "reference_materials": self.reference_materials,
+                            "search_findings": None,
                         },
                     )
                     logger.debug("Drafting section: %s", section.name)
@@ -1227,6 +1285,8 @@ def create_orchestrator_from_config(
     user_instructions: str = "",
     continuation_source: Optional[Dict[str, Any]] = None,
     artifact_override: Optional[str] = None,
+    reference_materials: Optional[List[Dict[str, Any]]] = None,
+    web_search_enabled: bool = False,
 ) -> Orchestrator:
     from academic_pe.agents.factory import create_agent
 
@@ -1285,15 +1345,21 @@ def create_orchestrator_from_config(
     reviewer = None
     if "reviewer" in resolved_config.agents:
         reviewer = create_agent("reviewer", resolved_config.agents["reviewer"], retry_cfg=resolved_config.retry)
+    planner = None
+    if "planner" in resolved_config.agents:
+        planner = create_agent("planner", resolved_config.agents["planner"], retry_cfg=resolved_config.retry)
 
     orchestrator = Orchestrator(
         writer=writer,
         reviewer=reviewer,
+        planner=planner,
         config=resolved_config,
         renderer=renderer,
         runtime_template=runtime_template,
         runtime_prompt_manifest=runtime_prompt_manifest,
         continuation_source=continuation_source,
+        reference_materials=reference_materials,
+        web_search_enabled=web_search_enabled,
     )
     orchestrator.user_topic = refined_topic
     orchestrator.user_instructions = user_instructions

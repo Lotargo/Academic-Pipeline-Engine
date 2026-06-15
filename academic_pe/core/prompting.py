@@ -54,6 +54,25 @@ The code inside this block will be executed in a sandbox. It MUST:
 This output tag will automatically embed the figure in the final Word document.
 Ensure your code is clean, executable, and does not print any other text besides the Markdown image tag.
 {% endif %}
+
+{% if reference_materials %}
+[Reference Materials / Background Documents]
+{% for ref in reference_materials %}
+File: {{ ref.filename }} (Type: Reference)
+Content:
+{{ ref.content }}
+---
+{% endfor %}
+{% endif %}
+
+{% if search_findings %}
+[Web Search Findings / Current Literature]
+{{ search_findings }}
+
+Research drafting rules:
+- Utilize the retrieved research data and embed the citations (links) in the content.
+- Reference the URLs of the sources where appropriate.
+{% endif %}
 """
 
 
@@ -87,6 +106,25 @@ Academic Mode: plan for stronger reasoning, clearer assumptions, evidence discip
 {% endif %}
 {% if visualization_required|default(false) %}
 [Visualization Requirement]: The artifact contract requires data visualization. Plan which sections will include matplotlib charts (using ` ```python-run ` code blocks) and specify the variables/data they should display.
+{% endif %}
+
+{% if reference_materials %}
+[Reference Materials / Background Documents]
+{% for ref in reference_materials %}
+File: {{ ref.filename }} (Type: Reference)
+Content:
+{{ ref.content }}
+---
+{% endfor %}
+{% endif %}
+
+{% if search_findings %}
+[Web Search Findings / Current Literature]
+{{ search_findings }}
+
+Research planning rules:
+- Build the outline specifically around the retrieved research data and embed the citations (links) so the writer can output them.
+- Reference the URLs of the sources where appropriate.
 {% endif %}
 
 Return a concise Markdown plan with:
@@ -273,4 +311,10 @@ IMPORTANT: Ensure any visualizations (plots/charts) generated via ` ```python-ru
 
 
 def render_template(template: str, context: Dict[str, Any]) -> str:
-    return _env.from_string(template).render(**context).strip()
+    merged = {
+        "reference_materials": None,
+        "search_findings": None,
+        **context
+    }
+    return _env.from_string(template).render(**merged).strip()
+
