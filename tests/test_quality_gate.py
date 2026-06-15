@@ -1,4 +1,4 @@
-from academic_pe.core.quality_gate import check_volume, check_latex, run_all
+from academic_pe.core.quality_gate import check_continuation_integrity, check_volume, check_latex, run_all
 from academic_pe.core.config import QualityGateConfig, VolumeGateConfig, LatexGateConfig
 
 
@@ -149,3 +149,82 @@ class TestMarkdownCheck:
         assert not result.passed
         assert len(result.issues) == 2
         assert "raw code block formatting delimiter" in result.issues[0]
+
+
+class TestContinuationIntegrityCheck:
+    def test_passes_without_document_state(self):
+        result = check_continuation_integrity({"body": "Clean continuation."})
+
+        assert result.passed
+
+    def test_rejects_body_content_after_terminal_section(self):
+        result = check_continuation_integrity(
+            {
+                "analysis": "Main body.",
+                "references": "1. Existing source.",
+                "continuation": "This should be before references.",
+            },
+            {
+                "terminal_sections": ["references"],
+                "source_sections": [{"name": "references", "title": "References"}],
+            },
+        )
+
+        assert not result.passed
+        assert "appears after terminal section 'references'" in result.issues[0]
+
+    def test_rejects_visible_internal_planning_labels(self):
+        result = check_continuation_integrity(
+            {"story": "Opening paragraph.\n\n## Red flags\n\nInternal note."},
+            {"terminal_sections": [], "source_sections": []},
+        )
+
+        assert not result.passed
+        assert "internal planning label" in result.issues[0]
+
+    def test_rejects_duplicate_boundary_heading(self):
+        result = check_continuation_integrity(
+            {"body": "Text.\n\n## Conclusion\n\nSecond ending."},
+            {
+                "terminal_sections": [],
+                "source_sections": [{"name": "conclusion", "title": "Conclusion"}],
+            },
+        )
+
+        assert not result.passed
+        assert "Duplicate conclusion" in result.issues[0]
+
+    def test_rejects_duplicate_structural_labels(self):
+        result = check_continuation_integrity(
+            {
+                "analysis": "Table 1 summarizes baseline values.",
+                "continuation": "Table 1 summarizes new values.",
+            },
+            {"terminal_sections": [], "source_sections": []},
+        )
+
+        assert not result.passed
+        assert "Duplicate table label '1'" in result.issues[0]
+
+    def test_rejects_numeric_citation_without_reference_entry(self):
+        result = check_continuation_integrity(
+            {"analysis": "The claim is supported by [2]."},
+            {
+                "terminal_sections": ["references"],
+                "source_sections": [{"name": "references", "title": "References"}],
+                "reference_registry": [{"raw_text": "1. Existing source."}],
+            },
+        )
+
+        assert not result.passed
+        assert "Numeric citation [2] has no matching reference entry" in result.issues[0]
+
+    def test_run_all_includes_continuation_integrity(self):
+        result = run_all(
+            {"analysis": "x" * 20, "references": "x" * 20, "tail": "x" * 20},
+            _full_cfg(min_chars=10),
+            document_state={"terminal_sections": ["references"], "source_sections": []},
+        )
+
+        assert not result.passed
+        assert any("appears after terminal section" in issue for issue in result.issues)

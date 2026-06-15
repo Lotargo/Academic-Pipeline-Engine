@@ -133,6 +133,15 @@ def compact_log_preview(text: str, max_chars: int = 700) -> str:
     return compact[: max_chars - 3].rstrip() + "..."
 
 
+def _quality_gate_review_issue(issue: str) -> str:
+    section_match = re.search(r"Section '([^']+)'", issue)
+    line_match = re.search(r"\bline (\d+)\b", issue)
+    section = section_match.group(1) if section_match else "general"
+    if line_match:
+        return f"- [{section}]: line {line_match.group(1)}: Quality Gate issue: {issue}"
+    return f"- [{section}]: Quality Gate issue: {issue}"
+
+
 _SECTION_HEADING_RE = re.compile(
     r"^(?P<prefix>#{1,6}\s+|===\s*Section:\s*)(?P<label>.+?)(?:\s*===)?\s*$",
     re.IGNORECASE | re.MULTILINE,
@@ -815,11 +824,18 @@ class Orchestrator:
                 full_text = "\n\n".join(full_text_parts)
                 # --- Programmatic Quality Gate Validation ---
                 from academic_pe.core.quality_gate import run_all as run_quality_gate
-                qg_result = run_quality_gate(self.context, self._config.quality_gate)
+                qg_result = run_quality_gate(
+                    self.context,
+                    self._config.quality_gate,
+                    document_state=self._runtime_metadata().get("document_state"),
+                )
                 if not qg_result.passed:
                     # Quality gate failed, bypass LLM reviewer and auto-generate rejection
                     logger.warning("Quality Gate failed during review loop: %s", qg_result.issues)
-                    critique = "REJECTED\n" + "\n".join(f"- [general]: Quality Gate issue: {issue}" for issue in qg_result.issues)
+                    critique = "REJECTED\n" + "\n".join(
+                        _quality_gate_review_issue(issue)
+                        for issue in qg_result.issues
+                    )
                 elif drift_issues := self._contract_drift_issues():
                     logger.warning("Contract drift checks failed during review loop: %s", drift_issues)
                     critique = "REJECTED\n" + "\n".join(f"- [general]: Contract Drift issue: {issue}" for issue in drift_issues)
@@ -1064,7 +1080,11 @@ class Orchestrator:
 
             # --- QUALITY GATE ---
             from academic_pe.core.quality_gate import run_all as run_quality_gate
-            qg_result = run_quality_gate(self.context, self._config.quality_gate)
+            qg_result = run_quality_gate(
+                self.context,
+                self._config.quality_gate,
+                document_state=self._runtime_metadata().get("document_state"),
+            )
             if not qg_result.passed:
                 for issue in qg_result.issues:
                     logger.warning("Quality Gate: %s", issue)

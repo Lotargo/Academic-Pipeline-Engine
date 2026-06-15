@@ -428,19 +428,19 @@ Definition of done:
 
 ## Workstream 6: Reviewer Continuity Gate
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Add quality checks that specifically catch disconnected continuation and leaked planning structure.
 
 Tasks:
 
-- [ ] Reject duplicated introductions/conclusions when not requested.
-- [ ] Reject body content after terminal references/appendices.
-- [ ] Reject visible internal planning labels.
+- [x] Reject duplicated introductions/conclusions when not requested.
+- [x] Reject body content after terminal references/appendices.
+- [x] Reject visible internal planning labels.
 - [ ] Reject abrupt style, narrator, or register shifts.
-- [ ] Reject broken numbering and cross-references.
-- [ ] Reject bibliography mismatch when citations are required.
-- [ ] Add line/section-aware feedback so patch revision can fix only affected ranges.
+- [x] Reject broken numbering and cross-references.
+- [x] Reject bibliography mismatch when citations are required.
+- [x] Add line/section-aware feedback so patch revision can fix only affected ranges.
 
 Definition of done:
 
