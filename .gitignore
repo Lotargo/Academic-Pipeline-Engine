@@ -120,6 +120,7 @@ desktop.ini
 # Project specific rules (from original .gitignore)
 config/agents.yaml
 config/secrets.json
+config/dynamic_examples.json
 ui/next-env.d.ts
 *.docx
 *.png
