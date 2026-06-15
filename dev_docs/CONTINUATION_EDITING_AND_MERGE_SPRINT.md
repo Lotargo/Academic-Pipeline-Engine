@@ -452,17 +452,17 @@ Definition of done:
 
 ## Workstream 7: UI Continuation Controls And Diff Layer
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Make continuation/editing behavior visible and correctable without exposing internal clutter in the final document.
 
 Tasks:
 
 - [ ] Show inferred continuation intent before generation.
-- [ ] Show source summary/continuity dossier in a collapsible editorial panel.
-- [ ] Show red flags as UI metadata, not final content.
-- [~] Show operation summary after generation.
-- [ ] Add "view changes" mode for preserved/replaced/inserted/reference-updated content.
+- [x] Show source summary/continuity dossier in a collapsible editorial panel.
+- [x] Show red flags as UI metadata, not final content.
+- [x] Show operation summary after generation.
+- [~] Add "view changes" mode for preserved/replaced/inserted/reference-updated content.
 - [ ] Add optional user override for intent and target section.
 
 Definition of done:

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { FileDown, FileText, Check, Eye, Loader2 } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { FileDown, FileText, Check, Eye, Loader2, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import type { Messages } from "@/lib/i18n"
 
@@ -46,6 +47,7 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
   const continuationIntent = source.continuation_intent || source.runtime_prompt_manifest?.metadata?.continuation_intent
   const documentState = source.document_state || source.runtime_prompt_manifest?.metadata?.document_state
   const editPlan = source.edit_plan || source.runtime_prompt_manifest?.metadata?.edit_plan
+  const mergePatch = source.merge_patch || source.runtime_prompt_manifest?.metadata?.merge_patch
 
   const manifestId = manifest?.id || contract?.artifact || summary?.selected_manifest || ""
   const version = manifest?.version || ""
@@ -59,7 +61,19 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
   const continuationIntentLabel = continuationIntent?.intent || ""
   const terminalSections = Array.isArray(documentState?.terminal_sections) ? documentState.terminal_sections : []
   const editOperations = Array.isArray(editPlan?.operations) ? editPlan.operations : []
-  const hasDebugInfo = !!manifestId || !!version || confidence !== null || matchedPhrases.length > 0 || forbidList.length > 0 || !!continuationIntentLabel || terminalSections.length > 0 || editOperations.length > 0
+  const continuityDossier = documentState?.continuity_dossier || null
+  const styleProfile = documentState?.style_profile || null
+  const referenceRegistry = Array.isArray(documentState?.reference_registry) ? documentState.reference_registry : []
+  const redFlags = Array.isArray(editPlan?.red_flags) ? editPlan.red_flags : []
+  const operationSummary = Array.isArray(mergePatch?.operation_summary) ? mergePatch.operation_summary : []
+  const changedSections = {
+    inserted: Object.keys(mergePatch?.inserted_content || {}),
+    replaced: Object.keys(mergePatch?.replaced_ranges || {}),
+    references: Array.isArray(mergePatch?.updated_references) ? mergePatch.updated_references : [],
+  }
+  const hasChangeSummary = changedSections.inserted.length > 0 || changedSections.replaced.length > 0 || changedSections.references.length > 0
+  const hasEditorialInfo = !!continuationIntentLabel || !!continuityDossier || redFlags.length > 0 || operationSummary.length > 0 || hasChangeSummary
+  const hasDebugInfo = !!manifestId || !!version || confidence !== null || matchedPhrases.length > 0 || forbidList.length > 0 || !!continuationIntentLabel || terminalSections.length > 0 || editOperations.length > 0 || operationSummary.length > 0
 
   const exportableContext = Object.fromEntries(
     Object.entries(context).filter(([key]) => key !== "document_plan" && !hiddenSectionIds.has(key))
@@ -84,6 +98,7 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
   const [exportedFilename, setExportedFilename] = useState<string | null>(docxFilename || null)
   const [exportedPdfFilename, setExportedPdfFilename] = useState<string | null>(null)
   const [exportReport, setExportReport] = useState<any>(null)
+  const [editorialOpen, setEditorialOpen] = useState(true)
 
   useEffect(() => {
     setExportedFilename(docxFilename || null)
@@ -576,6 +591,110 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
             </div>
           </CardContent>
         </Card>
+
+        {/* Editorial Continuity */}
+        {hasEditorialInfo && (
+          <Card className="rounded-2xl border border-border bg-card p-4 shadow-sm hidden lg:block mt-4">
+            <Collapsible open={editorialOpen} onOpenChange={setEditorialOpen}>
+              <CardHeader className="p-1 pb-3">
+                <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 text-left">
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Editorial Continuity
+                  </CardTitle>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${editorialOpen ? "rotate-180" : ""}`} />
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="p-0 space-y-3 text-xs">
+                  {continuationIntentLabel && (
+                    <div className="flex justify-between border-b pb-1.5 border-border/40">
+                      <span className="text-muted-foreground">Intent:</span>
+                      <span className="font-mono font-semibold">{continuationIntentLabel}</span>
+                    </div>
+                  )}
+                  {continuityDossier?.current_stopping_point && (
+                    <div className="border-b pb-1.5 border-border/40 space-y-1">
+                      <span className="text-muted-foreground">Stopping point:</span>
+                      <p className="line-clamp-4 text-[11px] leading-relaxed text-foreground/80">
+                        {continuityDossier.current_stopping_point}
+                      </p>
+                    </div>
+                  )}
+                  {(continuityDossier?.style_summary || styleProfile?.heading_style || styleProfile?.citation_style) && (
+                    <div className="border-b pb-1.5 border-border/40 space-y-1">
+                      <span className="text-muted-foreground">Style profile:</span>
+                      <p className="text-[11px] leading-relaxed text-foreground/80">
+                        {continuityDossier?.style_summary || `heading=${styleProfile?.heading_style || "unknown"}; citation=${styleProfile?.citation_style || "none"}`}
+                      </p>
+                    </div>
+                  )}
+                  {(continuityDossier?.reference_summary || referenceRegistry.length > 0) && (
+                    <div className="border-b pb-1.5 border-border/40 space-y-1">
+                      <span className="text-muted-foreground">References:</span>
+                      <p className="text-[11px] leading-relaxed text-foreground/80">
+                        {continuityDossier?.reference_summary || `${referenceRegistry.length} reference(s)`}
+                      </p>
+                    </div>
+                  )}
+                  {redFlags.length > 0 && (
+                    <div className="border-b pb-1.5 border-border/40 space-y-1">
+                      <span className="text-muted-foreground">Red flags:</span>
+                      <ul className="space-y-1">
+                        {redFlags.slice(0, 4).map((flag: string, idx: number) => (
+                          <li key={idx} className="rounded bg-amber-500/10 px-2 py-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+                            {flag}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {operationSummary.length > 0 && (
+                    <div className="border-b pb-1.5 border-border/40 space-y-1">
+                      <span className="text-muted-foreground">Operation summary:</span>
+                      <div className="space-y-1">
+                        {operationSummary.slice(0, 6).map((operation: any, idx: number) => (
+                          <div key={idx} className="rounded bg-muted px-2 py-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono text-[10px] text-muted-foreground">{operation?.op || "op"}</span>
+                              {operation?.target && (
+                                <span className="truncate font-mono text-[10px] text-muted-foreground">{operation.target}</span>
+                              )}
+                            </div>
+                            {operation?.result && (
+                              <p className="mt-0.5 text-[11px] leading-snug text-foreground/80">{operation.result}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {hasChangeSummary && (
+                    <div className="space-y-1">
+                      <span className="text-muted-foreground">View changes:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {changedSections.replaced.map((section: string) => (
+                          <span key={`replaced-${section}`} className="rounded bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-mono text-orange-700 dark:text-orange-300">
+                            replaced:{section}
+                          </span>
+                        ))}
+                        {changedSections.inserted.map((section: string) => (
+                          <span key={`inserted-${section}`} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-mono text-emerald-700 dark:text-emerald-300">
+                            inserted:{section}
+                          </span>
+                        ))}
+                        {changedSections.references.map((section: string) => (
+                          <span key={`refs-${section}`} className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-mono text-sky-700 dark:text-sky-300">
+                            refs:{section}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </Card>
+        )}
 
         {/* Debug Metadata */}
         {hasDebugInfo && (
