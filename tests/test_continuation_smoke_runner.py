@@ -55,6 +55,13 @@ def test_scenario_catalog_contains_required_single_run_scenarios():
     assert scenarios["academic_references"].continuation_source["context"]["references"]
 
 
+def test_academic_references_fixture_avoids_section_self_headings():
+    context = scenario_catalog()["academic_references"].continuation_source["context"]
+
+    assert "## 1. Introduction" not in context["introduction"]
+    assert "## References" not in context["references"]
+
+
 def test_config_snapshot_records_provider_and_model_only():
     snapshot = config_snapshot(_config(ProviderEnum.zen))
 

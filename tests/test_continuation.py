@@ -78,6 +78,20 @@ def test_reference_request_resolves_to_update_references_only():
     assert resolution.intent == ContinuationIntent.update_references_only
 
 
+def test_body_continuation_with_reference_constraint_does_not_resolve_to_references_only():
+    resolution = infer_continuation_intent(
+        topic="Add the next analysis section",
+        instructions=(
+            "Continue the RGR-style document with a short next analysis section. "
+            "Keep references terminal and merge any new source into the same bibliography if needed."
+        ),
+        continuation_source={"context": {"analysis": "Existing body.", "references": "1. Existing source."}},
+    )
+
+    assert resolution is not None
+    assert resolution.intent == ContinuationIntent.expand_section
+
+
 def test_source_style_request_does_not_resolve_to_references_only():
     resolution = infer_continuation_intent(
         topic="Continue",

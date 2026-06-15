@@ -130,15 +130,16 @@ def scenario_catalog() -> Dict[str, SmokeScenario]:
                 "instructions": "Structured RGR report with formulas and references.",
                 "context": {
                     "introduction": (
-                        "## 1. Introduction\n\nThe report estimates a simple helpdesk queue using arrival rate "
+                        "The report estimates a simple helpdesk queue using arrival rate "
                         "$\\lambda$ and service rate $\\mu$."
                     ),
                     "calculation": (
-                        "## 2. Calculation\n\nFor an M/M/1 queue, utilization is $\\rho = \\lambda / \\mu$. "
+                        "For an M/M/1 queue, utilization is $\\rho = \\lambda / \\mu$. "
                         "The system is stable when $\\rho < 1$."
                     ),
                     "references": (
-                        "## References\n\n1. Kleinrock, L. Queueing Systems. Volume 1: Theory. Wiley, 1975."
+                        "1. Kleinrock, L. Queueing Systems. Volume 1: Theory. Wiley, 1975. "
+                        "Classic reference for M/M/1 queue notation, stability conditions, and performance measures."
                     ),
                 },
             },
@@ -550,7 +551,7 @@ def run_checks(
             after_refs = lower[references_index + len("references") :].strip()
             if "##" in after_refs or "# " in after_refs:
                 issues.append("body-like heading appears after references")
-        if lower.count("references") > 1:
+        if sum(1 for line in text.splitlines() if line.strip().lower().lstrip("# ").startswith("references")) > 1:
             issues.append("multiple visible references headings detected")
 
     if scenario.scenario_id == "school_revision" and metadata.get("continuation_intent", {}).get("intent") != "revise_in_place":

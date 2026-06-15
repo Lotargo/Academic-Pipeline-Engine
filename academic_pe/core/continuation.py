@@ -160,14 +160,6 @@ def infer_continuation_intent(
             ["restructure_keyword"],
         )
 
-    if _matches_any(normalized, _REFERENCE_PATTERNS):
-        return _resolution(
-            ContinuationIntent.update_references_only,
-            "User request is primarily about sources, citations, or bibliography.",
-            0.78,
-            ["reference_keyword"],
-        )
-
     if _matches_any(normalized, _COMPLETE_MISSING_PATTERNS):
         return _resolution(
             ContinuationIntent.complete_missing_section,
@@ -190,6 +182,14 @@ def infer_continuation_intent(
             "User asked to improve or rewrite the current artifact rather than append new scope.",
             0.8,
             ["revise_keyword"],
+        )
+
+    if _is_references_only_request(normalized):
+        return _resolution(
+            ContinuationIntent.update_references_only,
+            "User request is primarily about sources, citations, or bibliography.",
+            0.78,
+            ["reference_keyword"],
         )
 
     has_explicit_continue = _matches_any(normalized, _CONTINUE_PATTERNS)
@@ -328,6 +328,20 @@ def _runtime_template_sections(continuation_source: Dict[str, Any]) -> List[dict
 
 def _matches_any(text: str, patterns: Iterable[str]) -> bool:
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+
+def _is_references_only_request(text: str) -> bool:
+    if not _matches_any(text, _REFERENCE_PATTERNS):
+        return False
+    body_edit_patterns = [
+        *_CONTINUE_PATTERNS,
+        *_EXPAND_SECTION_PATTERNS,
+        *_COMPLETE_MISSING_PATTERNS,
+        *_REVISE_PATTERNS,
+        r"\bnext\s+(?:analysis|section|chapter|part)\b",
+        r"\bbody\s+content\b",
+    ]
+    return not _matches_any(text, body_edit_patterns)
 
 
 def _resolution(

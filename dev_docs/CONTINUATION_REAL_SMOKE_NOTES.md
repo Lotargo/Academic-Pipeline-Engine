@@ -129,3 +129,64 @@ Result: PASS
 Elapsed: 182.6s
 Observed imbalance: none
 Follow-up: exports\_smoke\20260616_032020\school_revision\stage_log.jsonl
+
+## Run 2026-06-16T03:24:05 - academic_references
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: Academic/RGR continuation with references (academic_references)
+Expected checks: new body appears before references; references remain terminal; bibliography is a single merged section; no editorial 'new sources added' label
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: BLOCKED
+Elapsed: outer command timed out after approximately 5 minutes.
+Observed imbalance: intent resolver treated the request as references-only because the instructions mentioned references as a terminal-section constraint.
+
+Cleanup after timed-out academic_references run:
+- checked PID 33760: C:\WINDOWS\system32\cmd.exe /c "F:\projects\Academic-Pipeline-Engine\.venv\Scripts\python.exe scripts/continuation_smoke_runner.py academic_references --disable-expensive-loops --heartbeat-seconds 20"
+- checked PID 43180: F:\projects\Academic-Pipeline-Engine\.venv\Scripts\python.exe  scripts/continuation_smoke_runner.py academic_references --disable-expensive-loops --heartbeat-seconds 20
+
+## Run 2026-06-16T03:30:39 - academic_references
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: Academic/RGR continuation with references (academic_references)
+Expected checks: new body appears before references; references remain terminal; bibliography is a single merged section; no editorial 'new sources added' label
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: BLOCKED
+Elapsed: outer command timed out after approximately 5 minutes.
+Observed imbalance: merge flow ran, but fixture section bodies duplicated their own visible headings, causing quality gate duplicate introduction/references failures.
+
+Cleanup after second timed-out academic_references run:
+- checked PID 2016: C:\WINDOWS\system32\cmd.exe /c "F:\projects\Academic-Pipeline-Engine\.venv\Scripts\python.exe scripts/continuation_smoke_runner.py academic_references --disable-expensive-loops --heartbeat-seconds 20"
+- checked PID 41864: F:\projects\Academic-Pipeline-Engine\.venv\Scripts\python.exe  scripts/continuation_smoke_runner.py academic_references --disable-expensive-loops --heartbeat-seconds 20
+
+## Run 2026-06-16T03:37:03 - academic_references
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: Academic/RGR continuation with references (academic_references)
+Expected checks: new body appears before references; references remain terminal; bibliography is a single merged section; no editorial 'new sources added' label
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: BLOCKED
+Elapsed: outer command timed out after approximately 5 minutes.
+Observed imbalance: merge flow ran, but references fixture was shorter than smoke volume threshold and triggered unnecessary revision loops.
+
+Cleanup after third timed-out academic_references run:
+- checked PID 21156: C:\WINDOWS\system32\cmd.exe /c "F:\projects\Academic-Pipeline-Engine\.venv\Scripts\python.exe scripts/continuation_smoke_runner.py academic_references --disable-expensive-loops --heartbeat-seconds 20"
+- checked PID 15388: F:\projects\Academic-Pipeline-Engine\.venv\Scripts\python.exe  scripts/continuation_smoke_runner.py academic_references --disable-expensive-loops --heartbeat-seconds 20
+
+## Run 2026-06-16T03:43:16 - academic_references
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: Academic/RGR continuation with references (academic_references)
+Expected checks: new body appears before references; references remain terminal; bibliography is a single merged section; no editorial 'new sources added' label
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: PASS
+Elapsed: 117.3s
+Observed imbalance: none
+Follow-up: exports\_smoke\20260616_034316\academic_references\stage_log.jsonl
