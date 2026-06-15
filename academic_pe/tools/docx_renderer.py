@@ -14,6 +14,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Inches, Pt, RGBColor
 
+from academic_pe.core.document_structure import renderable_sections
+
 logger = logging.getLogger(__name__)
 
 
@@ -547,7 +549,7 @@ def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", 
         if hasattr(config, "pipeline") and config.pipeline is not None:
             title_text = getattr(config.pipeline, "title", title_text)
             if hasattr(config.pipeline, "sections") and config.pipeline.sections:
-                order = [section.name for section in config.pipeline.sections]
+                order = [section.name for section in renderable_sections(config.pipeline.sections)]
 
     alignment_map = {
         "left": WD_ALIGN_PARAGRAPH.LEFT,

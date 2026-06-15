@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Tuple
 
+from academic_pe.core.document_structure import HeadingPolicy, SemanticRole
 from academic_pe.core.config import AppConfig, SectionPrompt
 from academic_pe.core.templates import (
     PromptManifest,
@@ -30,6 +31,8 @@ def section_prompt_to_template_section(section: SectionPrompt) -> TemplateSectio
         title=section.topic or section.name,
         topic=section.topic,
         instruction=section.instruction,
+        semantic_role=getattr(section, "semantic_role", None) or SemanticRole.body.value,
+        heading_policy=getattr(section, "heading_policy", None) or HeadingPolicy.render_required.value,
     )
 
 
@@ -38,6 +41,8 @@ def template_section_to_section_prompt(section: TemplateSection) -> SectionPromp
         name=section.name,
         topic=section.topic or section.title,
         instruction=section.instruction,
+        semantic_role=section.semantic_role,
+        heading_policy=getattr(section.heading_policy, "value", section.heading_policy),
     )
 
 

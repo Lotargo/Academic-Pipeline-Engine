@@ -35,6 +35,13 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
   const activeState = status?.state || "INIT"
   const isRunning = status?.status === "RUNNING"
   const isCompleted = status?.status === "COMPLETED" || activeState === "DONE"
+  const hiddenSectionIds = new Set(
+    Array.isArray(status?.runtime_template?.sections)
+      ? status.runtime_template.sections
+          .filter((section: any) => section?.name && !isRenderableTemplateSection(section))
+          .map((section: any) => section.name)
+      : []
+  )
 
   const handleSaveSection = async (sectionId: string) => {
     const newText = editedContent[sectionId]
@@ -82,7 +89,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
 
   const runtimeSections: CanvasSection[] = Array.isArray(status?.runtime_template?.sections)
     ? status.runtime_template.sections
-        .filter((section: any) => section?.name)
+        .filter((section: any) => section?.name && isRenderableTemplateSection(section))
         .map((section: any) => ({
           id: section.name,
           title: section.title || section.topic || humanizeSectionName(section.name),
@@ -90,7 +97,7 @@ export function LiveDocumentCanvas({ status, onStatusUpdate, t }: LiveDocumentCa
     : []
 
   const contextSections: CanvasSection[] = Object.keys(context)
-    .filter((key) => key !== "document_plan")
+    .filter((key) => key !== "document_plan" && !hiddenSectionIds.has(key))
     .map((key) => ({
       id: key,
       title: humanizeSectionName(key),
@@ -782,4 +789,8 @@ function humanizeSectionName(name: string) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function isRenderableTemplateSection(section: any) {
+  return String(section?.heading_policy || "render_required") !== "internal_only"
 }

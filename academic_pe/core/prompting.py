@@ -21,6 +21,9 @@ DEFAULT_DRAFT_TEMPLATE = """Write a section about {{ section.topic }}.
 Follow the document plan and continuity context when provided.
 Preserve Markdown structure, the requested tone/register, and existing LaTeX formulas when present.
 Do not call sections "chapters" unless the user explicitly requested chapter-based output.
+Section semantic role: {{ section.semantic_role|default("body") }}.
+Section heading policy: {{ section.heading_policy|default("render_required") }}.
+If the section heading policy is internal_only, use it only as private planning context: do not print the section title, do not create a visible heading for it, and do not expose internal labels such as exposition, development, conflict analysis, risks, red_flags, or pacing notes.
 Avoid forward references to sections, tables, formulas, or chapters that do not exist in the current document.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
@@ -76,7 +79,7 @@ Continuation planning rules:
 
 Configured sections:
 {% for section in sections -%}
-- {{ loop.index }}. {{ section.name }}: {{ section.topic }}. {{ section.instruction }}
+- {{ loop.index }}. {{ section.name }}: {{ section.topic }}. role={{ section.semantic_role|default("body") }}, heading_policy={{ section.heading_policy|default("render_required") }}. {{ section.instruction }}
 {% endfor %}
 
 {% if academic_mode|default(false) %}
@@ -89,6 +92,7 @@ Academic Mode: plan for stronger reasoning, clearer assumptions, evidence discip
 Return a concise Markdown plan with:
 - core intent / central claim when applicable;
 - section-by-section goals;
+- which headings are final-document headings and which blocks are internal-only;
 - terminology and style choices that must stay consistent;
 - continuation actions for preserved, revised, bridge, and newly expanded material when a continuation source is provided;
 - facts, formulas, or complexity claims that must not contradict each other;
@@ -104,6 +108,7 @@ Address these reviewer issues: {{ reviewer_reason }}
 Make the smallest possible targeted edits to the existing section.
 Preserve unaffected paragraphs, wording, Markdown structure, requested tone/register, and existing LaTeX formulas whenever they are not part of the reviewer issue.
 Do not introduce new chapter numbering schemes, new missing references, or unrelated claims.
+Section heading policy: {{ section.heading_policy|default("render_required") }}. If it is internal_only, do not expose its title or internal planning labels in the corrected final text.
 Context may include other document sections for continuity. Treat those other sections as read-only reference material; do not include or rewrite them in your output.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
@@ -183,6 +188,7 @@ If the text passes, return exactly: APPROVED
 
 Reject only for concrete issues that materially harm correctness, coherence, or renderability.
 Do not reject for minor preference, harmless wording, or label differences such as "section" vs "chapter" unless they create an actual broken reference.
+Reject visible internal planning labels in final text, including exposition, development, conflict analysis, red_flags, pacing notes, continuity notes, or editorial risk labels, unless the user explicitly requested an outline or editorial changelog.
 
 {% if academic_mode|default(false) %}
 Academic Mode: check for weak assumptions, unsupported claims, shallow definitions, conceptual contradictions, and missing limitations where those checks fit this artifact. Do not reject a non-academic artifact merely because it lacks charts, formulas, citations, or research-paper sections.

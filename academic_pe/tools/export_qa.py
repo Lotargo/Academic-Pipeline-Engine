@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 from docx import Document
 
 from academic_pe.core.config import AppConfig
+from academic_pe.core.document_structure import renderable_sections
 from academic_pe.tools.docx_renderer import render_paper
 from academic_pe.tools.libreoffice import discover_soffice
 
@@ -214,7 +215,7 @@ def export_docx_with_qa(content: Dict[str, str], config: AppConfig, output_filen
 
     issues = inspect_docx_artifacts(
         docx_path,
-        required_sections=[section.name for section in config.pipeline.sections],
+        required_sections=[section.name for section in renderable_sections(config.pipeline.sections)],
     )
 
     qa_dir = os.path.join(output_dir, "_qa", Path(filename).stem)
@@ -245,7 +246,7 @@ def export_pdf_with_qa(content: Dict[str, str], config: AppConfig, output_filena
         issues.extend(
             inspect_docx_artifacts(
                 docx_path,
-                required_sections=[section.name for section in config.pipeline.sections],
+                required_sections=[section.name for section in renderable_sections(config.pipeline.sections)],
             )
         )
 

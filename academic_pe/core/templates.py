@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 
+from academic_pe.core.document_structure import HeadingPolicy, SemanticRole
+
 
 class TemplateLanguagePolicy(str, Enum):
     auto = "auto"
@@ -26,6 +28,8 @@ class TemplateSection(BaseModel):
     title: str = Field(..., min_length=1)
     instruction: str = ""
     topic: Optional[str] = None
+    semantic_role: str = SemanticRole.body.value
+    heading_policy: HeadingPolicy = HeadingPolicy.render_required
 
 
 class PromptManifest(BaseModel):

@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload, PromptEnhanceRequest, PromptEnhanceResponse
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
+from academic_pe.core.document_structure import is_renderable_section
 from academic_pe.core.orchestrator import create_orchestrator_from_config, PipelineState, PipelineCancelled
 from academic_pe.core.template_library import TemplateLibrary
 from academic_pe.tools.export_qa import export_docx_with_qa, export_pdf_with_qa
@@ -92,6 +93,8 @@ current_run: Dict[str, Any] = {
     "manifest_selection": None,
     "decision_summary": None,
     "artifact_override": None,
+    "continuation_intent": None,
+    "document_state": None,
 }
 
 
@@ -282,6 +285,8 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "decision_summary": data.get("decision_summary"),
         "continuation_source": data.get("continuation_source"),
         "artifact_override": data.get("artifact_override"),
+        "continuation_intent": data.get("continuation_intent"),
+        "document_state": data.get("document_state"),
     }
 
 
@@ -309,6 +314,16 @@ def _with_artifact_manifest_metadata(metadata: dict) -> dict:
     for key, value in artifact_metadata.items():
         metadata.setdefault(key, value)
     return metadata
+
+
+def _editorial_runtime_metadata(runtime_prompt_manifest: Optional[dict]) -> dict:
+    if not isinstance(runtime_prompt_manifest, dict):
+        return {}
+    metadata = runtime_prompt_manifest.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    keys = ["continuation_intent", "document_state"]
+    return {key: metadata[key] for key in keys if key in metadata}
 
 
 def _delete_export_asset(docx_name: Optional[str]) -> None:
@@ -800,6 +815,9 @@ def run_pipeline_thread(
             current_run["contract_sexpr"] = artifact_metadata.get("contract_sexpr")
             current_run["manifest_selection"] = artifact_metadata.get("manifest_selection")
             current_run["decision_summary"] = artifact_metadata.get("decision_summary")
+            editorial_metadata = _editorial_runtime_metadata(current_run["runtime_prompt_manifest"])
+            current_run["continuation_intent"] = editorial_metadata.get("continuation_intent")
+            current_run["document_state"] = editorial_metadata.get("document_state")
         
         # Store orchestrator for cancellation
         with _orchestrator_lock:
@@ -913,7 +931,9 @@ def run_pipeline_thread(
             "original_context": current_run.get("original_context", {}),
             "academic_mode": config.pipeline.academic_mode,
             "logs": current_run["logs"],
-            "reviewer_feedback": current_run["reviewer_feedback"]
+            "reviewer_feedback": current_run["reviewer_feedback"],
+            "continuation_intent": current_run.get("continuation_intent"),
+            "document_state": current_run.get("document_state"),
         })
         with open(metadata_filename, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
@@ -990,6 +1010,8 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
             else None
         )
         current_run["artifact_override"] = payload.artifact_override
+        current_run["continuation_intent"] = None
+        current_run["document_state"] = None
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -1110,6 +1132,17 @@ def _prepare_export(payload: ExportRequest):
             from academic_pe.core.templates import RuntimeTemplate
             from academic_pe.core.orchestrator import _apply_runtime_template
             runtime_template = RuntimeTemplate(**rt_data)
+            hidden_section_names = {
+                section.name
+                for section in runtime_template.sections
+                if not is_renderable_section(section)
+            }
+            if hidden_section_names:
+                export_context = {
+                    key: value
+                    for key, value in export_context.items()
+                    if key not in hidden_section_names
+                }
             config = _apply_runtime_template(config, runtime_template)
             config.pipeline.title = topic
         except Exception as e:
@@ -1176,6 +1209,8 @@ def _write_export_metadata(
         "logs": current_run.get("logs", []),
         "reviewer_feedback": current_run.get("reviewer_feedback", []),
         "export_report": result.to_dict(),
+        "continuation_intent": current_run.get("continuation_intent"),
+        "document_state": current_run.get("document_state"),
     })
     with open(metadata_filename, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)

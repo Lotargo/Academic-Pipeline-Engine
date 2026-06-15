@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
 import os
 
+from academic_pe.core.document_structure import HeadingPolicy, SemanticRole
+
 
 def _load_dotenv() -> None:
     try:
@@ -59,6 +61,8 @@ class SectionPrompt(BaseModel):
     name: str
     topic: str
     instruction: str
+    semantic_role: str = SemanticRole.body.value
+    heading_policy: str = HeadingPolicy.render_required.value
 
 
 class RetryConfig(BaseModel):

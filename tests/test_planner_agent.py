@@ -109,6 +109,51 @@ def test_planner_agent_parses_runtime_template_and_manifest():
     assert "Make it gentle." in planner.llm.calls[0]["user_prompt"]
 
 
+def test_planner_agent_parses_heading_policy_and_semantic_role():
+    planner = _planner(
+        """
+{
+  "document_type": "story_continuation",
+  "name": "Story Continuation",
+  "description": "A continuation template with private planning beats.",
+  "category": "creative",
+  "language_policy": "auto",
+  "sections": [
+    {
+      "name": "development",
+      "title": "Development",
+      "instruction": "Track what the next scene must accomplish.",
+      "semantic_role": "narrative_beat",
+      "heading_policy": "internal_only"
+    },
+    {
+      "name": "chapter_four",
+      "title": "Chapter Four",
+      "instruction": "Write the next visible chapter.",
+      "semantic_role": "chapter",
+      "heading_policy": "user_mandated"
+    }
+  ],
+  "prompt_manifest": {
+    "planner_role": "Story planner",
+    "writer_role": "Story writer",
+    "reviewer_role": "Story reviewer"
+  }
+}
+"""
+    )
+
+    runtime_template, _ = planner.plan(
+        topic="Continue the story",
+        instructions="Keep the chapter title.",
+    )
+
+    assert runtime_template.sections[0].semantic_role == "narrative_beat"
+    assert runtime_template.sections[0].heading_policy.value == "internal_only"
+    assert runtime_template.sections[1].semantic_role == "chapter"
+    assert runtime_template.sections[1].heading_policy.value == "user_mandated"
+
+
 def test_planner_agent_rejects_invalid_json():
     planner = _planner("not json")
 

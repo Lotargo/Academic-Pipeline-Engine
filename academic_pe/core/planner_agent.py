@@ -47,7 +47,9 @@ Return JSON with this exact shape:
       "name": "stable_snake_case",
       "title": "Human Title",
       "instruction": "what this section must do",
-      "topic": "optional section topic"
+      "topic": "optional section topic",
+      "semantic_role": "body | chapter | academic_section | narrative_beat | editorial_note | reference_section | appendix | glossary",
+      "heading_policy": "render_required | render_allowed | internal_only | inherit_source | user_mandated"
     }}
   ],
   "prompt_manifest": {{
@@ -78,8 +80,13 @@ Return JSON with this exact shape:
 Rules:
 - sections must contain at least one item;
 - every section needs name, title, and instruction;
+- every section should include semantic_role and heading_policy;
 - prompt_manifest must define writer_role and reviewer_role;
 - choose a structure that matches the user request, not a hardcoded academic outline;
+- do not expose internal planning blocks as final document headings;
+- mark internal planning blocks such as exposition, development, conflict analysis, risks, red_flags, pacing notes, or continuity notes as heading_policy="internal_only";
+- mark user-requested chapter/part/section titles as heading_policy="user_mandated";
+- mark artifact-required headings such as introduction, methods, calculations, conclusion, references, or appendices as heading_policy="render_required";
 - review_rubric values must be lists of strings, not plain strings;
 - do not include document body text.
 """

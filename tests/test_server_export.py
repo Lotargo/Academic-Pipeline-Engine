@@ -185,6 +185,62 @@ def test_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
     assert resolved_config.pipeline.title == "My Dynamic Paper"
 
 
+def test_export_endpoint_filters_internal_only_runtime_sections(monkeypatch, tmp_path):
+    mock_called = []
+
+    def mock_export_docx_with_qa(context, config, output_filename=None):
+        mock_called.append((context, config, output_filename))
+        from academic_pe.tools.export_qa import ExportResult, RenderResult
+        return ExportResult(
+            status="passed",
+            filename="paper.docx",
+            path=str(tmp_path / "paper.docx"),
+            issues=[],
+            render=RenderResult(status="skipped", message="QA skipped")
+        )
+
+    monkeypatch.setattr("academic_pe.server.export_docx_with_qa", mock_export_docx_with_qa)
+
+    client = TestClient(app)
+    payload = {
+        "filename": "paper.docx",
+        "topic": "Story",
+        "context": {
+            "development": "Private beat notes.",
+            "chapter_four": "Visible chapter text.",
+        },
+        "runtime_template": {
+            "source": "auto",
+            "name": "Story Continuation",
+            "category": "creative",
+            "sections": [
+                {
+                    "name": "development",
+                    "title": "Development",
+                    "instruction": "Private planning block.",
+                    "semantic_role": "narrative_beat",
+                    "heading_policy": "internal_only",
+                },
+                {
+                    "name": "chapter_four",
+                    "title": "Chapter Four",
+                    "instruction": "Visible chapter.",
+                    "semantic_role": "chapter",
+                    "heading_policy": "user_mandated",
+                },
+            ],
+        },
+    }
+
+    response = client.post("/api/export/docx", json=payload)
+
+    assert response.status_code == 200
+    assert len(mock_called) == 1
+    exported_context, resolved_config, _ = mock_called[0]
+    assert exported_context == {"chapter_four": "Visible chapter text."}
+    assert [section.name for section in resolved_config.pipeline.sections] == ["chapter_four"]
+
+
 def test_export_endpoint_with_dynamic_fallback(monkeypatch, tmp_path):
     mock_called = []
     

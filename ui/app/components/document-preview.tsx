@@ -20,9 +20,17 @@ interface DocumentPreviewProps {
 }
 
 export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTemplate, t, author, language, metadata }: DocumentPreviewProps) {
+  const hiddenSectionIds = new Set(
+    Array.isArray(runtimeTemplate?.sections)
+      ? runtimeTemplate.sections
+          .filter((section: any) => section?.name && !isRenderableTemplateSection(section))
+          .map((section: any) => section.name)
+      : []
+  )
+
   const runtimeSections = Array.isArray(runtimeTemplate?.sections)
     ? runtimeTemplate.sections
-        .filter((section: any) => section?.name)
+        .filter((section: any) => section?.name && isRenderableTemplateSection(section))
         .map((section: any) => ({
           id: section.name,
           title: section.title || section.topic || humanizeSectionName(section.name),
@@ -35,6 +43,8 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
   const selection = source.manifest_selection || source.runtime_prompt_manifest?.metadata?.manifest_selection
   const contract = source.resolved_contract || source.runtime_prompt_manifest?.metadata?.resolved_contract
   const manifest = source.resolved_manifest || source.runtime_prompt_manifest?.metadata?.resolved_manifest
+  const continuationIntent = source.continuation_intent || source.runtime_prompt_manifest?.metadata?.continuation_intent
+  const documentState = source.document_state || source.runtime_prompt_manifest?.metadata?.document_state
 
   const manifestId = manifest?.id || contract?.artifact || summary?.selected_manifest || ""
   const version = manifest?.version || ""
@@ -45,10 +55,12 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
       : null
   const matchedPhrases = summary?.matched_phrases || selection?.matched_phrases || []
   const forbidList = manifest?.forbid || contract?.forbid || []
-  const hasDebugInfo = !!manifestId || !!version || confidence !== null || matchedPhrases.length > 0 || forbidList.length > 0
+  const continuationIntentLabel = continuationIntent?.intent || ""
+  const terminalSections = Array.isArray(documentState?.terminal_sections) ? documentState.terminal_sections : []
+  const hasDebugInfo = !!manifestId || !!version || confidence !== null || matchedPhrases.length > 0 || forbidList.length > 0 || !!continuationIntentLabel || terminalSections.length > 0
 
   const exportableContext = Object.fromEntries(
-    Object.entries(context).filter(([key]) => key !== "document_plan")
+    Object.entries(context).filter(([key]) => key !== "document_plan" && !hiddenSectionIds.has(key))
   )
 
   const contextSections = Object.keys(exportableContext).map((key) => ({
@@ -592,6 +604,24 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
                   </span>
                 </div>
               )}
+              {continuationIntentLabel && (
+                <div className="flex justify-between border-b pb-1.5 border-border/40">
+                  <span className="text-muted-foreground">Intent:</span>
+                  <span className="font-mono font-semibold">{continuationIntentLabel}</span>
+                </div>
+              )}
+              {terminalSections.length > 0 && (
+                <div className="border-b pb-1.5 border-border/40 space-y-1">
+                  <span className="text-muted-foreground">Terminal Sections:</span>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {terminalSections.map((section: string, idx: number) => (
+                      <span key={idx} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                        {section}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {matchedPhrases.length > 0 && (
                 <div className="border-b pb-1.5 border-border/40 space-y-1">
                   <span className="text-muted-foreground">Matched Cues:</span>
@@ -721,4 +751,8 @@ function humanizeSectionName(name: string) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function isRenderableTemplateSection(section: any) {
+  return String(section?.heading_policy || "render_required") !== "internal_only"
 }

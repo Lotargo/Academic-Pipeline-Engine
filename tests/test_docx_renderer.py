@@ -240,6 +240,42 @@ class TestNewRendererFeatures:
         assert non_title_texts[0] == "Conclusion text."
         assert non_title_texts[1] == "Theory text."
 
+    def test_internal_only_sections_are_not_rendered(self, tmp_doc):
+        from academic_pe.core.config import AppConfig, PipelineConfig, SectionPrompt
+        config = AppConfig(
+            agents={},
+            pipeline=PipelineConfig(
+                title="Filtered Document",
+                sections=[
+                    SectionPrompt(
+                        name="development",
+                        topic="Development",
+                        instruction="Private planning block.",
+                        semantic_role="narrative_beat",
+                        heading_policy="internal_only",
+                    ),
+                    SectionPrompt(
+                        name="chapter_four",
+                        topic="Chapter Four",
+                        instruction="Visible chapter.",
+                        semantic_role="chapter",
+                        heading_policy="user_mandated",
+                    ),
+                ],
+            ),
+        )
+        content = {
+            "development": "PRIVATE BEAT SHOULD NOT RENDER",
+            "chapter_four": "Visible chapter text.",
+        }
+
+        render_paper(content, tmp_doc, config=config)
+
+        doc = Document(tmp_doc)
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        assert "Visible chapter text." in full_text
+        assert "PRIVATE BEAT SHOULD NOT RENDER" not in full_text
+
     def test_renders_table_from_markdown(self, tmp_doc):
         content = {
             "theory": "Heading\n\n| H1 | H2 |\n|---|---|\n| V1 | V2 |\n"

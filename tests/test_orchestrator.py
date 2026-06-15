@@ -260,6 +260,39 @@ def test_create_orchestrator_from_config_applies_auto_planner_output():
     assert "Write about daisies." in orch._writer.config.system_prompt
 
 
+def test_apply_runtime_template_excludes_internal_only_sections():
+    from academic_pe.core.orchestrator import _apply_runtime_template
+
+    config = _make_config()
+    runtime_template = RuntimeTemplate(
+        source=RuntimeTemplateSource.auto,
+        name="Story Continuation",
+        category="creative",
+        sections=[
+            TemplateSection(
+                name="development",
+                title="Development",
+                instruction="Private beat analysis.",
+                semantic_role="narrative_beat",
+                heading_policy="internal_only",
+            ),
+            TemplateSection(
+                name="chapter_four",
+                title="Chapter Four",
+                instruction="Write the visible chapter.",
+                semantic_role="chapter",
+                heading_policy="user_mandated",
+            ),
+        ],
+    )
+
+    resolved = _apply_runtime_template(config, runtime_template)
+
+    assert [section.name for section in resolved.pipeline.sections] == ["chapter_four"]
+    assert resolved.pipeline.sections[0].heading_policy == "user_mandated"
+    assert resolved.pipeline.sections[0].semantic_role == "chapter"
+
+
 def test_auto_language_uses_user_prompt_language_for_drafting():
     config = _make_config()
     config.pipeline.language = LanguagePolicy.auto
@@ -944,6 +977,45 @@ def test_create_orchestrator_from_config_inherits_continuation_artifact_metadata
     metadata = orch.runtime_prompt_manifest.metadata
     assert metadata["resolved_manifest"]["id"] == "creative_poem"
     assert metadata["manifest_selection"]["matched_phrases"] == ["previous resolved manifest"]
+
+
+def test_create_orchestrator_from_config_adds_continuation_intent_metadata():
+    config = _make_config()
+    manifests = {
+        "unknown_freeform": ArtifactManifest(
+            id="unknown_freeform",
+            artifact_type="unknown_freeform",
+        ),
+    }
+
+    orch = create_orchestrator_from_config(
+        config,
+        user_topic="Continue",
+        user_instructions="",
+        continuation_source={
+            "context": {
+                "story": "The door closed behind them. The end.",
+                "references": "1. Existing source.",
+            },
+            "runtime_template": {
+                "sections": [
+                    {"name": "story", "title": "Story", "instruction": "Continue."},
+                    {
+                        "name": "references",
+                        "title": "References",
+                        "instruction": "Preserve sources.",
+                        "semantic_role": "reference_section",
+                    },
+                ]
+            },
+        },
+        artifact_manifest_resolver=ArtifactManifestResolver(manifests=manifests),
+    )
+
+    metadata = orch.runtime_prompt_manifest.metadata
+    assert metadata["continuation_intent"]["intent"] == "bridge_and_continue"
+    assert metadata["document_state"]["terminal_sections"] == ["references"]
+    assert orch.runtime_template.metadata["continuation_intent"]["intent"] == "bridge_and_continue"
 
 
 def test_create_orchestrator_from_config_inherits_top_level_continuation_artifact_metadata():

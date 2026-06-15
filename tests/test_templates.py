@@ -3,6 +3,7 @@ from pydantic import ValidationError
 
 from academic_pe.core.templates import (
     DocumentTemplate,
+    HeadingPolicy,
     PromptManifest,
     RuntimePromptManifest,
     RuntimeTemplate,
@@ -95,3 +96,15 @@ def test_prompt_manifest_coerces_string_rubric():
     assert manifest.review_rubric["forbidden"] == ["broken link"]
     assert manifest.review_rubric["custom_item"] == ["some string values"]
 
+
+def test_template_section_accepts_heading_policy_and_semantic_role():
+    section = TemplateSection(
+        name="development",
+        title="Development",
+        instruction="Track the narrative beat internally.",
+        semantic_role="narrative_beat",
+        heading_policy="internal_only",
+    )
+
+    assert section.semantic_role == "narrative_beat"
+    assert section.heading_policy == HeadingPolicy.internal_only

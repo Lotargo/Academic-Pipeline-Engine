@@ -9,6 +9,8 @@ from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Protocol
 
 from academic_pe.core.config import AppConfig, TemplateMode, load_config, SectionPrompt
+from academic_pe.core.continuation import detect_terminal_sections, infer_continuation_intent
+from academic_pe.core.document_structure import renderable_sections
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import language_instruction, resolve_output_language
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
@@ -982,7 +984,7 @@ def _apply_runtime_template(
     resolved_config = config.model_copy(deep=True)
     resolved_config.pipeline.sections = [
         template_section_to_section_prompt(section)
-        for section in runtime_template.sections
+        for section in renderable_sections(runtime_template.sections)
     ]
     return resolved_config
 
@@ -1084,6 +1086,13 @@ def create_orchestrator_from_config(
         artifact_manifest_resolver=artifact_manifest_resolver,
         artifact_override=artifact_override,
     )
+    runtime_template, runtime_prompt_manifest = _apply_continuation_editorial_metadata(
+        runtime_template,
+        runtime_prompt_manifest,
+        topic=refined_topic,
+        instructions=user_instructions,
+        continuation_source=continuation_source,
+    )
     resolved_config = _apply_runtime_template(config, runtime_template)
     
     # Set resolved config pipeline title to refined topic
@@ -1139,6 +1148,41 @@ def _apply_artifact_manifest_metadata(
     metadata = dict(runtime_prompt_manifest.metadata or {})
     metadata.update(resolved.metadata())
     return runtime_prompt_manifest.model_copy(update={"metadata": metadata})
+
+
+def _apply_continuation_editorial_metadata(
+    runtime_template: RuntimeTemplate,
+    runtime_prompt_manifest: RuntimePromptManifest,
+    *,
+    topic: str,
+    instructions: str,
+    continuation_source: Optional[Dict[str, Any]],
+) -> tuple[RuntimeTemplate, RuntimePromptManifest]:
+    intent = infer_continuation_intent(
+        topic=topic,
+        instructions=instructions,
+        continuation_source=continuation_source,
+    )
+    if intent is None:
+        return runtime_template, runtime_prompt_manifest
+
+    terminal_sections = detect_terminal_sections(continuation_source)
+    document_state = {
+        "terminal_sections": terminal_sections,
+    }
+
+    template_metadata = dict(runtime_template.metadata or {})
+    template_metadata["continuation_intent"] = intent.to_dict()
+    template_metadata["document_state"] = document_state
+
+    manifest_metadata = dict(runtime_prompt_manifest.metadata or {})
+    manifest_metadata["continuation_intent"] = intent.to_dict()
+    manifest_metadata["document_state"] = document_state
+
+    return (
+        runtime_template.model_copy(update={"metadata": template_metadata}),
+        runtime_prompt_manifest.model_copy(update={"metadata": manifest_metadata}),
+    )
 
 
 def _pipeline_execution_mode(config: AppConfig) -> str:

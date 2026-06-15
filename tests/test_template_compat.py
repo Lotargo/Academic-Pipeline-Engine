@@ -12,6 +12,8 @@ def test_section_prompt_to_template_section_preserves_current_fields():
         name="theory",
         topic="State Machines",
         instruction="Use H2 and H3 headings.",
+        semantic_role="academic_section",
+        heading_policy="render_required",
     )
 
     template_section = section_prompt_to_template_section(section)
@@ -20,6 +22,8 @@ def test_section_prompt_to_template_section_preserves_current_fields():
     assert template_section.title == "State Machines"
     assert template_section.topic == "State Machines"
     assert template_section.instruction == "Use H2 and H3 headings."
+    assert template_section.semantic_role == "academic_section"
+    assert template_section.heading_policy.value == "render_required"
 
 
 def test_section_prompt_to_template_section_allows_empty_instruction():
