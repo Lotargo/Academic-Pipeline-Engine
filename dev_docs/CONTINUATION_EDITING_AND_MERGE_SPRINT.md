@@ -390,6 +390,7 @@ Tasks:
 - [x] Support inserting body content before terminal sections.
 - [x] Support updating references as a terminal operation.
 - [x] Store operations in run metadata for audit/UI diff.
+- [x] Add writer merge-operation payload path and apply assembler when valid structured JSON is returned.
 
 Definition of done:
 
@@ -401,7 +402,7 @@ Definition of done:
 
 ## Workstream 5: Reference Registry And Bibliography Merge
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Make citation and bibliography updates seamless for educational and scientific artifacts.
 
@@ -460,7 +461,7 @@ Tasks:
 - [ ] Show inferred continuation intent before generation.
 - [ ] Show source summary/continuity dossier in a collapsible editorial panel.
 - [ ] Show red flags as UI metadata, not final content.
-- [ ] Show operation summary after generation.
+- [~] Show operation summary after generation.
 - [ ] Add "view changes" mode for preserved/replaced/inserted/reference-updated content.
 - [ ] Add optional user override for intent and target section.
 

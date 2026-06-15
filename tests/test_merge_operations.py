@@ -7,6 +7,9 @@ from academic_pe.core.merge_operations import (
     MergeOperationType,
     apply_merge_operations,
     build_default_edit_plan,
+    compact_merge_patch_metadata,
+    parse_merge_operation_payload,
+    required_content_roles,
 )
 
 
@@ -122,3 +125,43 @@ def test_update_references_deduplicates_and_records_terminal():
 def test_merge_operation_validates_required_shape():
     with pytest.raises(ValueError, match="replace_tail requires paragraphs"):
         MergeOperation(op="replace_tail", target="analysis")
+
+
+def test_parse_merge_operation_payload_from_fenced_json():
+    payload = parse_merge_operation_payload(
+        """```json
+{
+  "operation_outputs": {
+    "continuation": "New body."
+  },
+  "reviewer_notes": ["ok"]
+}
+```"""
+    )
+
+    assert payload.operation_outputs == {"continuation": "New body."}
+    assert payload.reviewer_notes == ["ok"]
+
+
+def test_required_content_roles_ignores_inline_content():
+    roles = required_content_roles(
+        [
+            {"op": "insert_before", "target": "references", "content_role": "continuation"},
+            {"op": "update_references", "target": "references", "content_role": "references", "content": "Inline"},
+        ]
+    )
+
+    assert roles == ["continuation"]
+
+
+def test_compact_merge_patch_metadata_omits_full_assembled_context():
+    patch = apply_merge_operations(
+        _state(),
+        [{"op": "append_after", "target": "analysis", "content_role": "continuation"}],
+        {"continuation": "New analysis."},
+    )
+
+    metadata = compact_merge_patch_metadata(patch)
+
+    assert metadata["assembled_section_order"] == ["introduction", "analysis", "references"]
+    assert "assembled_context" not in metadata

@@ -1026,6 +1026,108 @@ def test_create_orchestrator_from_config_adds_continuation_intent_metadata():
     assert orch.runtime_template.metadata["continuation_intent"]["intent"] == "bridge_and_continue"
 
 
+def test_pipeline_applies_structured_merge_operation_payload():
+    from academic_pe.core.continuation import ContinuationIntent
+    from academic_pe.core.merge_operations import build_default_edit_plan
+
+    class MergePayloadProvider(MockProvider):
+        def __init__(self):
+            self.prompts = []
+
+        def generate(self, system_prompt: str, user_prompt: str, model: str, temperature: float, on_delta=None) -> str:
+            self.prompts.append(user_prompt)
+            if "Produce merge-operation payloads" in user_prompt:
+                return """
+{
+  "operation_outputs": {
+    "continuation": "New analysis paragraph."
+  }
+}
+"""
+            return "Plan the continuation."
+
+    continuation_source = {
+        "context": {
+            "introduction": "Existing intro.",
+            "analysis": "Existing analysis.",
+            "references": "1. Existing source.",
+        },
+        "runtime_template": {
+            "sections": [
+                {"name": "introduction", "title": "Introduction", "instruction": "Preserve."},
+                {"name": "analysis", "title": "Analysis", "instruction": "Continue."},
+                {
+                    "name": "references",
+                    "title": "References",
+                    "instruction": "Preserve sources.",
+                    "semantic_role": "reference_section",
+                },
+            ]
+        },
+    }
+    edit_plan = build_default_edit_plan(
+        ContinuationIntent.continue_append,
+        ["references"],
+    )
+    runtime_manifest = RuntimePromptManifest(
+        source=RuntimeTemplateSource.custom,
+        prompt_manifest=PromptManifest(writer_role="Writer", reviewer_role="Reviewer"),
+        metadata={"edit_plan": edit_plan.model_dump(mode="json")},
+    )
+    runtime_template = RuntimeTemplate(
+        source=RuntimeTemplateSource.custom,
+        name="Continuation",
+        category="general",
+        sections=[
+            TemplateSection(name="introduction", title="Introduction", instruction="Preserve."),
+            TemplateSection(name="analysis", title="Analysis", instruction="Continue."),
+            TemplateSection(
+                name="references",
+                title="References",
+                instruction="Preserve sources.",
+                semantic_role="reference_section",
+            ),
+        ],
+    )
+    config = _make_config()
+    llm = MergePayloadProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(
+        writer=writer,
+        config=config,
+        runtime_template=runtime_template,
+        runtime_prompt_manifest=runtime_manifest,
+        continuation_source=continuation_source,
+    )
+    orch.user_topic = "Continue"
+
+    orch.run_pipeline(render_artifact=False)
+
+    assert orch.context["introduction"] == "Existing intro."
+    assert orch.context["analysis"] == "Existing analysis."
+    assert orch.context["continuation"] == "New analysis paragraph."
+    assert orch.context["references"] == "1. Existing source."
+    assert [section.name for section in orch._config.pipeline.sections] == [
+        "introduction",
+        "analysis",
+        "continuation",
+        "references",
+    ]
+    assert [section.name for section in orch.runtime_template.sections] == [
+        "introduction",
+        "analysis",
+        "continuation",
+        "references",
+    ]
+    assert orch.runtime_prompt_manifest.metadata["merge_patch"]["assembled_section_order"] == [
+        "introduction",
+        "analysis",
+        "continuation",
+        "references",
+    ]
+    assert any("Produce merge-operation payloads" in prompt for prompt in llm.prompts)
+
+
 def test_create_orchestrator_from_config_inherits_top_level_continuation_artifact_metadata():
     config = _make_config()
     manifests = {

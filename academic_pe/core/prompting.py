@@ -100,6 +100,39 @@ Return a concise Markdown plan with:
 """
 
 
+DEFAULT_MERGE_OPERATION_TEMPLATE = """Produce merge-operation payloads for continuing or editing the existing artifact.
+
+{{ language_instruction }}
+User topic: {{ user_topic }}
+{% if user_instructions %}User instructions: {{ user_instructions }}{% endif %}
+
+[Edit Plan JSON]
+{{ edit_plan_json }}
+
+[Document State JSON]
+{{ document_state_json }}
+
+Rules:
+- Treat the previous document as the current artifact state.
+- Return ONLY valid JSON. Do not include Markdown fences, commentary, a full document, or editorial changelog text.
+- Write only payload text for the operation content roles required by the edit plan.
+- Preserve the source genre, voice/register, tense, terminology, heading style, and citation style.
+- If the edit plan includes `smooth_bridge`, rewrite only the requested closing/tail bridge text.
+- If the edit plan includes `continuation`, write only the new continuation body fragment.
+- If the edit plan includes `references`, write only reference entries to merge.
+- Do not include internal planning headings such as exposition, development, risks, red_flags, continuity notes, or pacing notes.
+- Do not put body continuation after terminal sections such as references or appendices.
+
+Required JSON shape:
+{
+  "operation_outputs": {
+    "content_role_from_edit_plan": "payload text"
+  },
+  "reviewer_notes": []
+}
+"""
+
+
 DEFAULT_REVISION_TEMPLATE = """Revise the section about {{ section.topic }}.
 Address these reviewer issues: {{ reviewer_reason }}
 {{ section.instruction }}

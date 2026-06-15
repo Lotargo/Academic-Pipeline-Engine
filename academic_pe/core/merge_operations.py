@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from collections import OrderedDict
 from enum import Enum
 from typing import Dict, Iterable, List, Mapping, Optional
@@ -74,6 +76,63 @@ class MergePatch(BaseModel):
     updated_references: List[str] = Field(default_factory=list)
     reviewer_notes: List[str] = Field(default_factory=list)
     operation_summary: List[dict] = Field(default_factory=list)
+
+
+class MergeOperationPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    operation_outputs: Dict[str, str] = Field(default_factory=dict)
+    operations: Optional[List[MergeOperation]] = None
+    reviewer_notes: List[str] = Field(default_factory=list)
+
+
+class MergeOperationPayloadError(ValueError):
+    pass
+
+
+def parse_merge_operation_payload(raw: str) -> MergeOperationPayload:
+    text = _extract_json_object(raw)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise MergeOperationPayloadError(f"Writer returned invalid merge-operation JSON: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise MergeOperationPayloadError("Writer merge-operation payload must be a JSON object")
+
+    try:
+        payload = MergeOperationPayload.model_validate(data)
+    except Exception as exc:
+        raise MergeOperationPayloadError(f"Writer merge-operation payload does not match schema: {exc}") from exc
+
+    if not payload.operation_outputs and not payload.operations:
+        raise MergeOperationPayloadError("Writer merge-operation payload must include operation_outputs or operations")
+    return payload
+
+
+def required_content_roles(operations: Iterable[MergeOperation | Mapping[str, object]]) -> List[str]:
+    roles: List[str] = []
+    for raw_operation in operations:
+        operation = (
+            raw_operation
+            if isinstance(raw_operation, MergeOperation)
+            else MergeOperation.model_validate(raw_operation)
+        )
+        if operation.content_role and operation.content is None and operation.content_role not in roles:
+            roles.append(operation.content_role)
+    return roles
+
+
+def compact_merge_patch_metadata(patch: MergePatch) -> dict:
+    return {
+        "operation_outputs": patch.operation_outputs,
+        "inserted_content": patch.inserted_content,
+        "replaced_ranges": patch.replaced_ranges,
+        "updated_references": patch.updated_references,
+        "reviewer_notes": patch.reviewer_notes,
+        "operation_summary": patch.operation_summary,
+        "assembled_section_order": list(patch.assembled_context.keys()),
+    }
 
 
 def build_default_edit_plan(intent: ContinuationIntent, terminal_sections: Iterable[str]) -> EditPlan:
@@ -402,3 +461,15 @@ def _summary(operation: MergeOperation, result: str) -> dict:
         "content_role": operation.content_role,
         "result": result,
     }
+
+
+def _extract_json_object(raw: str) -> str:
+    text = (raw or "").strip()
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        return fenced.group(1)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        return text
+    return text[start:end + 1]

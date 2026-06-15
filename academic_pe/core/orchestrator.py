@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 import re
 import signal
@@ -14,14 +15,21 @@ from academic_pe.core.document_structure import renderable_sections
 from academic_pe.core.document_state import extract_document_state
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import language_instruction, resolve_output_language
-from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
+from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPERATION_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_line_replace_patch, add_line_numbers
 from academic_pe.core.template_compat import template_section_to_section_prompt
 from academic_pe.core.template_selector import TemplateSelector
-from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate
+from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate, TemplateSection
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
-from academic_pe.core.merge_operations import build_default_edit_plan
+from academic_pe.core.merge_operations import (
+    EditPlan,
+    apply_merge_operations,
+    build_default_edit_plan,
+    compact_merge_patch_metadata,
+    parse_merge_operation_payload,
+    required_content_roles,
+)
 from academic_pe.manifests import ArtifactManifestResolver
 
 logger = logging.getLogger(__name__)
@@ -539,6 +547,146 @@ class Orchestrator:
         self._state = prev
         return prev
 
+    def _merge_edit_plan(self) -> Optional[EditPlan]:
+        metadata = self._runtime_metadata()
+        raw_plan = metadata.get("edit_plan")
+        if not isinstance(raw_plan, dict):
+            return None
+        try:
+            return EditPlan.model_validate(raw_plan)
+        except Exception as exc:
+            logger.warning("Continuation edit plan metadata is invalid; falling back to section drafting: %s", exc)
+            return None
+
+    def _runtime_metadata(self) -> Dict[str, Any]:
+        if self.runtime_prompt_manifest is not None:
+            return dict(self.runtime_prompt_manifest.metadata or {})
+        if self.runtime_template is not None:
+            return dict(self.runtime_template.metadata or {})
+        return {}
+
+    def _draft_with_merge_operations(self, target_language: str) -> bool:
+        if not self.continuation_source:
+            return False
+
+        edit_plan = self._merge_edit_plan()
+        if edit_plan is None:
+            return False
+
+        document_state = extract_document_state(self.continuation_source)
+        if not document_state.source_sections:
+            logger.info("Continuation merge flow skipped: no source sections extracted.")
+            return False
+
+        task = render_template(
+            DEFAULT_MERGE_OPERATION_TEMPLATE,
+            {
+                "language": target_language,
+                "language_instruction": language_instruction(target_language),
+                "user_topic": self.user_topic,
+                "user_instructions": self.user_instructions,
+                "edit_plan_json": json.dumps(edit_plan.model_dump(mode="json"), ensure_ascii=False, indent=2),
+                "document_state_json": json.dumps(document_state.model_dump(mode="json"), ensure_ascii=False, indent=2),
+            },
+        )
+        raw_payload = self._writer.process(
+            task,
+            context=self._continuation_context(),
+            document_sections=self.context,
+        )
+        self._capture_self_critique_summary(self._writer, stage="merge_operation_payload", section_name="merge_patch")
+
+        try:
+            payload = parse_merge_operation_payload(raw_payload)
+        except Exception as exc:
+            logger.warning(
+                "Writer did not return a valid merge-operation payload; falling back to section drafting. Raw preview: %r. Error: %s",
+                compact_log_preview(raw_payload),
+                exc,
+            )
+            return False
+
+        operations = payload.operations or edit_plan.operations
+        missing_roles = [
+            role
+            for role in required_content_roles(operations)
+            if not payload.operation_outputs.get(role, "").strip()
+        ]
+        if missing_roles:
+            logger.warning(
+                "Writer merge-operation payload is missing required content roles %s; falling back to section drafting.",
+                missing_roles,
+            )
+            return False
+
+        merge_patch = apply_merge_operations(
+            document_state,
+            operations,
+            payload.operation_outputs,
+        )
+        if payload.reviewer_notes:
+            merge_patch.reviewer_notes.extend(payload.reviewer_notes)
+
+        self._store_merge_patch_metadata(compact_merge_patch_metadata(merge_patch))
+        self._sync_sections_to_context_order(merge_patch.assembled_context)
+        for section_name, content in merge_patch.assembled_context.items():
+            self._set_section_content(section_name, content)
+
+        logger.info(
+            "Continuation merge flow assembled %d section(s) using %d operation(s).",
+            len(merge_patch.assembled_context),
+            len(operations),
+        )
+        return True
+
+    def _store_merge_patch_metadata(self, merge_patch_metadata: dict) -> None:
+        if self.runtime_template is not None:
+            metadata = dict(self.runtime_template.metadata or {})
+            metadata["merge_patch"] = merge_patch_metadata
+            self.runtime_template = self.runtime_template.model_copy(update={"metadata": metadata})
+        if self.runtime_prompt_manifest is not None:
+            metadata = dict(self.runtime_prompt_manifest.metadata or {})
+            metadata["merge_patch"] = merge_patch_metadata
+            self.runtime_prompt_manifest = self.runtime_prompt_manifest.model_copy(update={"metadata": metadata})
+
+    def _sync_sections_to_context_order(self, assembled_context: Dict[str, str]) -> None:
+        section_names = [name for name in assembled_context if name != "document_plan"]
+        existing_config_sections = {section.name: section for section in self._config.pipeline.sections}
+        existing_template_sections = {}
+        internal_template_sections: List[TemplateSection] = []
+        if self.runtime_template is not None:
+            for section in self.runtime_template.sections:
+                existing_template_sections[section.name] = section
+                if getattr(section.heading_policy, "value", section.heading_policy) == "internal_only":
+                    internal_template_sections.append(section)
+
+        resolved_config_sections: List[SectionPrompt] = []
+        resolved_template_sections: List[TemplateSection] = []
+        for name in section_names:
+            template_section = existing_template_sections.get(name) or TemplateSection(
+                name=name,
+                title=_humanize_section_name(name),
+                topic=_humanize_section_name(name),
+                instruction="Merged continuation content.",
+                semantic_role="body",
+                heading_policy="render_allowed",
+            )
+            resolved_template_sections.append(template_section)
+            resolved_config_sections.append(
+                existing_config_sections.get(name)
+                or template_section_to_section_prompt(template_section)
+            )
+
+        self._config.pipeline.sections = resolved_config_sections
+        if self.runtime_template is not None:
+            preserved_internal = [
+                section for section in internal_template_sections
+                if section.name not in {item.name for item in resolved_template_sections}
+            ]
+            self.runtime_template = self.runtime_template.model_copy(
+                update={"sections": [*resolved_template_sections, *preserved_internal]}
+            )
+
     def run_pipeline(self, render_artifact: bool = True) -> str:
         logger.info("Pipeline started.")
         output_path = "(no output)"
@@ -572,76 +720,77 @@ class Orchestrator:
             # --- DRAFTING ---
             self.transition_to(PipelineState.DRAFTING)
 
-            for section in self._config.pipeline.sections:
-                self._check_cancelled()
-                task = render_template(
-                    DEFAULT_DRAFT_TEMPLATE,
-                    {
-                        "section": section,
-                        "language": target_language,
-                        "language_instruction": language_instruction(target_language),
-                        "user_topic": self.user_topic,
-                        "user_instructions": self.user_instructions,
-                        "continuation_context": self._continuation_context(),
-                        "academic_mode": self._academic_mode_enabled(),
-                        "visualization_required": self._visualization_required(),
-                        "output_dir": self._config.pipeline.output_dir,
-                    },
-                )
-                logger.debug("Drafting section: %s", section.name)
-
-                max_sandbox_retries = 3
-                draft_content = ""
-                error_feedback = ""
-
-                for attempt in range(max_sandbox_retries):
+            if not self._draft_with_merge_operations(target_language):
+                for section in self._config.pipeline.sections:
                     self._check_cancelled()
-                    current_task = task
-                    if error_feedback:
-                        current_task += f"\n\n[Sandbox Error Feedback]\nYour previous code failed. {error_feedback}"
-
-                    draft_parts: List[str] = []
-
-                    def on_delta(delta: str, section_name: str = section.name) -> None:
-                        draft_parts.append(delta)
-                        self._emit_section_delta(section_name, delta, "".join(draft_parts))
-
-                    draft_content = self._writer.process(
-                        current_task,
-                        context=self._document_memory(section.name),
-                        on_delta=on_delta,
-                        document_sections=self.context,
+                    task = render_template(
+                        DEFAULT_DRAFT_TEMPLATE,
+                        {
+                            "section": section,
+                            "language": target_language,
+                            "language_instruction": language_instruction(target_language),
+                            "user_topic": self.user_topic,
+                            "user_instructions": self.user_instructions,
+                            "continuation_context": self._continuation_context(),
+                            "academic_mode": self._academic_mode_enabled(),
+                            "visualization_required": self._visualization_required(),
+                            "output_dir": self._config.pipeline.output_dir,
+                        },
                     )
-                    self._capture_self_critique_summary(self._writer, stage="drafting", section_name=section.name)
+                    logger.debug("Drafting section: %s", section.name)
 
-                    if self._sandbox_enabled():
-                        try:
-                            from academic_pe.core.sandbox import execute_sandbox_blocks
-                            draft_content = execute_sandbox_blocks(draft_content)
+                    max_sandbox_retries = 3
+                    draft_content = ""
+                    error_feedback = ""
+
+                    for attempt in range(max_sandbox_retries):
+                        self._check_cancelled()
+                        current_task = task
+                        if error_feedback:
+                            current_task += f"\n\n[Sandbox Error Feedback]\nYour previous code failed. {error_feedback}"
+
+                        draft_parts: List[str] = []
+
+                        def on_delta(delta: str, section_name: str = section.name) -> None:
+                            draft_parts.append(delta)
+                            self._emit_section_delta(section_name, delta, "".join(draft_parts))
+
+                        draft_content = self._writer.process(
+                            current_task,
+                            context=self._document_memory(section.name),
+                            on_delta=on_delta,
+                            document_sections=self.context,
+                        )
+                        self._capture_self_critique_summary(self._writer, stage="drafting", section_name=section.name)
+
+                        if self._sandbox_enabled():
+                            try:
+                                from academic_pe.core.sandbox import execute_sandbox_blocks
+                                draft_content = execute_sandbox_blocks(draft_content)
+                                break
+                            except Exception as exc:
+                                from academic_pe.core.sandbox import SandboxExecutionError
+                                if isinstance(exc, SandboxExecutionError):
+                                    logger.warning(
+                                        "Sandbox execution failed for section %s (attempt %d/%d): %s",
+                                        section.name,
+                                        attempt + 1,
+                                        max_sandbox_retries,
+                                        exc,
+                                    )
+                                    if attempt == max_sandbox_retries - 1:
+                                        raise PipelineError(f"Failed to generate valid executable code in section {section.name} after {max_sandbox_retries} attempts. Error: {exc}") from exc
+                                    error_feedback = f"The code block you wrote:\n```python-run\n{exc.code}\n```\nfailed with error:\n{exc}"
+                                else:
+                                    raise
+                        else:
                             break
-                        except Exception as exc:
-                            from academic_pe.core.sandbox import SandboxExecutionError
-                            if isinstance(exc, SandboxExecutionError):
-                                logger.warning(
-                                    "Sandbox execution failed for section %s (attempt %d/%d): %s",
-                                    section.name,
-                                    attempt + 1,
-                                    max_sandbox_retries,
-                                    exc,
-                                )
-                                if attempt == max_sandbox_retries - 1:
-                                    raise PipelineError(f"Failed to generate valid executable code in section {section.name} after {max_sandbox_retries} attempts. Error: {exc}") from exc
-                                error_feedback = f"The code block you wrote:\n```python-run\n{exc.code}\n```\nfailed with error:\n{exc}"
-                            else:
-                                raise
-                    else:
-                        break
 
-                draft_content = strip_markdown_fences(draft_content)
-                if target_language == "ru" and not has_cyrillic(draft_content):
-                    logger.info("Translating section %s to Russian...", section.name)
-                    draft_content = translate_markdown_to_ru(draft_content)
-                self.context[section.name] = strip_markdown_fences(draft_content)
+                    draft_content = strip_markdown_fences(draft_content)
+                    if target_language == "ru" and not has_cyrillic(draft_content):
+                        logger.info("Translating section %s to Russian...", section.name)
+                        draft_content = translate_markdown_to_ru(draft_content)
+                    self.context[section.name] = strip_markdown_fences(draft_content)
 
             # --- REVIEWING ---
             self.transition_to(PipelineState.REVIEWING)
@@ -1196,6 +1345,10 @@ def _compact_document_state_metadata(document_state: Any) -> dict:
         if isinstance(section, dict):
             section.pop("content", None)
     return data
+
+
+def _humanize_section_name(name: str) -> str:
+    return re.sub(r"[_-]+", " ", name).strip().title()
 
 
 def _pipeline_execution_mode(config: AppConfig) -> str:

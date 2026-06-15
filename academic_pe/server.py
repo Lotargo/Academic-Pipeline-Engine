@@ -96,6 +96,7 @@ current_run: Dict[str, Any] = {
     "continuation_intent": None,
     "document_state": None,
     "edit_plan": None,
+    "merge_patch": None,
 }
 
 
@@ -289,6 +290,7 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "continuation_intent": data.get("continuation_intent"),
         "document_state": data.get("document_state"),
         "edit_plan": data.get("edit_plan"),
+        "merge_patch": data.get("merge_patch"),
     }
 
 
@@ -324,7 +326,7 @@ def _editorial_runtime_metadata(runtime_prompt_manifest: Optional[dict]) -> dict
     metadata = runtime_prompt_manifest.get("metadata")
     if not isinstance(metadata, dict):
         return {}
-    keys = ["continuation_intent", "document_state", "edit_plan"]
+    keys = ["continuation_intent", "document_state", "edit_plan", "merge_patch"]
     return {key: metadata[key] for key in keys if key in metadata}
 
 
@@ -889,6 +891,21 @@ def run_pipeline_thread(
         # Update current context preview
         with run_lock:
             current_run["context"] = dict(orch.context)
+            current_run["runtime_template"] = (
+                orch.runtime_template.model_dump(mode="json")
+                if orch.runtime_template is not None
+                else current_run.get("runtime_template")
+            )
+            current_run["runtime_prompt_manifest"] = (
+                orch.runtime_prompt_manifest.model_dump(mode="json")
+                if orch.runtime_prompt_manifest is not None
+                else current_run.get("runtime_prompt_manifest")
+            )
+            editorial_metadata = _editorial_runtime_metadata(current_run["runtime_prompt_manifest"])
+            current_run["continuation_intent"] = editorial_metadata.get("continuation_intent")
+            current_run["document_state"] = editorial_metadata.get("document_state")
+            current_run["edit_plan"] = editorial_metadata.get("edit_plan")
+            current_run["merge_patch"] = editorial_metadata.get("merge_patch")
             current_run["docx_filename"] = os.path.basename(output_path) if output_path else None
             current_run["export_report"] = None
             current_run["status"] = "COMPLETED"
@@ -938,6 +955,7 @@ def run_pipeline_thread(
             "continuation_intent": current_run.get("continuation_intent"),
             "document_state": current_run.get("document_state"),
             "edit_plan": current_run.get("edit_plan"),
+            "merge_patch": current_run.get("merge_patch"),
         })
         with open(metadata_filename, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
@@ -1017,6 +1035,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["continuation_intent"] = None
         current_run["document_state"] = None
         current_run["edit_plan"] = None
+        current_run["merge_patch"] = None
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -1217,6 +1236,7 @@ def _write_export_metadata(
         "continuation_intent": current_run.get("continuation_intent"),
         "document_state": current_run.get("document_state"),
         "edit_plan": current_run.get("edit_plan"),
+        "merge_patch": current_run.get("merge_patch"),
     })
     with open(metadata_filename, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
