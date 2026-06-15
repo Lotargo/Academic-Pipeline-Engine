@@ -1,3 +1,0 @@
-{"ts": "2026-06-16T06:10:34", "scenario": "mistral_ocr_direct", "kind": "scenario_start", "message": "Scenario started"}
-{"ts": "2026-06-16T06:10:38", "scenario": "mistral_ocr_direct", "kind": "scenario_check", "message": "mistral OCR direct checks completed", "tokens": 28, "has_marker": true}
-{"ts": "2026-06-16T06:10:38", "scenario": "mistral_ocr_direct", "kind": "scenario_result", "message": "Scenario completed", "result": "PASS", "issues": [], "details": {"tokens": 28, "has_marker": true}, "elapsed_seconds": 4.0}
