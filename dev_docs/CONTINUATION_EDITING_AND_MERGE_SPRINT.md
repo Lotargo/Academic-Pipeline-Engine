@@ -1,7 +1,7 @@
 # Continuation, Editing, and Document Merge Sprint
 
 Date: 2026-06-15  
-Status: Planned  
+Status: In progress
 Scope: Continuation semantics, in-place editing, section heading policy, source/reference merging, document assembly, and reviewer/exporter checks.
 
 ## Sprint Goal
@@ -307,18 +307,18 @@ Exporter/assembler:
 
 ## Workstream 1: Heading And Section Policy
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Separate internal planning structure from final document headings.
 
 Tasks:
 
-- [ ] Add heading policy fields to runtime template/section structures.
-- [ ] Add semantic roles such as `chapter`, `academic_section`, `narrative_beat`, `editorial_note`, `reference_section`, `appendix`, `glossary`.
-- [ ] Update planner prompt/schema so it labels internal-only blocks explicitly.
-- [ ] Update writer prompt so it never renders `internal_only` titles.
-- [ ] Update exporter/preview to respect heading policy.
-- [ ] Add regression tests where `exposition/development/red_flags` are internal but user-mandated chapter titles are rendered.
+- [x] Add heading policy fields to runtime template/section structures.
+- [x] Add semantic roles such as `chapter`, `academic_section`, `narrative_beat`, `editorial_note`, `reference_section`, `appendix`, `glossary`.
+- [x] Update planner prompt/schema so it labels internal-only blocks explicitly.
+- [x] Update writer prompt so it never renders `internal_only` titles.
+- [x] Update exporter/preview to respect heading policy.
+- [x] Add regression tests where `exposition/development/red_flags` are internal but user-mandated chapter titles are rendered.
 
 Definition of done:
 
@@ -330,18 +330,18 @@ Definition of done:
 
 ## Workstream 2: Continuation Intent Resolver
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Infer the editing operation the user likely wants.
 
 Tasks:
 
-- [ ] Add continuation intent enum.
-- [ ] Detect no-instruction Continue as `continue_append` or `bridge_and_continue`.
-- [ ] Detect requests like "improve", "rewrite", "expand chapter 2", "add bibliography", "finish conclusion".
-- [ ] Store intent in runtime metadata.
-- [ ] Add UI display for inferred intent with override later if needed.
-- [ ] Add tests for creative, school, technical, and academic prompts.
+- [x] Add continuation intent enum.
+- [x] Detect no-instruction Continue as `continue_append` or `bridge_and_continue`.
+- [x] Detect requests like "improve", "rewrite", "expand chapter 2", "add bibliography", "finish conclusion".
+- [x] Store intent in runtime metadata.
+- [~] Add UI display for inferred intent with override later if needed.
+- [x] Add tests for creative, school, technical, and academic prompts.
 
 Definition of done:
 
@@ -353,15 +353,15 @@ Definition of done:
 
 ## Workstream 3: Document State Extraction
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Convert the existing generated/archive/uploaded document into a structured state object before planning.
 
 Tasks:
 
 - [ ] Extract heading tree from Markdown/context sections.
-- [ ] Identify terminal sections.
-- [ ] Identify source section order and visible titles.
+- [x] Identify terminal sections.
+- [x] Identify source section order and visible titles.
 - [ ] Extract style profile.
 - [ ] Extract reference registry when references exist.
 - [ ] Extract table/figure/formula labels when present.
@@ -377,19 +377,19 @@ Definition of done:
 
 ## Workstream 4: Merge Operation Schema
 
-Status: `[ ] Planned`
+Status: `[~] In progress`
 
 Objective: Introduce deterministic edit operations between planning and writing.
 
 Tasks:
 
-- [ ] Define Pydantic models for edit operations.
-- [ ] Add validation for operation targets.
-- [ ] Add operation application logic.
-- [ ] Support replacing tail paragraphs for seamless bridges.
-- [ ] Support inserting body content before terminal sections.
-- [ ] Support updating references as a terminal operation.
-- [ ] Store operations in run metadata for audit/UI diff.
+- [x] Define Pydantic models for edit operations.
+- [~] Add validation for operation targets.
+- [x] Add operation application logic.
+- [x] Support replacing tail paragraphs for seamless bridges.
+- [x] Support inserting body content before terminal sections.
+- [x] Support updating references as a terminal operation.
+- [x] Store operations in run metadata for audit/UI diff.
 
 Definition of done:
 

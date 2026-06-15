@@ -95,6 +95,7 @@ current_run: Dict[str, Any] = {
     "artifact_override": None,
     "continuation_intent": None,
     "document_state": None,
+    "edit_plan": None,
 }
 
 
@@ -287,6 +288,7 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "artifact_override": data.get("artifact_override"),
         "continuation_intent": data.get("continuation_intent"),
         "document_state": data.get("document_state"),
+        "edit_plan": data.get("edit_plan"),
     }
 
 
@@ -322,7 +324,7 @@ def _editorial_runtime_metadata(runtime_prompt_manifest: Optional[dict]) -> dict
     metadata = runtime_prompt_manifest.get("metadata")
     if not isinstance(metadata, dict):
         return {}
-    keys = ["continuation_intent", "document_state"]
+    keys = ["continuation_intent", "document_state", "edit_plan"]
     return {key: metadata[key] for key in keys if key in metadata}
 
 
@@ -818,6 +820,7 @@ def run_pipeline_thread(
             editorial_metadata = _editorial_runtime_metadata(current_run["runtime_prompt_manifest"])
             current_run["continuation_intent"] = editorial_metadata.get("continuation_intent")
             current_run["document_state"] = editorial_metadata.get("document_state")
+            current_run["edit_plan"] = editorial_metadata.get("edit_plan")
         
         # Store orchestrator for cancellation
         with _orchestrator_lock:
@@ -934,6 +937,7 @@ def run_pipeline_thread(
             "reviewer_feedback": current_run["reviewer_feedback"],
             "continuation_intent": current_run.get("continuation_intent"),
             "document_state": current_run.get("document_state"),
+            "edit_plan": current_run.get("edit_plan"),
         })
         with open(metadata_filename, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
@@ -1012,6 +1016,7 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["artifact_override"] = payload.artifact_override
         current_run["continuation_intent"] = None
         current_run["document_state"] = None
+        current_run["edit_plan"] = None
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -1211,6 +1216,7 @@ def _write_export_metadata(
         "export_report": result.to_dict(),
         "continuation_intent": current_run.get("continuation_intent"),
         "document_state": current_run.get("document_state"),
+        "edit_plan": current_run.get("edit_plan"),
     })
     with open(metadata_filename, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)

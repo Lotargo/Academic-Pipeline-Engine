@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol
 from academic_pe.core.config import AppConfig, TemplateMode, load_config, SectionPrompt
 from academic_pe.core.continuation import detect_terminal_sections, infer_continuation_intent
 from academic_pe.core.document_structure import renderable_sections
+from academic_pe.core.document_state import extract_document_state
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import language_instruction, resolve_output_language
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
@@ -20,6 +21,7 @@ from academic_pe.core.template_compat import template_section_to_section_prompt
 from academic_pe.core.template_selector import TemplateSelector
 from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
+from academic_pe.core.merge_operations import build_default_edit_plan
 from academic_pe.manifests import ArtifactManifestResolver
 
 logger = logging.getLogger(__name__)
@@ -1166,23 +1168,34 @@ def _apply_continuation_editorial_metadata(
     if intent is None:
         return runtime_template, runtime_prompt_manifest
 
-    terminal_sections = detect_terminal_sections(continuation_source)
-    document_state = {
-        "terminal_sections": terminal_sections,
-    }
+    document_state_model = extract_document_state(continuation_source)
+    terminal_sections = document_state_model.terminal_sections or detect_terminal_sections(continuation_source)
+    document_state = _compact_document_state_metadata(document_state_model)
+    edit_plan = build_default_edit_plan(intent.intent, terminal_sections).model_dump(mode="json")
 
     template_metadata = dict(runtime_template.metadata or {})
     template_metadata["continuation_intent"] = intent.to_dict()
     template_metadata["document_state"] = document_state
+    template_metadata["edit_plan"] = edit_plan
 
     manifest_metadata = dict(runtime_prompt_manifest.metadata or {})
     manifest_metadata["continuation_intent"] = intent.to_dict()
     manifest_metadata["document_state"] = document_state
+    manifest_metadata["edit_plan"] = edit_plan
 
     return (
         runtime_template.model_copy(update={"metadata": template_metadata}),
         runtime_prompt_manifest.model_copy(update={"metadata": manifest_metadata}),
     )
+
+
+def _compact_document_state_metadata(document_state: Any) -> dict:
+    data = document_state.model_dump(mode="json")
+    data["rendered_body"] = {}
+    for section in data.get("source_sections", []):
+        if isinstance(section, dict):
+            section.pop("content", None)
+    return data
 
 
 def _pipeline_execution_mode(config: AppConfig) -> str:

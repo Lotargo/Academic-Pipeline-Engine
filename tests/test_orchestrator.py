@@ -1015,6 +1015,14 @@ def test_create_orchestrator_from_config_adds_continuation_intent_metadata():
     metadata = orch.runtime_prompt_manifest.metadata
     assert metadata["continuation_intent"]["intent"] == "bridge_and_continue"
     assert metadata["document_state"]["terminal_sections"] == ["references"]
+    assert metadata["document_state"]["rendered_body"] == {}
+    assert "content" not in metadata["document_state"]["source_sections"][0]
+    assert [operation["op"] for operation in metadata["edit_plan"]["operations"]] == [
+        "preserve",
+        "replace_tail",
+        "insert_before",
+        "move_terminal_sections_to_end",
+    ]
     assert orch.runtime_template.metadata["continuation_intent"]["intent"] == "bridge_and_continue"
 
 

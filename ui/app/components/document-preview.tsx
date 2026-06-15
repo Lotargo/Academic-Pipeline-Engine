@@ -45,6 +45,7 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
   const manifest = source.resolved_manifest || source.runtime_prompt_manifest?.metadata?.resolved_manifest
   const continuationIntent = source.continuation_intent || source.runtime_prompt_manifest?.metadata?.continuation_intent
   const documentState = source.document_state || source.runtime_prompt_manifest?.metadata?.document_state
+  const editPlan = source.edit_plan || source.runtime_prompt_manifest?.metadata?.edit_plan
 
   const manifestId = manifest?.id || contract?.artifact || summary?.selected_manifest || ""
   const version = manifest?.version || ""
@@ -57,7 +58,8 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
   const forbidList = manifest?.forbid || contract?.forbid || []
   const continuationIntentLabel = continuationIntent?.intent || ""
   const terminalSections = Array.isArray(documentState?.terminal_sections) ? documentState.terminal_sections : []
-  const hasDebugInfo = !!manifestId || !!version || confidence !== null || matchedPhrases.length > 0 || forbidList.length > 0 || !!continuationIntentLabel || terminalSections.length > 0
+  const editOperations = Array.isArray(editPlan?.operations) ? editPlan.operations : []
+  const hasDebugInfo = !!manifestId || !!version || confidence !== null || matchedPhrases.length > 0 || forbidList.length > 0 || !!continuationIntentLabel || terminalSections.length > 0 || editOperations.length > 0
 
   const exportableContext = Object.fromEntries(
     Object.entries(context).filter(([key]) => key !== "document_plan" && !hiddenSectionIds.has(key))
@@ -617,6 +619,18 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
                     {terminalSections.map((section: string, idx: number) => (
                       <span key={idx} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                         {section}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {editOperations.length > 0 && (
+                <div className="border-b pb-1.5 border-border/40 space-y-1">
+                  <span className="text-muted-foreground">Edit Ops:</span>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {editOperations.map((operation: any, idx: number) => (
+                      <span key={idx} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                        {operation?.op || "op"}
                       </span>
                     ))}
                   </div>
