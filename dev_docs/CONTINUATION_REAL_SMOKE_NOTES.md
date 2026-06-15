@@ -77,3 +77,16 @@ Follow-up: exports\_smoke\20260616_030132\technical_continuation\stage_log.jsonl
 - The final `OSError` occurred after the outer command timeout while the child process was still logging. The runner now treats stdout as best-effort and keeps JSONL as the source of truth.
 - Diagnostic rerun: `technical_continuation --disable-expensive-loops` after source-section alignment completed PASS in 92.8s with real `zen` provider. This does not close the full gate, but it confirms the previous block was caused by smoke harness/configuration and expensive loops, not by an unavoidable provider hang.
 - Follow-up: keep source-section alignment in the runner; either run smoke with `--disable-expensive-loops` for gate diagnostics or add bounded per-agent-call timeouts before enabling full self-critique/retry loops.
+
+## Run 2026-06-16T03:08:19 - creative_continuation
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: Creative continuation (creative_continuation)
+Expected checks: same story rather than restart; no visible exposition/development/red flags headings; source part style preserved; continuation intent and merge metadata present
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: PASS
+Elapsed: 227.4s
+Observed imbalance: none
+Follow-up: exports\_smoke\20260616_030819\creative_continuation\stage_log.jsonl
