@@ -27,7 +27,6 @@ const brandFont = Space_Grotesk({
 export const metadata: Metadata = {
   title: "Academic PE - AI Documentation Engine",
   description: "Academic Pipeline Engine - Enterprise-grade AI academic and technical paper generation platform",
-  generator: "v0.app",
   icons: {
     icon: "/icon.svg",
   },

@@ -10,74 +10,82 @@
 
 # Academic Pipeline Engine
 
-Academic Pipeline Engine - это рабочий прототип системы для генерации, ревью и экспорта академических, технических и свободно-структурированных документов через набор LLM-агентов.
+Academic Pipeline Engine - рабочий прототип агентной системы для подготовки, ревью, продолжения и экспорта документов. Проект ориентирован не только на академические статьи: он умеет маршрутизировать запросы по типу артефакта, сохранять жанр и структуру, запускать текстовый pipeline через LLM-агентов и отдельно экспортировать готовый черновик в DOCX/PDF.
 
-Проект уже не похож на одиночный скрипт вокруг LLM. Внутри есть state machine, конфигурируемые агенты, шаблоны документов, manifest/contract слой для защиты от жанрового дрейфа, FastAPI-сервер, Next.js-интерфейс, история работ, экспорт в DOCX/PDF и набор автоматических проверок качества.
+Система состоит из FastAPI backend, Next.js интерфейса, FSM-оркестратора, конфигурируемых агентов, библиотеки шаблонов, manifest/contract слоя, quality gate, истории работ и экспортного QA. Локально проект можно поднять в mock-режиме без API-ключей.
 
-README промежуточный: он фиксирует текущее состояние проекта и помогает быстро войти в кодовую базу.
+## Возможности
 
-## Что Уже Есть
-
-- Генерация черновика по теме и пользовательским инструкциям.
-- Pipeline на состояниях `INIT -> PLANNING -> DRAFTING -> REVIEWING -> RENDERING -> DONE`.
-- Агенты `writer`, `reviewer`, `planner`, `example_generator`, создаваемые из YAML-конфига.
-- Поддержка провайдеров `mock`, `openai`, `custom_openai`, `anthropic`, `google`, `lm_studio`, `zen`.
-- Режимы шаблонов: `custom`, `fixed`, `auto`.
-- Библиотека шаблонов документов в `config/document_templates.yaml`.
-- Artifact manifests в `config/artifact_manifests.yaml` для выбора типа артефакта и contract drift checks.
-- Quality gate: объем секций, LaTeX-баланс, raw Markdown/code-fence артефакты.
-- Явный экспорт после генерации: черновик создается отдельно, DOCX/PDF публикуются отдельным действием.
-- DOCX renderer на `python-docx`, таблицы, Markdown-фрагменты, формулы и простые chart-блоки.
-- Export QA: проверка структуры DOCX, безопасное имя файла, PDF-конвертация через LibreOffice при наличии.
-- FastAPI API с SSE-статусом пайплайна.
-- Next.js UI: live preview, FSM monitor, консоль логов, конфиг-редактор, история, архив, профиль, продолжение прошлой работы.
-- Тесты для оркестратора, агентов, контрактов, манифестов, шаблонов, export QA, sandbox и API-контракта.
+- Генерация черновиков по теме, инструкциям, выбранному шаблону и режиму исполнения.
+- Artifact-first маршрутизация: poem, story, school essay, academic paper, technical README, plan, report, continuation и freeform fallback.
+- Два режима исполнения:
+  - `standard` сохраняет запрошенный жанр без лишней академизации.
+  - `academic` добавляет строгость, проверку допущений и доказательность там, где это совместимо с артефактом.
+- Режимы шаблонов `custom`, `fixed`, `auto`:
+  - `custom` берет секции из `config/agents.yaml`;
+  - `fixed` использует сохраненный шаблон из `config/document_templates.yaml`;
+  - `auto` строит runtime-шаблон через `PlannerAgent`.
+- Manifest/contract слой компилирует пользовательский замысел в проверяемый runtime contract и S-expression блок для агентов.
+- Prompt enhancement через `/api/prompt/enhance` с сохранением выбранного manifest/contract metadata.
+- Continuation mode: новая генерация может продолжать прошлую работу, наследуя структуру, стиль, manifest и contract metadata.
+- Агентный pipeline `INIT -> PLANNING -> DRAFTING -> REVIEWING -> RENDERING -> DONE`.
+- Writer/Reviewer loop с line-based patch revision и fallback на полную перегенерацию секции.
+- One-pass self-critique для агентов, если включен `self_critique`.
+- Quality gate: объем секций, LaTeX-баланс, raw code fence/Markdown artifacts.
+- Contract drift checks: жанровый дрейф, AI markers, запрещенные title page/citations/rubric/visualizations.
+- Academic sandbox для блоков `python-run` с `pandas`, `sympy`, `scipy`, `matplotlib` и автоисправлением при ошибках выполнения.
+- Explicit export: генерация сохраняет черновик, а DOCX/PDF создаются отдельным действием.
+- DOCX renderer на `python-docx`: Markdown headings, списки, таблицы, формулы, простые chart-блоки.
+- PDF export через LibreOffice/`soffice`, если он доступен в системе.
+- Next.js UI: live preview, FSM monitor, SSE-статусы, консоль логов, конфиг-редактор, история, архив, профиль, theme/language controls, continuation controls.
+- Тесты для оркестратора, API, конфигов, шаблонов, manifests, contracts, adapters, sandbox, export QA и frontend schema.
 
 ## Структура
 
 ```text
 academic_pe/
-  agents/        # BaseAgent, WriterAgent, ReviewerAgent, AgentFactory
-  contracts/     # Artifact contracts, S-expression render, drift checks
-  core/          # config, orchestrator, LLM providers, templates, sandbox, quality gate
-  manifests/     # artifact manifest loading/resolution
-  tools/         # DOCX renderer, LibreOffice discovery, export QA
-  server.py      # FastAPI app and API endpoints
+  agent_adapters/   # manifest/contract guidance for planner, writer, reviewer, exporter, researcher
+  agents/           # BaseAgent, WriterAgent, ReviewerAgent, PromptEnhancerAgent, factory
+  contracts/        # ArtifactContract, AgentContract, S-expression render, drift checks
+  core/             # config, orchestrator, LLM providers, templates, sandbox, quality gate
+  manifests/        # YAML manifest loading, selection evidence, fallback policy
+  tools/            # DOCX renderer, LibreOffice discovery, export QA
+  api_models.py     # FastAPI request/response models
+  server.py         # FastAPI app and endpoints
 
 config/
-  agents.example.yaml      # пример локального конфига агентов
-  document_templates.yaml  # сохраненные шаблоны документов
-  artifact_manifests.yaml  # правила выбора типа артефакта
-  frontend_schema.json     # JSON Schema для UI
+  agents.example.yaml      # starter runtime config; copy to config/agents.yaml
+  document_templates.yaml  # saved document templates and prompt manifests
+  artifact_manifests.yaml  # artifact routing manifests and execution overlays
+  frontend_schema.json     # JSON Schema exported for UI config editing
 
 ui/
-  app/            # Next.js app router
-  app/components/ # рабочий интерфейс, preview, FSM, config editor, sidebar
-  components/ui/  # shadcn/radix UI primitives
+  app/              # Next.js app router
+  app/components/   # workspace, preview, FSM, profile, archive, config editor
+  components/ui/    # UI primitives
 
-tests/            # pytest suite
-docs/             # техническая документация
-dev_docs/         # рабочие заметки и roadmap/sprint-документы
-exports/          # локальные результаты генерации и metadata
+docs/               # public project documentation
+tests/              # pytest suite
+exports/            # local generated drafts, metadata and exported artifacts
 ```
 
 ## Быстрый Старт
 
 ### 1. Подготовить конфиг
 
-`config/agents.yaml` игнорируется Git, потому что это локальная рабочая конфигурация.
+`config/agents.yaml` локальный и не хранится в Git. Скопируйте пример:
 
 ```powershell
 Copy-Item config/agents.example.yaml config/agents.yaml
 ```
 
-На Linux/macOS:
+Linux/macOS:
 
 ```bash
 cp config/agents.example.yaml config/agents.yaml
 ```
 
-По умолчанию пример использует `mock`, поэтому проект можно поднять без API-ключей.
+Пример использует `mock`, поэтому первый запуск возможен без внешних API-ключей.
 
 ### 2. Запуск через Docker Compose
 
@@ -90,7 +98,7 @@ docker compose up --build
 - Backend API: `http://localhost:8000`
 - Frontend UI: `http://localhost:3000`
 
-Примечание: PDF export и визуальная проверка зависят от LibreOffice/`soffice`. Текущий backend Dockerfile не устанавливает LibreOffice автоматически.
+PDF export зависит от LibreOffice/`soffice`. Backend Dockerfile не устанавливает LibreOffice автоматически.
 
 ### 3. Локальный запуск
 
@@ -98,7 +106,7 @@ Backend:
 
 ```bash
 poetry install
-poetry run uvicorn academic_pe.server:app --host 127.0.0.1 --port 8000
+poetry run uvicorn academic_pe.server:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Frontend:
@@ -109,7 +117,7 @@ pnpm install
 pnpm run dev
 ```
 
-Если `pnpm` не установлен, для разработки обычно сработает:
+Если `pnpm` не установлен:
 
 ```bash
 cd ui
@@ -127,24 +135,34 @@ npm run dev
 ./run.sh
 ```
 
-## Конфигурация И Секреты
+## Конфигурация
 
 Главный runtime-конфиг: `config/agents.yaml`.
 
 В нем задаются:
 
-- роли и системные промпты агентов;
-- LLM-провайдеры, модели, `temperature`;
-- retry и circuit breaker;
+- агенты, роли, провайдеры, модели, `temperature`, `system_prompt`;
+- `self_critique`, retry и circuit breaker;
 - quality gate;
-- секции документа;
-- режим шаблонов;
-- язык интерфейса и генерации;
-- директория экспорта.
+- FSM states/transitions;
+- стиль DOCX;
+- `pipeline.sections`, `template_mode`, `template_id`, `language`, `academic_mode`;
+- UI language;
+- dynamic examples.
 
-API-ключи можно задать через UI или переменные окружения. Локальный файл `config/secrets.json` игнорируется Git.
+Поддерживаемые провайдеры:
 
-Поддерживаемые переменные:
+```text
+mock
+openai
+custom_openai
+anthropic
+google
+lm_studio
+zen
+```
+
+API-ключи можно задать через UI, переменные окружения или локальный `config/secrets.json`. Файл секретов игнорируется Git.
 
 ```bash
 OPENAI_API_KEY=...
@@ -157,14 +175,14 @@ ZEN_API_KEY=...
 LIBREOFFICE_PATH=/path/to/soffice
 ```
 
-Для локальной OpenAI-compatible модели можно использовать:
+Для OpenAI-compatible локальной модели:
 
 ```yaml
 provider: custom_openai
 base_url: "http://localhost:11434/v1"
 ```
 
-или:
+Для LM Studio:
 
 ```yaml
 provider: lm_studio
@@ -173,22 +191,18 @@ base_url: "http://localhost:1234/v1"
 
 ## Как Работает Pipeline
 
-1. Пользователь отправляет тему и инструкции через UI или `POST /api/run`.
-2. Сервер загружает `config/agents.yaml`.
-3. Template selector выбирает структуру документа:
-   - `custom` - секции из `agents.yaml`;
-   - `fixed` - шаблон из `config/document_templates.yaml`;
-   - `auto` - временный runtime-шаблон от PlannerAgent.
-4. Artifact manifest resolver определяет тип артефакта и contract constraints.
-5. Orchestrator строит план документа.
-6. WriterAgent генерирует секции с учетом плана, предыдущих секций и continuation source.
-7. ReviewerAgent принимает или отклоняет документ.
-8. При `REJECTED` writer делает targeted revision.
-9. Quality gate и contract drift checks блокируют плохой результат до экспорта.
-10. Черновик сохраняется в историю.
-11. Пользователь явно запускает DOCX/PDF export.
+1. Пользователь отправляет тему, инструкции, шаблон, режим и optional continuation source через UI или `POST /api/run`.
+2. Сервер загружает `config/agents.yaml`, применяет runtime overrides и создает `run_id`.
+3. `TemplateSelector` выбирает структуру документа: `custom`, `fixed` или `auto`.
+4. `ArtifactManifestResolver` определяет тип артефакта, execution mode, ограничения и selection evidence.
+5. Contract compiler создает runtime `ArtifactContract`, agent contracts и S-expression contract block.
+6. `PromptManifestResolver` добавляет template/contract guidance в системные промпты агентов.
+7. Оркестратор планирует документ, пишет секции, запускает sandbox при необходимости и стримит состояние через SSE.
+8. Reviewer и deterministic gates проверяют результат; при reject Writer делает line-based patch revision.
+9. После успешной проверки черновик сохраняется в историю и metadata.
+10. Пользователь отдельно запускает DOCX или PDF export.
 
-Важно: генерация черновика и экспорт разделены. Это сделано специально, чтобы не создавать DOCX на каждый прогон и дать экспорту отдельный QA-этап.
+Генерация и экспорт намеренно разделены. Это уменьшает лишний рендеринг, дает отдельный QA-этап для файлов и позволяет экспортировать как активный, так и архивный документ.
 
 ## API
 
@@ -231,13 +245,19 @@ POST /api/context
 ```bash
 curl -X POST http://localhost:8000/api/run \
   -H "Content-Type: application/json" \
-  -d "{\"topic\":\"State machines in document pipelines\",\"instructions\":\"Write a compact technical report.\"}"
+  -d "{\"topic\":\"State machines in document pipelines\",\"instructions\":\"Write a compact technical report.\",\"template_mode\":\"auto\"}"
 ```
 
 Проверить состояние:
 
 ```bash
 curl http://localhost:8000/api/status
+```
+
+Проверить доступность LibreOffice для PDF export:
+
+```bash
+curl http://localhost:8000/api/export/prerequisites
 ```
 
 ## Разработка
@@ -261,7 +281,7 @@ cd ui
 pnpm run build
 ```
 
-Backend entrypoint:
+Backend dev server:
 
 ```bash
 poetry run uvicorn academic_pe.server:app --reload --host 127.0.0.1 --port 8000
@@ -277,23 +297,20 @@ pnpm run dev
 ## Текущее Состояние И Ограничения
 
 - Это активный прототип, а не стабильный публичный SDK.
-- `docs/` частично отстают от кода и еще содержат старые упоминания `src/`.
-- `config/agents.yaml` и `config/secrets.json` локальные и не должны попадать в Git.
+- Runtime state в backend пока опирается на in-memory `current_run`; история и артефакты хранятся файлово под `exports/`.
+- Одновременно поддерживается один активный запуск backend-процесса.
 - PDF export требует установленный LibreOffice/`soffice`.
-- Визуальная QA заявлена как направление, но фактическая глубина проверки зависит от доступности LibreOffice и возможностей reviewer-модели.
-- `ui/package.json` пока называется `my-v0-project`, это стоит переименовать перед публичным релизом.
-- В frontend build включено `typescript.ignoreBuildErrors`, так что TypeScript-долг лучше отдельно закрыть перед стабилизацией.
-- Слой хранения истории пока файловый: JSON metadata под `exports/_metadata`.
+- Visual QA зависит от возможности рендера DOCX и будущих reviewer/vision capabilities; структурный export QA уже выполняется без vision-модели.
+- OCR attachments и web research agent находятся в плане развития; continuation из уже созданных работ поддержан через metadata.
+- В frontend build включено `typescript.ignoreBuildErrors`; TypeScript-долг лучше закрыть отдельным стабилизационным проходом.
 
-## Полезные Документы
+## Документация
 
-- `docs/ARCHITECTURE.md` - архитектурный обзор.
-- `docs/ORCHESTRATION.md` - состояние pipeline и переходы.
-- `docs/CONFIGURATION_GUIDE.md` - конфиг агентов и секций.
-- `docs/AGENTS_AND_TOOLS.md` - агенты и инструменты.
-- `dev_docs/REFACTORING_MAP.md` - карта выполненного и оставшегося рефакторинга.
-- `dev_docs/DOCUMENT_EXPORT_AND_AGENT_TOOLS.md` - направление по export QA и constrained document tools.
-- `dev_docs/FRONTEND_UX_SPRINT.md` - недавний frontend UX sprint.
+- `docs/ARCHITECTURE.md` - архитектура backend, UI, template/manifest/contract и export слоев.
+- `docs/ORCHESTRATION.md` - FSM, sequence flow, review loop, cancellation и explicit export.
+- `docs/CONFIGURATION_GUIDE.md` - структура `agents.yaml`, шаблоны, провайдеры, секреты.
+- `docs/AGENTS_AND_TOOLS.md` - агенты, LLM providers, sandbox, renderer, export QA.
+- `docs/MANIFEST_CONTRACT_ARCHITECTURE.md` - границы manifest/contract пакетов и non-executable DSL.
 
 ## Лицензия
 
