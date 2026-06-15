@@ -18,6 +18,7 @@ class ContinuationSource(BaseModel):
     runtime_prompt_manifest: Optional[dict] = None
     template_mode: Optional[TemplateMode] = None
     template_id: Optional[str] = None
+    intent_override: Optional[str] = None
     metadata_id: Optional[str] = None
     run_id: Optional[str] = None
 

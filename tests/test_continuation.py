@@ -41,6 +41,21 @@ def test_continue_without_hard_ending_appends():
     assert resolution.intent == ContinuationIntent.continue_append
 
 
+def test_user_intent_override_wins_over_inferred_intent():
+    resolution = infer_continuation_intent(
+        topic="Continue",
+        instructions="",
+        continuation_source={
+            "intent_override": "revise_in_place",
+            "context": {"story": "They closed the door and smiled at the dawn. The end."},
+        },
+    )
+
+    assert resolution is not None
+    assert resolution.intent == ContinuationIntent.revise_in_place
+    assert resolution.signals == ["user_intent_override"]
+
+
 def test_improve_request_resolves_to_revise_in_place():
     resolution = infer_continuation_intent(
         topic="Essay",

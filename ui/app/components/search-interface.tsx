@@ -39,6 +39,17 @@ const ARTIFACT_OVERRIDE_OPTIONS = [
   { value: "unknown_freeform", label: "Freeform Fallback" },
 ]
 
+const CONTINUATION_INTENT_OPTIONS = [
+  { value: "", label: "Auto" },
+  { value: "continue_append", label: "Continue append" },
+  { value: "bridge_and_continue", label: "Bridge and continue" },
+  { value: "revise_in_place", label: "Revise in place" },
+  { value: "expand_section", label: "Expand section" },
+  { value: "complete_missing_section", label: "Complete missing section" },
+  { value: "update_references_only", label: "Update references only" },
+  { value: "restructure", label: "Restructure" },
+]
+
 function formatArtifactLabel(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return ""
   const knownOption = ARTIFACT_OVERRIDE_OPTIONS.find((option) => option.value === value)
@@ -77,6 +88,26 @@ function artifactDetection(status: any, selectedPaper: any) {
   }
 }
 
+function inferContinuationIntentLabel(source: any) {
+  const metadataIntent = source?.runtime_prompt_manifest?.metadata?.continuation_intent?.intent
+  if (typeof metadataIntent === "string" && metadataIntent.trim()) {
+    return metadataIntent
+  }
+
+  const context = source?.context || {}
+  const hardEnding = Object.entries(context).some(([name, value]) => {
+    const sectionName = String(name || "").toLowerCase()
+    const text = String(value || "").slice(-1200).toLowerCase()
+    return (
+      ["conclusion", "summary", "ending", "finale"].some((alias) => sectionName.includes(alias)) ||
+      /\b(the end|in conclusion|to conclude|overall|therefore)\b/.test(text) ||
+      /в\s+заключение|подведем\s+итог|в\s+итоге/i.test(text)
+    )
+  })
+
+  return hardEnding ? "bridge_and_continue" : "continue_append"
+}
+
 export function Search() {
   const { theme, setTheme } = useTheme()
   const [language, setLanguage] = useState<UiLanguage>("en")
@@ -96,6 +127,7 @@ export function Search() {
   const [consoleHeight, setConsoleHeight] = useState<number>(240)
   const [showDebugInfo, setShowDebugInfo] = useState<boolean>(false)
   const [artifactOverride, setArtifactOverride] = useState<string>("")
+  const [continuationIntentOverride, setContinuationIntentOverride] = useState<string>("")
   const notifiedRef = useRef(false)
   const fsmScrollRef = useRef<HTMLDivElement | null>(null)
   const lastFsmScrollResetKeyRef = useRef<string>("")
@@ -310,6 +342,9 @@ export function Search() {
     (status?.status === "COMPLETED" || status?.state === "DONE") &&
     Object.keys(currentExportableContext).length > 0
   const detectedArtifact = artifactDetection(status, selectedPaper)
+  const inferredContinuationIntent = continuationSource
+    ? inferContinuationIntentLabel(continuationSource)
+    : ""
   const detectedConfidenceLabel = typeof detectedArtifact?.confidence === "number"
     ? `${Math.round(detectedArtifact.confidence * 100)}%`
     : ""
@@ -490,6 +525,7 @@ export function Search() {
       return
     }
     setContinuationSource(buildContinuationSource(paper))
+    setContinuationIntentOverride("")
     setSelectedPaper(null)
     setArchivedWorksOpen(false)
     setActiveTab("workspace")
@@ -529,7 +565,12 @@ export function Search() {
           academic_mode: academicMode,
           artifact_override: artifactOverride || undefined,
           author: nickname.trim() || undefined,
-          continuation_source: continuationSource || undefined,
+          continuation_source: continuationSource
+            ? {
+                ...continuationSource,
+                intent_override: continuationIntentOverride || undefined,
+              }
+            : undefined,
         })
       })
       if (!res.ok) {
@@ -547,6 +588,7 @@ export function Search() {
         }))
       }
       setContinuationSource(null)
+      setContinuationIntentOverride("")
       toast.info(t.nav.pipelineDrafting)
     } catch (e: any) {
       toast.error(e.message || "Failed to start execution")
@@ -851,11 +893,40 @@ export function Search() {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => setContinuationSource(null)}
+                        onClick={() => {
+                          setContinuationSource(null)
+                          setContinuationIntentOverride("")
+                        }}
                         className="h-7 shrink-0 px-2 text-[11px] font-bold"
                       >
                         {language === "ru" ? "Сбросить" : "Clear"}
                       </Button>
+                    </div>
+                    <div className="mt-3 grid gap-2 border-t border-ape-primary/20 pt-3 sm:grid-cols-2">
+                      <div className="min-w-0 rounded-lg bg-background/55 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          Inferred intent
+                        </p>
+                        <p className="mt-0.5 truncate font-mono text-[11px] font-semibold">
+                          {inferredContinuationIntent || "auto"}
+                        </p>
+                      </div>
+                      <label className="min-w-0 rounded-lg bg-background/55 px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          Override intent
+                        </span>
+                        <select
+                          value={continuationIntentOverride}
+                          onChange={(event) => setContinuationIntentOverride(event.target.value)}
+                          className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 font-mono text-[11px] text-foreground outline-none"
+                        >
+                          {CONTINUATION_INTENT_OPTIONS.map((option) => (
+                            <option key={option.value || "auto"} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   </div>
                 )}

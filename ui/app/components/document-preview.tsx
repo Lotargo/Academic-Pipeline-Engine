@@ -99,6 +99,7 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
   const [exportedPdfFilename, setExportedPdfFilename] = useState<string | null>(null)
   const [exportReport, setExportReport] = useState<any>(null)
   const [editorialOpen, setEditorialOpen] = useState(true)
+  const [viewChanges, setViewChanges] = useState(false)
 
   useEffect(() => {
     setExportedFilename(docxFilename || null)
@@ -530,6 +531,51 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const changeKindForSection = (sectionId: string) => {
+    if (changedSections.replaced.includes(sectionId)) return "replaced"
+    if (changedSections.inserted.includes(sectionId)) return "inserted"
+    if (changedSections.references.includes(sectionId)) return "references"
+    return "preserved"
+  }
+
+  const changeBadgeClass = (kind: string) => {
+    if (kind === "replaced") return "bg-orange-500/10 text-orange-700 dark:text-orange-300"
+    if (kind === "inserted") return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+    if (kind === "references") return "bg-sky-500/10 text-sky-700 dark:text-sky-300"
+    return "bg-muted text-muted-foreground"
+  }
+
+  const changeWrapperClass = (kind: string) => {
+    if (!viewChanges) return ""
+    if (kind === "replaced") return "rounded-xl border border-orange-500/30 bg-orange-500/[0.04] p-4"
+    if (kind === "inserted") return "rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-4"
+    if (kind === "references") return "rounded-xl border border-sky-500/30 bg-sky-500/[0.04] p-4"
+    return "rounded-xl border border-border/60 bg-muted/[0.18] p-4"
+  }
+
+  const renderSectionWithChangeLayer = (section: { id: string; title: string }) => {
+    const text = context[section.id]
+    if (!text) return null
+    const kind = changeKindForSection(section.id)
+    const sectionText = /^\s*#+\s+/.test(text) ? text : `# ${section.title}\n\n${text}`
+
+    if (!viewChanges) {
+      return <div key={section.id}>{renderMarkdown(sectionText)}</div>
+    }
+
+    return (
+      <section key={section.id} className={changeWrapperClass(kind)}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <span className={`rounded px-2 py-1 text-[10px] font-mono uppercase tracking-wide ${changeBadgeClass(kind)}`}>
+            {kind}
+          </span>
+          <span className="truncate font-mono text-[10px] text-muted-foreground">{section.id}</span>
+        </div>
+        {renderMarkdown(sectionText)}
+      </section>
+    )
+  }
+
   return (
     <div className="w-full grid grid-cols-1 lg:grid-cols-4 gap-6 animate-in fade-in duration-500">
       
@@ -670,7 +716,18 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
                   )}
                   {hasChangeSummary && (
                     <div className="space-y-1">
-                      <span className="text-muted-foreground">View changes:</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">View changes:</span>
+                        <Button
+                          type="button"
+                          variant={viewChanges ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setViewChanges((value) => !value)}
+                          className="h-7 px-2 text-[10px]"
+                        >
+                          {viewChanges ? "On" : "Off"}
+                        </Button>
+                      </div>
                       <div className="flex flex-wrap gap-1">
                         {changedSections.replaced.map((section: string) => (
                           <span key={`replaced-${section}`} className="rounded bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-mono text-orange-700 dark:text-orange-300">
@@ -850,23 +907,38 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
         {/* Paper Text Display */}
         <div className="rounded-2xl border border-border bg-card p-6 md:p-8 min-h-[300px] shadow-sm relative">
           <div className="absolute top-4 right-4 bg-muted/40 text-[10px] uppercase font-mono text-muted-foreground px-2 py-1 rounded">
-            {t.document.preview}
+            {viewChanges ? "changes" : t.document.preview}
           </div>
           {activeTab === "__full__" ? (
-            renderMarkdown(
-              allSections
-                .filter((s) => !!context[s.id])
-                .map((s) => {
-                  const text = context[s.id]
-                  if (/^\s*#+\s+/.test(text)) {
-                    return text
-                  }
-                  return `# ${s.title}\n\n${text}`
-                })
-                .join("\n\n")
+            viewChanges ? (
+              <div className="space-y-5">
+                {allSections.filter((s) => !!context[s.id]).map((section) => renderSectionWithChangeLayer(section))}
+              </div>
+            ) : (
+              renderMarkdown(
+                allSections
+                  .filter((s) => !!context[s.id])
+                  .map((s) => {
+                    const text = context[s.id]
+                    if (/^\s*#+\s+/.test(text)) {
+                      return text
+                    }
+                    return `# ${s.title}\n\n${text}`
+                  })
+                  .join("\n\n")
+              )
             )
           ) : activeTab && context[activeTab] ? (
-            renderMarkdown(context[activeTab])
+            viewChanges ? (
+              renderSectionWithChangeLayer(
+                allSections.find((section) => section.id === activeTab) || {
+                  id: activeTab,
+                  title: humanizeSectionName(activeTab),
+                }
+              )
+            ) : (
+              renderMarkdown(context[activeTab])
+            )
           ) : (
             <div className="flex h-48 w-full items-center justify-center text-muted-foreground text-sm italic">
               {t.document.empty}

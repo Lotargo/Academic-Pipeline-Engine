@@ -135,6 +135,20 @@ def infer_continuation_intent(
     if not continuation_source:
         return None
 
+    override = str(continuation_source.get("intent_override") or "").strip()
+    if override:
+        try:
+            intent = ContinuationIntent(override)
+        except ValueError:
+            intent = None
+        if intent is not None:
+            return _resolution(
+                intent,
+                "User selected a continuation intent override.",
+                0.99,
+                ["user_intent_override"],
+            )
+
     request_text = " ".join(part.strip() for part in [topic or "", instructions or ""] if part and part.strip())
     normalized = request_text.lower()
 
