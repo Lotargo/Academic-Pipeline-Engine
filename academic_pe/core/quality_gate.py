@@ -120,6 +120,7 @@ def check_continuation_integrity(
     issues.extend(_duplicate_terminal_or_boundary_heading_issues(filtered_context, document_state))
     issues.extend(_duplicate_structural_label_issues(filtered_context))
     issues.extend(_citation_reference_mismatch_issues(filtered_context, document_state))
+    issues.extend(_style_profile_drift_issues(filtered_context, document_state))
     return GateResult(passed=len(issues) == 0, issues=issues)
 
 
@@ -268,6 +269,70 @@ def _citation_reference_mismatch_issues(
     return []
 
 
+def _style_profile_drift_issues(
+    context: Mapping[str, str],
+    document_state: Mapping[str, Any],
+) -> List[str]:
+    style_profile = document_state.get("style_profile")
+    if not isinstance(style_profile, Mapping):
+        return []
+
+    source_language = str(style_profile.get("language_hint") or "unknown")
+    source_register = str(style_profile.get("register_hint") or "neutral")
+    text = "\n\n".join(
+        str(value or "")
+        for key, value in context.items()
+        if key not in set(str(section) for section in document_state.get("terminal_sections", []) or [])
+    )
+    if not text.strip():
+        return []
+
+    issues: List[str] = []
+    output_language = _language_hint(text)
+    if (
+        source_language in {"en", "ru"}
+        and output_language in {"en", "ru"}
+        and source_language != output_language
+    ):
+        issues.append(
+            f"Continuation language drift detected: source language is '{source_language}', "
+            f"but generated body appears to be '{output_language}'. Preserve the source language unless requested."
+        )
+
+    output_register = _register_hint(text)
+    if source_register == "personal_or_narrative" and output_register == "academic_or_technical":
+        issues.append(
+            "Continuation register drift detected: source is personal/narrative, "
+            "but generated body uses academic or technical register. Preserve narrator, audience level, and voice."
+        )
+    elif source_register == "academic_or_technical" and output_register == "personal_or_narrative":
+        issues.append(
+            "Continuation register drift detected: source is academic/technical, "
+            "but generated body shifts into personal or narrative register. Preserve the artifact register."
+        )
+
+    return issues
+
+
+def _language_hint(text: str) -> str:
+    cyrillic = len(re.findall(r"[А-Яа-яЁё]", text))
+    latin = len(re.findall(r"[A-Za-z]", text))
+    if cyrillic > latin:
+        return "ru"
+    if latin > 0:
+        return "en"
+    return "unknown"
+
+
+def _register_hint(text: str) -> str:
+    lower = text.lower()
+    if re.search(r"\b(я|мне|мой|моя|i|my|me)\b", lower) and not _ACADEMIC_REGISTER_RE.search(lower):
+        return "personal_or_narrative"
+    if _ACADEMIC_REGISTER_RE.search(lower):
+        return "academic_or_technical"
+    return "neutral"
+
+
 def _source_sections(document_state: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
     sections = document_state.get("source_sections", [])
     if not isinstance(sections, list):
@@ -304,5 +369,13 @@ _INTERNAL_LABEL_RE = re.compile(
     r"(?:exposition|development|conflict analysis|red[_ -]?flags?|risks?|pacing notes?|"
     r"continuity notes?|editorial risks?|internal notes?)"
     r"(?:\*\*)?\s*:?\s*$",
+    flags=re.IGNORECASE,
+)
+
+_ACADEMIC_REGISTER_RE = re.compile(
+    r"\b("
+    r"analysis|method|methodology|therefore|hypothesis|dataset|algorithm|"
+    r"исследован|рассмотрен|метод|анализ|результат|гипотез|алгоритм"
+    r")\b",
     flags=re.IGNORECASE,
 )

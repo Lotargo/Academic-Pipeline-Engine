@@ -219,6 +219,40 @@ class TestContinuationIntegrityCheck:
         assert not result.passed
         assert "Numeric citation [2] has no matching reference entry" in result.issues[0]
 
+    def test_rejects_language_drift_from_source_style_profile(self):
+        result = check_continuation_integrity(
+            {"body": "This continuation suddenly switches into English prose."},
+            {
+                "terminal_sections": [],
+                "source_sections": [{"name": "body", "title": "Body"}],
+                "style_profile": {"language_hint": "ru", "register_hint": "neutral"},
+            },
+        )
+
+        assert not result.passed
+        assert "Continuation language drift detected" in result.issues[0]
+
+    def test_rejects_register_drift_from_narrative_to_academic(self):
+        result = check_continuation_integrity(
+            {
+                "story": (
+                    "The methodology analyzes the protagonist's behavioral pattern. "
+                    "Therefore, the result indicates a measurable narrative transition."
+                )
+            },
+            {
+                "terminal_sections": [],
+                "source_sections": [{"name": "story", "title": "Story"}],
+                "style_profile": {
+                    "language_hint": "en",
+                    "register_hint": "personal_or_narrative",
+                },
+            },
+        )
+
+        assert not result.passed
+        assert "Continuation register drift detected" in result.issues[0]
+
     def test_run_all_includes_continuation_integrity(self):
         result = run_all(
             {"analysis": "x" * 20, "references": "x" * 20, "tail": "x" * 20},
