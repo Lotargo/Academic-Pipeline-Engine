@@ -18,6 +18,7 @@ def test_contract_guidance_for_planner_avoids_generic_academic_structure():
     assert "mode clauses" in guidance
     assert "Preserve continuation structure" in guidance
     assert "artifact-native sections" in guidance
+    assert "reference_registry" in guidance
 
 
 def test_contract_guidance_for_reviewer_checks_drift_and_ai_markers():
@@ -40,6 +41,8 @@ def test_contract_guidance_for_researcher_does_not_force_sources():
     assert "Researcher: search only when the contract or user request requires" in guidance
     assert "Do not force citations" in guidance
     assert "source-free artifacts" in guidance
+    assert "reference_registry" in guidance
+    assert "new references" in guidance
 
 
 def test_contract_guidance_for_exporter_preserves_formatting_contract():

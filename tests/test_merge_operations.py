@@ -130,7 +130,7 @@ def test_update_references_deduplicates_across_marker_styles_and_skips_heading()
             {
                 "op": "update_references",
                 "target": "references",
-                "content": "## References\n[1] Existing source.\n- New source.",
+                "content": "## References\nNew references:\n[1] Existing source.\nAdded sources:\n- New source.",
                 "mode": "dedupe_and_merge",
             }
         ],

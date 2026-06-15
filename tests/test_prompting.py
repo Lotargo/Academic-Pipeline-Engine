@@ -1,6 +1,7 @@
 from academic_pe.core.config import SectionPrompt
 from academic_pe.core.prompting import (
     DEFAULT_DRAFT_TEMPLATE,
+    DEFAULT_MERGE_OPERATION_TEMPLATE,
     DEFAULT_PLAN_TEMPLATE,
     DEFAULT_REVIEW_TEMPLATE,
     DEFAULT_REVISION_TEMPLATE,
@@ -123,3 +124,21 @@ def test_visualization_requirement_is_explicit_contract_clause():
 
     assert "[Visualization Requirement]" in prompt
     assert "python-run" in prompt
+
+
+def test_merge_operation_template_uses_reference_registry_policy():
+    prompt = render_template(
+        DEFAULT_MERGE_OPERATION_TEMPLATE,
+        {
+            "language_instruction": "Write the entire document in English.",
+            "language": "en",
+            "user_topic": "Continue report",
+            "user_instructions": "Add sources.",
+            "edit_plan_json": '{"operations": [{"op": "update_references", "content_role": "references"}]}',
+            "document_state_json": '{"reference_registry": [{"raw_text": "1. Existing source."}]}',
+        },
+    )
+
+    assert "Use `reference_registry` from Document State as the source registry" in prompt
+    assert "write only bare reference entries to merge" in prompt
+    assert "New references" in prompt

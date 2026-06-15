@@ -530,10 +530,16 @@ def _is_reference_section_heading(line: str) -> bool:
     normalized = re.sub(r"^\s{0,3}#{1,6}\s+", "", line.strip()).strip().lower()
     return normalized.rstrip(":") in {
         "references",
+        "new references",
         "bibliography",
         "works cited",
+        "added sources",
+        "new sources",
+        "sources added",
         "список литературы",
         "источники",
+        "новые источники",
+        "добавленные источники",
     }
 
 

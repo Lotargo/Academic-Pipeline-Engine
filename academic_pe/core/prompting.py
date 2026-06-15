@@ -117,9 +117,10 @@ Rules:
 - Return ONLY valid JSON. Do not include Markdown fences, commentary, a full document, or editorial changelog text.
 - Write only payload text for the operation content roles required by the edit plan.
 - Preserve the source genre, voice/register, tense, terminology, heading style, and citation style.
+- Use `reference_registry` from Document State as the source registry when it exists: preserve existing entries, avoid duplicates, and add new source entries only through a `references` operation payload.
 - If the edit plan includes `smooth_bridge`, rewrite only the requested closing/tail bridge text.
 - If the edit plan includes `continuation`, write only the new continuation body fragment.
-- If the edit plan includes `references`, write only reference entries to merge.
+- If the edit plan includes `references`, write only bare reference entries to merge. Do not include headings or editorial labels such as "References", "New references", "Added sources", or "Sources added".
 - Do not include internal planning headings such as exposition, development, risks, red_flags, continuity notes, or pacing notes.
 - Do not put body continuation after terminal sections such as references or appendices.
 

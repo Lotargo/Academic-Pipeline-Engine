@@ -402,7 +402,7 @@ Definition of done:
 
 ## Workstream 5: Reference Registry And Bibliography Merge
 
-Status: `[~] In progress`
+Status: `[x] Completed`
 
 Objective: Make citation and bibliography updates seamless for educational and scientific artifacts.
 
@@ -412,11 +412,11 @@ Tasks:
 - [x] Parse simple numbered, bullet, and author-year references.
 - [x] Preserve source citation style where possible.
 - [x] Add source registry to runtime metadata.
-- [ ] Update researcher/planner to add sources through registry, not raw final prose.
+- [x] Update researcher/planner to add sources through registry, not raw final prose.
 - [x] Deduplicate references.
 - [x] Rebuild final bibliography as one section.
 - [x] Ensure body continuation is inserted before references.
-- [ ] Add tests for adding a new source during continuation without adding "new references" labels.
+- [x] Add tests for adding a new source during continuation without adding "new references" labels.
 
 Definition of done:
 
@@ -498,7 +498,7 @@ Definition of done:
 
 ## Workstream 9: Real Pipeline Smoke Bench Gate
 
-Status: `[ ] Planned`
+Status: `[~] In progress / blocked by timeout`
 
 Objective: Require a short real-model pipeline check after broad continuation/editing changes, without turning it into a full benchmark suite.
 
@@ -506,12 +506,21 @@ This gate is meant to catch behavioral imbalance, prompt drift, disconnected con
 
 Rules:
 
-- [ ] Run this smoke bench after any large change touching Planner, Writer, Reviewer, prompt manifests, continuation metadata, merge operations, export assembly, reference handling, or UI continuation flow.
-- [ ] Use the locally configured real providers, keys, and models already present in the developer environment. Do not commit keys, copy secrets into logs, or replace this with mock-provider results.
+- [~] Run this smoke bench after any large change touching Planner, Writer, Reviewer, prompt manifests, continuation metadata, merge operations, export assembly, reference handling, or UI continuation flow.
+- [!] Run scenarios one at a time, not as one long synchronous batch. Each scenario must be invokable independently and must write its own partial note before the next scenario starts.
+- [!] Add observable progress logging before rerun: log every pipeline stage transition, agent call start/end, provider/model name, scenario id, elapsed time, and pass/fail checkpoint. Flush logs after each event so a long real-provider call can be distinguished from a hang.
+- [!] Add heartbeat/progress output around long agent calls. A scenario may run for a long time without being considered stuck if stage/agent logs or heartbeat timestamps are still moving.
+- [!] Do not kill Python processes during smoke bench cleanup unless the command line is verified to belong to the smoke runner for this repository. Record the checked PID and command line before stopping anything.
+- [x] Use the locally configured real providers, keys, and models already present in the developer environment. Do not commit keys, copy secrets into logs, or replace this with mock-provider results.
 - [ ] Keep the suite short: target 4-6 scenarios, each with a clear pass/fail rubric.
 - [ ] Record only concise findings: model/provider used, scenario id, pass/fail, elapsed time, major issue if failed, and follow-up link/task if needed.
 - [ ] Do not compare models against each other and do not optimize for leaderboard scores. This is a smoke bench, not benchmark testing.
-- [ ] If real keys/models are unavailable in a fresh environment, mark the gate blocked and do not claim the sprint behavior is validated end-to-end.
+- [x] If real keys/models are unavailable or the real-provider run cannot complete, mark the gate blocked and do not claim the sprint behavior is validated end-to-end.
+
+Run note:
+
+- 2026-06-16: Real provider configured (`zen`), but a 5-scenario synchronous smoke runner timed out after approximately 10 minutes before reliable per-scenario results were available. Sanitized note: `dev_docs/CONTINUATION_REAL_SMOKE_NOTES.md`. Gate remains blocked until rerun with per-scenario timeout/progress flushing or one scenario per command.
+- Operational correction: the next run must be a single-scenario runner with stage/agent logging and flushed progress output. The previous batch style made normal long-running provider work indistinguishable from a hang.
 
 Required scenarios:
 
@@ -538,6 +547,7 @@ Date:
 Commit/branch:
 Config snapshot: provider/model names only, no keys
 Scenario:
+Stage log: timestamped stage/agent checkpoints, concise
 Result: PASS/FAIL
 Elapsed:
 Observed imbalance:
