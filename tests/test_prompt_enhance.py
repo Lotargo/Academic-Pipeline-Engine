@@ -1,4 +1,4 @@
-from academic_pe.server import _build_prompt_enhancement_prompt
+from academic_pe.server import _build_prompt_enhancement_prompt, _normalize_prompt_enhancement_response
 
 
 def test_prompt_enhancement_preserves_poem_genre():
@@ -37,6 +37,42 @@ def test_prompt_enhancement_uses_preserve_first_fallback_for_unknown_artifact():
     assert "preserve-first fallback" in prompt.lower()
     assert "do not invent academic sections or bureaucracy" in prompt
     assert "Selection confidence is low" in prompt
+
+
+def test_prompt_enhancement_low_confidence_contract_is_advisory():
+    prompt = _build_prompt_enhancement_prompt(
+        topic="Moonlit field notebook",
+        instructions="Keep my odd two-column fragment form and make it clearer.",
+        lang="en",
+    )
+
+    assert "only as advisory fallback guidance" in prompt
+    assert "source of truth when confidence is low" in prompt
+    assert "do not block enhancement or return empty fields" in prompt
+
+
+def test_prompt_enhancement_preserves_non_empty_fields_from_empty_agent_response():
+    topic, instructions, fallback_used = _normalize_prompt_enhancement_response(
+        '{"topic": "", "instructions": ""}',
+        fallback_topic="Original Topic",
+        fallback_instructions="Original details.",
+    )
+
+    assert topic == "Original Topic"
+    assert instructions == "Original details."
+    assert fallback_used is True
+
+
+def test_prompt_enhancement_preserves_fields_from_malformed_agent_response():
+    topic, instructions, fallback_used = _normalize_prompt_enhancement_response(
+        "not json",
+        fallback_topic="Original Topic",
+        fallback_instructions="Original details.",
+    )
+
+    assert topic == "Original Topic"
+    assert instructions == "Original details."
+    assert fallback_used is True
 
 
 def test_prompt_enhancement_passes_academic_mode_as_contract_clause():

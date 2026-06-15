@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import os
+import threading
 from typing import Callable, Optional, Union, Any
 
 from openai import OpenAI
@@ -13,6 +14,22 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 StreamCallback = Callable[[str], None]
+
+_OPENAI_CLIENT_CACHE: dict[tuple[str, str], OpenAI] = {}
+_OPENAI_CLIENT_CACHE_LOCK = threading.Lock()
+
+
+def _get_openai_client(api_key: str, base_url: Optional[str] = None) -> OpenAI:
+    cache_key = (api_key, base_url or "")
+    with _OPENAI_CLIENT_CACHE_LOCK:
+        client = _OPENAI_CLIENT_CACHE.get(cache_key)
+        if client is None:
+            if base_url:
+                client = OpenAI(api_key=api_key, base_url=base_url)
+            else:
+                client = OpenAI(api_key=api_key)
+            _OPENAI_CLIENT_CACHE[cache_key] = client
+        return client
 
 
 def _openai_chat_generate(
@@ -93,7 +110,7 @@ class OpenAIProvider(LLMProvider):
                 "OpenAI API key is not configured. "
                 "Please configure it in settings or set the OPENAI_API_KEY environment variable."
             )
-        self._client = OpenAI(api_key=key)
+        self._client = _get_openai_client(key)
 
     def generate(
         self,
@@ -110,7 +127,7 @@ class CustomOpenAIProvider(LLMProvider):
     def __init__(self, base_url: str, api_key: Optional[str] = None, api_key_env: str = "CUSTOM_API_KEY"):
         from academic_pe.core.secrets import get_secret
         key = api_key or get_secret("custom_openai") or os.getenv(api_key_env) or "sk-placeholder"
-        self._client = OpenAI(api_key=key, base_url=base_url)
+        self._client = _get_openai_client(key, base_url)
 
     def generate(
         self,
@@ -132,10 +149,7 @@ class GoogleProvider(LLMProvider):
                 "Google Gemini API key is not configured. "
                 "Please configure it in settings or set the GEMINI_API_KEY/GOOGLE_API_KEY environment variable."
             )
-        self._client = OpenAI(
-            api_key=key,
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-        )
+        self._client = _get_openai_client(key, "https://generativelanguage.googleapis.com/v1beta/openai/")
 
     def generate(
         self,
@@ -156,7 +170,7 @@ class LMStudioProvider(LLMProvider):
         from academic_pe.core.secrets import get_secret
         url = base_url or "http://localhost:1234/v1"
         key = api_key or get_secret("lm_studio") or "lm-studio"
-        self._client = OpenAI(api_key=key, base_url=url)
+        self._client = _get_openai_client(key, url)
 
     def generate(
         self,
@@ -178,7 +192,7 @@ class ZenProvider(LLMProvider):
                 "OpenCode Zen API key is not configured. "
                 "Please configure it in settings or set the ZEN_API_KEY environment variable."
             )
-        self._client = OpenAI(api_key=key, base_url="https://opencode.ai/zen/v1")
+        self._client = _get_openai_client(key, "https://opencode.ai/zen/v1")
 
     def generate(
         self,

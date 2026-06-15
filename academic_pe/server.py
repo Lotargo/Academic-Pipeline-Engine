@@ -481,15 +481,89 @@ def _build_prompt_enhancement_prompt(
     )
 
 
+def _extract_prompt_enhancement_json(raw_response: str) -> dict:
+    text = (raw_response or "").strip()
+    if "```" in text:
+        match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL | re.IGNORECASE)
+        if match:
+            text = match.group(1).strip()
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end == -1 or end < start:
+            raise ValueError("No JSON object structure found in the agent response")
+        data = json.loads(text[start:end + 1])
+
+    if not isinstance(data, dict):
+        raise ValueError("Parsed JSON is not an object")
+    return data
+
+
+def _normalize_prompt_enhancement_response(
+    raw_response: str,
+    *,
+    fallback_topic: str,
+    fallback_instructions: Optional[str],
+) -> tuple[str, str, bool]:
+    fallback_topic_text = fallback_topic.strip()
+    fallback_instructions_text = (fallback_instructions or "").strip()
+    try:
+        data = _extract_prompt_enhancement_json(raw_response)
+    except Exception:
+        return fallback_topic_text, fallback_instructions_text, bool(fallback_topic_text or fallback_instructions_text)
+
+    raw_topic = data.get("topic")
+    raw_instructions = data.get("instructions")
+    has_topic = isinstance(raw_topic, str) and bool(raw_topic.strip())
+    has_instructions = isinstance(raw_instructions, str) and bool(raw_instructions.strip())
+    topic = raw_topic.strip() if has_topic else fallback_topic_text
+    instructions = (
+        raw_instructions.strip()
+        if has_instructions
+        else fallback_instructions_text
+    )
+    fallback_used = (
+        (not has_topic and bool(fallback_topic_text))
+        or (not has_instructions and bool(fallback_instructions_text))
+    )
+    return topic, instructions, fallback_used
+
+
+def _resolve_prompt_enhancement_metadata(
+    *,
+    topic: str,
+    instructions: str,
+    academic_mode: bool,
+    language: str,
+    artifact_override: Optional[str],
+) -> dict:
+    from academic_pe.manifests import ArtifactManifestResolver
+
+    try:
+        resolver = ArtifactManifestResolver()
+        resolved = resolver.resolve(
+            topic=topic,
+            instructions=instructions,
+            academic_mode=academic_mode,
+            language=language,
+            artifact_override=artifact_override,
+        )
+        return resolved.metadata()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Prompt enhancement metadata resolution skipped: %s", exc)
+        return {}
+
+
 @app.post("/api/prompt/enhance", response_model=PromptEnhanceResponse)
 async def enhance_prompt(payload: PromptEnhanceRequest):
     """
     Uses the example_generator agent to enhance a raw topic and instructions
     into a clearer genre-preserving writing task.
     """
-    import re
     from academic_pe.agents.factory import create_agent
-    from academic_pe.manifests import ArtifactManifestResolver
 
     try:
         config = load_config("config/agents.yaml")
@@ -524,42 +598,31 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
 
     try:
         raw_response, self_critique_summary = await loop.run_in_executor(None, run_agent)
-        
-        # Parse the JSON object
-        text = raw_response.strip()
-        if "```" in text:
-            match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
-            if match:
-                text = match.group(1).strip()
-                
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError:
-            # Fallback regex search for the first { to the last }
-            start = text.find("{")
-            end = text.rfind("}")
-            if start != -1 and end != -1:
-                json_slice = text[start:end+1]
-                data = json.loads(json_slice)
-            else:
-                raise ValueError("No JSON object structure found in the agent response")
+        enhanced_topic, enhanced_instructions, fallback_used = _normalize_prompt_enhancement_response(
+            raw_response,
+            fallback_topic=payload.topic,
+            fallback_instructions=payload.instructions,
+        )
 
-        if not isinstance(data, dict) or "topic" not in data or "instructions" not in data:
-            raise ValueError("Parsed JSON is not in the expected format (missing topic or instructions)")
-
-        resolver = ArtifactManifestResolver()
-        resolved = resolver.resolve(
-            topic=data["topic"].strip(),
-            instructions=data["instructions"].strip(),
-            academic_mode=payload.academic_mode if payload.academic_mode is not None else config.pipeline.academic_mode,
+        effective_academic_mode = (
+            payload.academic_mode if payload.academic_mode is not None else config.pipeline.academic_mode
+        )
+        artifact_metadata = _resolve_prompt_enhancement_metadata(
+            topic=enhanced_topic,
+            instructions=enhanced_instructions,
+            academic_mode=effective_academic_mode,
             language=lang,
             artifact_override=payload.artifact_override,
         )
-        artifact_metadata = resolved.metadata()
+        if fallback_used:
+            summary = self_critique_summary or ""
+            self_critique_summary = (
+                f"{summary} Prompt enhancement fell back to the original non-empty fields."
+            ).strip()
 
         return PromptEnhanceResponse(
-            topic=data["topic"].strip(),
-            instructions=data["instructions"].strip(),
+            topic=enhanced_topic,
+            instructions=enhanced_instructions,
             self_critique_summary=self_critique_summary,
             artifact_override=payload.artifact_override,
             resolved_manifest=artifact_metadata.get("resolved_manifest"),

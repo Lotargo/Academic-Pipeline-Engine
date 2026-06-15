@@ -73,6 +73,20 @@ class TestCreateProvider:
         assert isinstance(provider, TestProvider)
         assert provider.generate("", "", "", 0) == "test"
 
+    def test_openai_provider_reuses_client_for_same_key(self):
+        first = OpenAIProvider(api_key="sk-cache-openai")
+        second = OpenAIProvider(api_key="sk-cache-openai")
+
+        assert first._client is second._client
+
+    def test_openai_compatible_provider_reuses_client_for_same_base_url(self):
+        first = CustomOpenAIProvider(base_url="http://localhost:11434/v1", api_key="sk-cache-custom")
+        second = CustomOpenAIProvider(base_url="http://localhost:11434/v1", api_key="sk-cache-custom")
+        other = CustomOpenAIProvider(base_url="http://localhost:5678/v1", api_key="sk-cache-custom")
+
+        assert first._client is second._client
+        assert first._client is not other._client
+
 
 class TestCustomOpenAIProvider:
     def test_uses_custom_base_url(self, monkeypatch):

@@ -61,9 +61,20 @@ export function SearchBar({
       })
       if (res.ok) {
         const data = await res.json()
-        setTopic(data.topic)
-        setInstructions(data.instructions)
-        onEnhance?.({ ...data, artifact_override: artifactOverride || null })
+        const nextTopic = typeof data.topic === "string" && data.topic.trim() ? data.topic.trim() : topic.trim()
+        const nextInstructions = (
+          typeof data.instructions === "string" && data.instructions.trim()
+            ? data.instructions.trim()
+            : instructions.trim()
+        )
+        setTopic(nextTopic)
+        setInstructions(nextInstructions)
+        onEnhance?.({
+          ...data,
+          topic: nextTopic,
+          instructions: nextInstructions,
+          artifact_override: artifactOverride || null,
+        })
         toast.success(t.search.enhanceSuccess)
       } else {
         let errMsg = t.search.enhanceError

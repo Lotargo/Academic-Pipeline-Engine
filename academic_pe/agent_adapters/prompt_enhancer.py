@@ -64,6 +64,8 @@ _ARTIFACT_GUIDANCE = {
     ),
 }
 
+_LOW_CONFIDENCE_THRESHOLD = 0.65
+
 
 def build_prompt_enhancement_prompt(
     *,
@@ -199,11 +201,19 @@ def _contract_section(resolved: Optional[ResolvedArtifactManifest]) -> str:
         contract.artifact,
         "Preserve the detected artifact and improve only what the user asked to improve.",
     )
+    contract_priority = (
+        "Use this compact contract as the highest-priority artifact intent for prompt enhancement."
+    )
     confidence_note = ""
-    if evidence.confidence < 0.65:
+    if evidence.confidence < _LOW_CONFIDENCE_THRESHOLD:
+        contract_priority = (
+            "Use this compact contract only as advisory fallback guidance. The user's raw topic, instructions, "
+            "format cues, genre cues, and style cues are the source of truth when confidence is low."
+        )
         confidence_note = (
-            "\nSelection confidence is low; treat the manifest as a fallback hint and preserve the user's apparent "
-            "form instead of inventing structure."
+            "\nSelection confidence is low; do not block enhancement or return empty fields. Treat the manifest as "
+            "a fallback hint, preserve the user's apparent form, and clarify the prompt minimally instead of "
+            "inventing structure."
         )
 
     agent_contract = compile_agent_contract(contract, "prompt_enhancer")
@@ -211,7 +221,7 @@ def _contract_section(resolved: Optional[ResolvedArtifactManifest]) -> str:
 
     return (
         "[Active Artifact Contract]\n"
-        "Use this compact contract as the highest-priority artifact intent for prompt enhancement.\n"
+        f"{contract_priority}\n"
         f"Detected artifact: {contract.artifact}\n"
         f"Selection confidence: {evidence.confidence:.2f}\n"
         f"Matched phrases: {', '.join(evidence.matched_phrases) if evidence.matched_phrases else 'none'}\n"
