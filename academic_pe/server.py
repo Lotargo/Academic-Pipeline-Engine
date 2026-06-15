@@ -919,6 +919,7 @@ def run_pipeline_thread(
             artifact_override=artifact_override,
             reference_materials=reference_materials,
             web_search_enabled=web_search_enabled,
+            registry_store=registry_store,
         )
         with run_lock:
             current_run["topic"] = orch.user_topic

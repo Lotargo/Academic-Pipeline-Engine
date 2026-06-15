@@ -32,6 +32,9 @@ from academic_pe.core.merge_operations import (
     validate_merge_operation_targets,
 )
 from academic_pe.manifests import ArtifactManifestResolver
+from academic_pe.core.registry import (
+    RegistryStore, NoopRegistryStore, Run, RunAgent, RuntimeSnapshot, Section
+)
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +375,8 @@ class Orchestrator:
         web_search_enabled: bool = False,
         planner: Optional[BaseAgent] = None,
         researcher: Optional[BaseAgent] = None,
+        registry_store: Optional[RegistryStore] = None,
+        run_id: Optional[str] = None,
     ):
         self._writer = writer
         self._reviewer = reviewer
@@ -386,6 +391,18 @@ class Orchestrator:
         self.web_search_enabled = web_search_enabled
         self.continuation_source = continuation_source
         self.search_findings = ""
+        self._registry_store = registry_store or NoopRegistryStore()
+
+        # Resolve run_id
+        if not run_id:
+            output_dir = getattr(config.pipeline, "output_dir", "")
+            basename = os.path.basename(output_dir)
+            if re.match(r"^run_\d{8}_\d{6}$", basename):
+                run_id = basename
+            else:
+                from datetime import datetime
+                run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.run_id = run_id
 
 
         self._state: PipelineState = PipelineState.INIT
@@ -585,10 +602,63 @@ class Orchestrator:
     def _clean_section_content(self, content: str) -> str:
         return normalize_generated_text(strip_markdown_fences(content))
 
+    def _register_section_metadata(self, section_name: str, content: str) -> None:
+        import hashlib
+        
+        # Calculate sha256 of content
+        content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        char_count = len(content)
+        
+        # Find section config in template or pipeline config
+        title = None
+        semantic_role = None
+        heading_policy = None
+        order_index = None
+        
+        # Check runtime template sections first
+        sections_list = []
+        if self.runtime_template and hasattr(self.runtime_template, "sections"):
+            sections_list = self.runtime_template.sections
+        else:
+            sections_list = self._config.pipeline.sections
+            
+        for idx, sec in enumerate(sections_list):
+            name_val = sec.get("name") if isinstance(sec, dict) else getattr(sec, "name", None)
+            if name_val == section_name:
+                if isinstance(sec, dict):
+                    title = sec.get("title") or sec.get("topic")
+                    semantic_role = sec.get("semantic_role", "body")
+                    heading_policy = sec.get("heading_policy", "render_required")
+                else:
+                    title = getattr(sec, "title", getattr(sec, "topic", None))
+                    semantic_role = getattr(sec, "semantic_role", "body")
+                    heading_policy = getattr(sec, "heading_policy", "render_required")
+                order_index = idx
+                break
+                
+        # Register in SQLite
+        section_record = Section(
+            run_id=self.run_id,
+            name=section_name,
+            title=title,
+            semantic_role=semantic_role,
+            heading_policy=heading_policy,
+            char_count=char_count,
+            order_index=order_index,
+            content_path=None,
+            content_sha256=content_sha256,
+            metadata_json=None
+        )
+        try:
+            self._registry_store.add_section(section_record)
+        except Exception as e:
+            logger.warning("Failed to register section %s in SQLite: %s", section_name, e)
+
     def _set_section_content(self, section_name: str, content: str) -> None:
         cleaned_content = self._clean_section_content(content)
         self.context[section_name] = cleaned_content
         self._emit_section_delta(section_name, cleaned_content, cleaned_content)
+        self._register_section_metadata(section_name, cleaned_content)
 
     def _capture_self_critique_summary(
         self,
@@ -807,6 +877,88 @@ class Orchestrator:
 
     def run_pipeline(self, render_artifact: bool = True) -> str:
         logger.info("Pipeline started.")
+        
+        # Register run in SQLite Registry
+        from datetime import datetime
+        import json
+        
+        pipeline_mode = "standard"
+        if self.continuation_source:
+            pipeline_mode = "continuation"
+        elif self.web_search_enabled:
+            pipeline_mode = "research"
+            
+        run_metadata = {
+            "academic_mode": self._academic_mode_enabled(),
+            "template_mode": self._config.pipeline.template_mode.value,
+            "template_id": self._config.pipeline.template_id,
+        }
+        
+        run_record = Run(
+            run_id=self.run_id,
+            kind="generation",
+            status="running",
+            topic=self.user_topic or "Unknown",
+            instructions_preview=self.user_instructions,
+            pipeline_mode=pipeline_mode,
+            web_search_enabled=self.web_search_enabled,
+            created_at=datetime.now().isoformat(),
+            started_at=datetime.now().isoformat(),
+            output_dir=self._config.pipeline.output_dir,
+            metadata_json=json.dumps(run_metadata, ensure_ascii=False)
+        )
+        try:
+            self._registry_store.create_run(run_record)
+        except Exception as e:
+            logger.warning("Failed to create run in SQLite Registry: %s", e)
+            
+        # Register agents
+        for role, agent_obj in [
+            ("writer", self._writer),
+            ("reviewer", self._reviewer),
+            ("planner", self._planner if self._has_dedicated_planner else None),
+            ("researcher", self._researcher),
+        ]:
+            if agent_obj is not None:
+                agent_cfg = self._config.agents.get(role)
+                if agent_cfg:
+                    provider = getattr(agent_cfg.provider, "value", agent_cfg.provider)
+                    self_critique_enabled = getattr(agent_cfg.self_critique, "enabled", False)
+                    agent_record = RunAgent(
+                        run_id=self.run_id,
+                        role=role,
+                        provider=provider,
+                        model=agent_cfg.model,
+                        temperature=agent_cfg.temperature,
+                        agent_type=agent_cfg.agent_type,
+                        self_critique_enabled=self_critique_enabled,
+                        metadata_json=None
+                    )
+                    try:
+                        self._registry_store.add_agent(agent_record)
+                    except Exception as e:
+                        logger.warning("Failed to register agent %s in SQLite Registry: %s", role, e)
+                        
+        # Register snapshots
+        if self.runtime_template:
+            try:
+                self._registry_store.add_runtime_snapshot(RuntimeSnapshot(
+                    run_id=self.run_id,
+                    snapshot_type="runtime_template",
+                    metadata_json=json.dumps(self.runtime_template.model_dump(mode="json"), ensure_ascii=False)
+                ))
+            except Exception as e:
+                logger.warning("Failed to register runtime_template snapshot: %s", e)
+        if self.runtime_prompt_manifest:
+            try:
+                self._registry_store.add_runtime_snapshot(RuntimeSnapshot(
+                    run_id=self.run_id,
+                    snapshot_type="runtime_prompt_manifest",
+                    metadata_json=json.dumps(self.runtime_prompt_manifest.model_dump(mode="json"), ensure_ascii=False)
+                ))
+            except Exception as e:
+                logger.warning("Failed to register runtime_prompt_manifest snapshot: %s", e)
+
         output_path = "(no output)"
         raw_language_policy = getattr(self._config.pipeline, "language", "auto")
         language_policy = getattr(raw_language_policy, "value", raw_language_policy)
@@ -932,7 +1084,7 @@ class Orchestrator:
                     if target_language == "ru" and not has_cyrillic(draft_content):
                         logger.info("Translating section %s to Russian...", section.name)
                         draft_content = translate_markdown_to_ru(draft_content)
-                    self.context[section.name] = self._clean_section_content(draft_content)
+                    self._set_section_content(section.name, draft_content)
 
             # --- REVIEWING ---
             self.transition_to(PipelineState.REVIEWING)
@@ -1265,20 +1417,57 @@ class Orchestrator:
             # --- DONE ---
             self.transition_to(PipelineState.DONE)
             logger.info("Pipeline finished. Artifact: %s", output_path)
+            
+            try:
+                self._registry_store.update_run_status(
+                    run_id=self.run_id,
+                    status="succeeded",
+                    finished_at=datetime.now().isoformat()
+                )
+            except Exception as e:
+                logger.warning("Failed to update status in SQLite Registry: %s", e)
+                
+            return output_path
 
         except PipelineCancelled:
             self._state = PipelineState.FAILED
+            try:
+                self._registry_store.update_run_status(
+                    run_id=self.run_id,
+                    status="cancelled",
+                    finished_at=datetime.now().isoformat()
+                )
+            except Exception as e:
+                logger.warning("Failed to update status in SQLite Registry: %s", e)
             raise
-        except PipelineError:
+        except PipelineError as e:
+            try:
+                self._registry_store.update_run_status(
+                    run_id=self.run_id,
+                    status="failed",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    finished_at=datetime.now().isoformat()
+                )
+            except Exception as ree:
+                logger.warning("Failed to update status in SQLite Registry: %s", ree)
             raise
-        except Exception:
+        except Exception as e:
             logger.exception("Pipeline failed at state %s", self._state.name)
             self._state = PipelineState.FAILED
+            try:
+                self._registry_store.update_run_status(
+                    run_id=self.run_id,
+                    status="failed",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    finished_at=datetime.now().isoformat()
+                )
+            except Exception as ree:
+                logger.warning("Failed to update status in SQLite Registry: %s", ree)
             raise PipelineError(
                 f"Pipeline failed at {self._state.name}. Check logs for details."
             ) from None
-
-        return output_path
 
 
 def _apply_runtime_template(
@@ -1353,6 +1542,7 @@ def create_orchestrator_from_config(
     artifact_override: Optional[str] = None,
     reference_materials: Optional[List[Dict[str, Any]]] = None,
     web_search_enabled: bool = False,
+    registry_store: Optional[RegistryStore] = None,
 ) -> Orchestrator:
     from academic_pe.agents.factory import create_agent
 
@@ -1430,6 +1620,7 @@ def create_orchestrator_from_config(
         continuation_source=continuation_source,
         reference_materials=reference_materials,
         web_search_enabled=web_search_enabled,
+        registry_store=registry_store,
     )
     orchestrator.user_topic = refined_topic
     orchestrator.user_instructions = user_instructions
