@@ -25,6 +25,13 @@ def _resolve_duckduckgo_url(href: str) -> str:
     return href
 
 
+def _compact_text(text: str, limit: int = 700) -> str:
+    compacted = " ".join(str(text or "").split())
+    if len(compacted) <= limit:
+        return compacted
+    return compacted[: limit - 1].rstrip() + "..."
+
+
 class Researcher:
     def __init__(self, run_dir: str):
         self.run_dir = run_dir
@@ -176,11 +183,17 @@ def load_research_findings(run_dir: str) -> str:
 
                 part = f"### Research query: '{query}'\n"
                 for idx, r in enumerate(results):
-                    part += f"Source {idx+1}: {r['title']} ({r['url']})\n"
-                    part += f"Snippet: {r['snippet']}\n"
-                    # Grab a short preview of the crawled text (up to 1,500 chars)
-                    content_preview = r.get("content", "")[:1500].replace('\n', ' ')
-                    part += f"Details: {content_preview}...\n\n"
+                    title = _compact_text(r.get("title", ""), limit=160)
+                    url = str(r.get("url", "")).strip()
+                    snippet = _compact_text(r.get("snippet", ""), limit=350)
+                    excerpt = _compact_text(r.get("content", ""), limit=700)
+                    part += f"Source {idx+1}: {title}\n"
+                    part += f"URL: {url}\n"
+                    if snippet:
+                        part += f"Snippet: {snippet}\n"
+                    if excerpt and not excerpt.lower().startswith("error"):
+                        part += f"Relevant excerpt: {excerpt}\n"
+                    part += "\n"
                 summary_parts.append(part)
             except Exception as e:
                 logger.warning("Failed to load research file %s: %s", filename, e)

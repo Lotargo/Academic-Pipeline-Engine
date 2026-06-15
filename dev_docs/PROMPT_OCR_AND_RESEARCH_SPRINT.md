@@ -162,7 +162,7 @@ Tasks:
 
 ### Remaining Attachment/OCR Audit Fixes
 
-- [ ] Add tests for `/api/attachments/upload` success, unsupported file type, and token-limit rejection.
+- [x] Add tests for `/api/attachments/upload` success, unsupported file type, and token-limit rejection.
 - [ ] Add a UI affordance to choose "reference material" vs "continuation source" before upload, or make the post-upload toggle clearer.
 - [ ] Confirm continuation-source uploads preserve enough previous-work metadata when available; uploaded external documents can only infer structure from Markdown unless the user provides prior prompt/instructions.
 
@@ -187,16 +187,14 @@ Tasks:
 - [~] **Parallel Execution & File-Based Exchange**:
   - [x] Support spawning a pool of parallel search workers, each assigned a specific search query.
   - [x] For each search worker, write fetched findings (crawled text, links, metadata) to a separate temporary JSON file inside the run directory.
-  - [~] The Planner reads these files to build the document plan.
-    - Implemented: findings files are loaded into a combined Planner context string.
-    - Remaining: avoid massive raw context by returning concise, citation-ready synthesized findings and/or reading files on demand.
+  - [x] The Planner reads compact citation-ready source briefs from these files to build the document plan.
+    - Implemented: findings files are loaded into a combined Planner context string with title, URL, snippet, and bounded relevant excerpt.
 - [~] Integrate search logic in the Planning state:
   - [x] The Planning state checks the web-search activator before any search work starts.
   - [x] The Planner model is used to generate research queries.
   - [x] The Researcher executes searches and crawls top matches.
-  - [~] The Researcher returns findings with citations/URLs back to the Planner.
-    - Implemented: returned findings include URLs/snippets/content previews.
-    - Remaining: synthesize findings instead of passing raw crawled previews.
+  - [x] The Researcher returns compact findings with citations/URLs back to the Planner.
+    - Implemented: returned findings include source titles, URLs, snippets, and bounded excerpts rather than long raw crawled previews.
 - [~] Update FSM Planning to build the outline specifically around the retrieved research data and embed the citations (links) so the writer can output them.
   - Implemented: retrieved findings are injected into the Planner prompt and the Planner prompt asks for citation/link embedding.
   - Remaining: ensure the Writer receives only the Planner-curated plan/source notes, not raw `search_findings` or raw research context.
@@ -210,4 +208,6 @@ Tasks:
 - [x] Fix DuckDuckGo result parsing to use the real result link element/redirect format, not the displayed URL element only.
 - [x] Add tests using realistic DuckDuckGo HTML and crawled-page failure modes.
 - [x] Fix query-list parsing edge cases in `_generate_search_queries` and add tests for numbered lists, bullet lists, and malformed model output.
-- [ ] Decide whether Researcher should summarize each source itself or whether Planner should synthesize from structured JSON; document the chosen boundary.
+- [x] Decide whether Researcher should summarize each source itself or whether Planner should synthesize from structured JSON; document the chosen boundary.
+  - Decision: Researcher performs deterministic source extraction and compaction only; Planner performs the semantic synthesis and chooses what source notes/citation instructions reach the Writer.
+  - Future option: add an explicit Researcher summarization sub-step only if deterministic snippets/excerpts are insufficient for quality.

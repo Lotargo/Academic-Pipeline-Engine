@@ -1161,6 +1161,12 @@ async def upload_attachment(
     file: UploadFile = File(...),
     attachment_type: str = Form("passive_reference")
 ):
+    if attachment_type not in {"passive_reference", "continuation_source"}:
+        raise HTTPException(
+            status_code=400,
+            detail="attachment_type must be 'passive_reference' or 'continuation_source'",
+        )
+
     try:
         file_bytes = await file.read()
     except Exception as e:

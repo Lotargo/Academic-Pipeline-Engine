@@ -174,10 +174,42 @@ def test_load_research_findings():
     assert "Title A" in findings
     assert "http://a.com" in findings
     assert "Snippet A" in findings
-    assert "Content A text detail" in findings
+    assert "Relevant excerpt: Content A text detail" in findings
     
     assert "Research query: 'Topic B'" in findings
     assert "Title B" in findings
     assert "http://b.com" in findings
     assert "Snippet B" in findings
-    assert "Content B text detail" in findings
+    assert "Relevant excerpt: Content B text detail" in findings
+
+
+def test_load_research_findings_compacts_long_content_and_skips_error_excerpt():
+    researcher = Researcher(TEMP_RUN_DIR)
+    long_content = " ".join(["detail"] * 300)
+    results = {
+        "query": "Topic",
+        "results": [
+            {
+                "title": "Long Source",
+                "url": "http://source.com",
+                "snippet": "Snippet",
+                "content": long_content,
+            },
+            {
+                "title": "Failed Source",
+                "url": "http://failed.com",
+                "snippet": "Snippet",
+                "content": "Error crawling webpage: timeout",
+            },
+        ],
+    }
+
+    with open(os.path.join(researcher.research_dir, "query_0.json"), "w", encoding="utf-8") as f:
+        json.dump(results, f)
+
+    findings = load_research_findings(TEMP_RUN_DIR)
+
+    assert "URL: http://source.com" in findings
+    assert "Relevant excerpt:" in findings
+    assert len(findings) < len(long_content)
+    assert "Error crawling webpage: timeout" not in findings

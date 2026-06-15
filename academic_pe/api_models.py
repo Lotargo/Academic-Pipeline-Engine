@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -26,7 +26,7 @@ class ContinuationSource(BaseModel):
 class Attachment(BaseModel):
     filename: str
     content: str
-    attachment_type: str  # "passive_reference" or "continuation_source"
+    attachment_type: Literal["passive_reference", "continuation_source"]
     token_count: int
 
 
