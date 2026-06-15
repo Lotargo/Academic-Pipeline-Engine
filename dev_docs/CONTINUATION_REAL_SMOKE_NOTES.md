@@ -90,3 +90,16 @@ Result: PASS
 Elapsed: 227.4s
 Observed imbalance: none
 Follow-up: exports\_smoke\20260616_030819\creative_continuation\stage_log.jsonl
+
+## Run 2026-06-16T03:12:34 - creative_bridge
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: Creative bridge (creative_bridge)
+Expected checks: closed ending bridged or tail replaced; no disconnected branch after hard ending; no visible internal planning labels; merge metadata reflects bridge/append behavior
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: PASS
+Elapsed: 116.6s
+Observed imbalance: none
+Follow-up: exports\_smoke\20260616_031234\creative_bridge\stage_log.jsonl
