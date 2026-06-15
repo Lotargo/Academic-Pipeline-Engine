@@ -125,6 +125,7 @@ ui/next-env.d.ts
 *.docx
 *.png
 exports/_metadata/
+exports/_smoke/
 exports_metadata/
 
 docs/PROJECT_STRENGTHS.md*
