@@ -7,20 +7,23 @@
 # Agent Definitions
 # ---------------------------------------------------------------------------
 # Each agent has a role, provider, model, temperature, and system prompt.
-# Supported providers: openai, custom_openai, anthropic, mock
-# agent_type: optional override for agent class (default: matches agent name)
+# Supported providers: mock, openai, custom_openai, anthropic, google, lm_studio, zen
+# base_url is used by custom_openai and lm_studio.
+# agent_type is an optional override for the agent class.
+# Built-in agent types include: default, writer, reviewer, prompt_enhancer.
 
 agents:
   writer:
     role: "Writer"
-    provider: mock # openai | custom_openai | anthropic | mock
+    provider: mock # mock | openai | custom_openai | anthropic | google | lm_studio | zen
     model: "gpt-4o"
     temperature: 0.7 # 0.0 – 2.0
     self_critique:
       enabled: true
       temperature: 0.2
-    # base_url: "http://localhost:11434/v1"  # only for custom_openai
-    # agent_type: "writer"      # optional: writer | reviewer | default | custom
+    # base_url: "http://localhost:11434/v1"  # custom_openai example
+    # base_url: "http://localhost:1234/v1"   # lm_studio example
+    # agent_type: "writer"
     system_prompt:
       "You are an expert artifact-aware writer working inside a multi-step
       document pipeline.
@@ -174,8 +177,8 @@ circuit_breaker:
 # ---------------------------------------------------------------------------
 # Quality Gate
 # ---------------------------------------------------------------------------
-# Automated checks run after REVIEWING and before RENDERING.
-# If any check fails, the pipeline will NOT proceed to rendering.
+# Automated checks run during the review loop and before the draft is marked done.
+# If any check fails, the reviewer loop receives a deterministic rejection.
 
 quality_gate:
   volume:
@@ -183,6 +186,55 @@ quality_gate:
     min_chars: 200 # minimum characters per section
   latex:
     enabled: true # validates $...$ and $$...$$ brace balance
+  markdown:
+    enabled: true # rejects raw fenced-code delimiters in final section text
+
+# ---------------------------------------------------------------------------
+# State Machine Surface
+# ---------------------------------------------------------------------------
+# This documents the validated state vocabulary. The current orchestrator uses
+# its built-in transition table:
+# INIT -> PLANNING -> DRAFTING -> REVIEWING -> RENDERING -> DONE.
+# Keep enabled=false unless runtime transition customization is explicitly added.
+
+fsm:
+  enabled: false
+  states:
+    - INIT
+    - PLANNING
+    - DRAFTING
+    - REVIEWING
+    - RENDERING
+    - DONE
+    - FAILED
+  transitions:
+    - from_state: INIT
+      to_states: [PLANNING, DRAFTING]
+    - from_state: PLANNING
+      to_states: [DRAFTING]
+    - from_state: DRAFTING
+      to_states: [REVIEWING]
+    - from_state: REVIEWING
+      to_states: [DRAFTING, RENDERING]
+    - from_state: RENDERING
+      to_states: [DONE]
+    - from_state: DONE
+      to_states: []
+    - from_state: FAILED
+      to_states: []
+
+# ---------------------------------------------------------------------------
+# DOCX Style
+# ---------------------------------------------------------------------------
+# Used by the explicit DOCX/PDF export endpoints.
+
+style:
+  font_name: "Times New Roman"
+  font_size: 14
+  title_font_size: 20
+  line_spacing: 1.5
+  first_line_indent_cm: 1.25
+  alignment: "justify"
 
 # ---------------------------------------------------------------------------
 # Pipeline
@@ -191,8 +243,13 @@ quality_gate:
 # template_mode selects the document template source:
 # - custom: use sections below as the current custom template
 # - fixed: use template_id from config/document_templates.yaml
-# - auto: planner-generated runtime template (planned)
-# output_filename and output_dir control where the final DOCX is saved.
+# - auto: planner-generated runtime template from PlannerAgent
+#
+# The example defaults to custom+mock so it runs without API keys.
+# For artifact-first production use, prefer fixed or auto with a real planner model.
+#
+# output_filename and output_dir are used by explicit DOCX/PDF export endpoints.
+# Generation itself saves draft metadata first; export is a separate user action.
 
 pipeline:
   sections:
@@ -207,12 +264,25 @@ pipeline:
       instruction: "Summarize key findings and implications."
   output_filename: "Final_Academic_Paper.docx"
   output_dir: "exports"
+  title: "GENERATED ACADEMIC PAPER"
   language: "auto"
   template_mode: "custom"
   template_id: null
+  academic_mode: false # compatible rigor overlay; does not force every artifact into a paper
+
+# ---------------------------------------------------------------------------
+# UI
+# ---------------------------------------------------------------------------
+# ui.language controls interface language and dynamic examples.
+# pipeline.language controls generated document language.
 
 ui:
   language: "ru"
+
+# ---------------------------------------------------------------------------
+# Dynamic Prompt Examples
+# ---------------------------------------------------------------------------
+# The example_generator agent refreshes UI suggestions on this interval.
 
 dynamic_examples_enabled: true
 dynamic_examples_interval_mins: 15
