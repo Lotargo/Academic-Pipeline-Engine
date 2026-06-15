@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from academic_pe.core.config import AppConfig, TemplateMode, load_config
+from academic_pe.core.config import AppConfig, SectionPrompt, TemplateMode, load_config
 from academic_pe.core.orchestrator import PipelineState, create_orchestrator_from_config
 from academic_pe.core.secrets import is_secret_configured
 
@@ -207,7 +207,12 @@ class SmokeLogger:
             with self.log_path.open("a", encoding="utf-8") as file:
                 file.write(text + "\n")
                 file.flush()
-            print(text, flush=True)
+            try:
+                print(text, flush=True)
+            except OSError:
+                # Parent process output may be closed by an external timeout while
+                # the child is still unwinding. The JSONL file is the source of truth.
+                pass
 
 
 class Heartbeat:
@@ -265,6 +270,41 @@ def safe_config_for_smoke(config: AppConfig, output_dir: Path) -> AppConfig:
     return smoke_config
 
 
+def align_config_sections_to_continuation_source(config: AppConfig, scenario: SmokeScenario) -> AppConfig:
+    smoke_config = config.model_copy(deep=True)
+    context = scenario.continuation_source.get("context")
+    if not isinstance(context, dict):
+        return smoke_config
+
+    sections = []
+    for name, content in context.items():
+        if name == "document_plan" or not str(content or "").strip():
+            continue
+        sections.append(
+            SectionPrompt(
+                name=name,
+                topic=name.replace("_", " ").replace("-", " ").title(),
+                instruction=(
+                    "Continue or edit this existing source section according to the scenario. "
+                    "Preserve the source genre, heading style, terminology, and audience level."
+                ),
+            )
+        )
+
+    if sections:
+        smoke_config.pipeline.sections = sections
+        smoke_config.pipeline.template_mode = TemplateMode.custom
+    return smoke_config
+
+
+def disable_expensive_smoke_loops(config: AppConfig) -> AppConfig:
+    smoke_config = config.model_copy(deep=True)
+    for agent in smoke_config.agents.values():
+        agent.self_critique.enabled = False
+    smoke_config.retry.max_retries = 0
+    return smoke_config
+
+
 @contextlib.contextmanager
 def instrument_llm_calls(smoke_log: SmokeLogger, heartbeat_seconds: float):
     import academic_pe.agents.base as base_module
@@ -276,15 +316,42 @@ def instrument_llm_calls(smoke_log: SmokeLogger, heartbeat_seconds: float):
 
     original = llm_module._call_provider_generate
 
+    call_stack = threading.local()
+
+    def infer_call_stage(user_prompt: str) -> str:
+        text = (user_prompt or "").lower()
+        if "refine the document topic" in text:
+            return "topic_refinement"
+        if "repair the draft in one pass" in text:
+            return "self_critique"
+        if "create a document plan" in text or "document plan" in text:
+            return "planning"
+        if "produce merge-operation payloads" in text:
+            return "merge_operation_payload"
+        if "check the provided text" in text:
+            return "review"
+        if "minimal patch" in text and "replace blocks" in text:
+            return "patch_revision"
+        if "verify if the text" in text:
+            return "self_verification"
+        if "write the section" in text or "draft" in text:
+            return "drafting"
+        return "agent_call"
+
     def wrapped(provider, system_prompt, user_prompt, model, temperature, on_delta=None):
         provider_name = provider.__class__.__name__
         started = time.monotonic()
+        stage = infer_call_stage(user_prompt)
+        depth = getattr(call_stack, "depth", 0)
+        call_stack.depth = depth + 1
         smoke_log.event(
             "agent_call_start",
             "LLM call started",
             provider=provider_name,
             model=model,
             temperature=temperature,
+            stage=stage,
+            nested_depth=depth,
         )
         try:
             with Heartbeat(
@@ -293,6 +360,7 @@ def instrument_llm_calls(smoke_log: SmokeLogger, heartbeat_seconds: float):
                     "LLM call still running",
                     provider=provider_name,
                     model=model,
+                    stage=stage,
                     elapsed_seconds=round(time.monotonic() - started, 1),
                 ),
                 heartbeat_seconds,
@@ -304,15 +372,21 @@ def instrument_llm_calls(smoke_log: SmokeLogger, heartbeat_seconds: float):
                 "LLM call failed",
                 provider=provider_name,
                 model=model,
+                stage=stage,
                 elapsed_seconds=round(time.monotonic() - started, 1),
                 error=exc.__class__.__name__,
+                error_message=safe_error_message(exc),
             )
             raise
+        finally:
+            call_stack.depth = depth
         smoke_log.event(
             "agent_call_end",
             "LLM call finished",
             provider=provider_name,
             model=model,
+            stage=stage,
+            nested_depth=depth,
             elapsed_seconds=round(time.monotonic() - started, 1),
             output_chars=len(result or ""),
         )
@@ -327,15 +401,63 @@ def instrument_llm_calls(smoke_log: SmokeLogger, heartbeat_seconds: float):
         planner_module,
     ]
     previous = {module: getattr(module, "_call_provider_generate", None) for module in modules}
+    original_reviewer_process = writer_module.ReviewerAgent.process
+
+    def reviewer_process(self, task_description, context=None, on_delta=None, document_sections=None):
+        started = time.monotonic()
+        provider_name = self.llm.__class__.__name__
+        smoke_log.event(
+            "agent_call_start",
+            "Reviewer call started",
+            provider=provider_name,
+            model=self.config.model,
+            temperature=self.config.temperature,
+            stage="review",
+            nested_depth=0,
+        )
+        try:
+            result = original_reviewer_process(
+                self,
+                task_description,
+                context=context,
+                on_delta=on_delta,
+                document_sections=document_sections,
+            )
+        except Exception as exc:
+            smoke_log.event(
+                "agent_call_error",
+                "Reviewer call failed",
+                provider=provider_name,
+                model=self.config.model,
+                stage="review",
+                elapsed_seconds=round(time.monotonic() - started, 1),
+                error=exc.__class__.__name__,
+                error_message=safe_error_message(exc),
+            )
+            raise
+        smoke_log.event(
+            "agent_call_end",
+            "Reviewer call finished",
+            provider=provider_name,
+            model=self.config.model,
+            stage="review",
+            nested_depth=0,
+            elapsed_seconds=round(time.monotonic() - started, 1),
+            output_chars=len(result or ""),
+        )
+        return result
+
     try:
         for module in modules:
             if hasattr(module, "_call_provider_generate"):
                 setattr(module, "_call_provider_generate", wrapped)
+        writer_module.ReviewerAgent.process = reviewer_process
         yield
     finally:
         for module, value in previous.items():
             if value is not None:
                 setattr(module, "_call_provider_generate", value)
+        writer_module.ReviewerAgent.process = original_reviewer_process
 
 
 class StageLogHandler(logging.Handler):
@@ -373,6 +495,18 @@ def safe_stage_message(message: str, max_chars: int = 260) -> str:
     if len(sanitized) <= max_chars:
         return sanitized
     return sanitized[: max_chars - 3].rstrip() + "..."
+
+
+def safe_error_message(exc: BaseException, max_chars: int = 180) -> str:
+    text = " ".join(str(exc).split())
+    if not text:
+        return ""
+    lowered = text.lower()
+    if "api_key" in lowered or "authorization" in lowered or "bearer " in lowered:
+        return "[redacted]"
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3].rstrip() + "..."
 
 
 @contextlib.contextmanager
@@ -488,6 +622,9 @@ def run_scenario(scenario: SmokeScenario, args: argparse.Namespace) -> int:
     log_path = Path(args.log_path) if args.log_path else output_dir / "stage_log.jsonl"
     smoke_log = SmokeLogger(scenario.scenario_id, note, log_path)
     smoke_config = safe_config_for_smoke(config, output_dir)
+    smoke_config = align_config_sections_to_continuation_source(smoke_config, scenario)
+    if args.disable_expensive_loops:
+        smoke_config = disable_expensive_smoke_loops(smoke_config)
 
     started = time.monotonic()
     smoke_log.event("scenario_start", "Scenario started", config_snapshot=config_snapshot(config))
@@ -551,6 +688,11 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument("--log-path", default=None, help="Optional JSONL log path.")
     parser.add_argument("--heartbeat-seconds", type=float, default=20.0, help="Heartbeat interval around long LLM calls.")
     parser.add_argument("--allow-mock", action="store_true", help="Allow runs when config uses mock/no real secrets.")
+    parser.add_argument(
+        "--disable-expensive-loops",
+        action="store_true",
+        help="Diagnostic mode: disable self-critique and provider retry wrappers for this smoke run.",
+    )
     return parser.parse_args(argv)
 
 

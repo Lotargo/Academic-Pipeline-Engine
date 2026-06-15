@@ -1,11 +1,14 @@
 from pathlib import Path
 
 from scripts.continuation_smoke_runner import (
+    align_config_sections_to_continuation_source,
     configured_real_providers,
     config_snapshot,
+    disable_expensive_smoke_loops,
     safe_stage_message,
     scenario_catalog,
     safe_config_for_smoke,
+    safe_error_message,
 )
 from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, ProviderEnum, SectionPrompt, TemplateMode
 
@@ -88,3 +91,29 @@ def test_safe_stage_message_redacts_generated_content():
     assert "generated document text" not in sanitized
     assert "secret-looking prompt" not in sanitized
     assert "content redacted" in sanitized
+
+
+def test_disable_expensive_smoke_loops_turns_off_self_critique_and_retry():
+    config = _config(ProviderEnum.zen)
+    config.agents["writer"].self_critique.enabled = True
+
+    smoke = disable_expensive_smoke_loops(config)
+
+    assert smoke.retry.max_retries == 0
+    assert smoke.agents["writer"].self_critique.enabled is False
+    assert config.agents["writer"].self_critique.enabled is True
+
+
+def test_safe_error_message_redacts_auth_like_text():
+    assert safe_error_message(RuntimeError("Authorization: Bearer abc")) == "[redacted]"
+
+
+def test_align_config_sections_to_continuation_source_uses_scenario_context():
+    config = _config()
+    scenario = scenario_catalog()["technical_continuation"]
+
+    smoke = align_config_sections_to_continuation_source(config, scenario)
+
+    assert [section.name for section in smoke.pipeline.sections] == ["readme"]
+    assert smoke.pipeline.template_mode == TemplateMode.custom
+    assert [section.name for section in config.pipeline.sections] == ["body"]

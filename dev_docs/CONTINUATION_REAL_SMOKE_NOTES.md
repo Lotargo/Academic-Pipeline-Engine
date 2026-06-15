@@ -55,3 +55,25 @@ Elapsed: approximately 15.7 minutes before scenario_error was recorded; outer co
 Observed imbalance: single technical_continuation scenario reached DRAFTING with heartbeat/progress logs, then failed before rubric checks with OSError after repeated real Zen calls.
 Follow-up: inspect exports/_smoke/20260616_024023/technical_continuation/stage_log.jsonl; add per-agent-call timeout or reduce self-critique/revision loop for smoke mode before attempting the remaining scenarios.
 Post-cleanup verification: no remaining continuation_smoke_runner.py processes for this repository were found.
+
+## Run 2026-06-16T03:01:32 - technical_continuation
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: Technical document continuation (technical_continuation)
+Expected checks: README heading style preserved; no forced academic-paper structure; practical usage content appended; no visible internal planning labels
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: PASS
+Elapsed: 92.8s
+Observed imbalance: none
+Follow-up: exports\_smoke\20260616_030132\technical_continuation\stage_log.jsonl
+
+## Diagnostic Findings 2026-06-16
+
+- The timed-out `technical_continuation` run was not a silent hang: JSONL heartbeat showed continuous real Zen calls until failure.
+- The runner was using default config sections (`theory`, `calculation`, `conclusion`) instead of the continuation source section (`readme`), unlike the API path that aligns continuation structure before orchestration. This caused README continuation to draft academic/default sections.
+- Writer self-critique doubled writer calls, and reviewer rejection triggered patch revision plus self-verification loops. The blocked run recorded 48 agent-call starts and 71 heartbeat events before failure.
+- The final `OSError` occurred after the outer command timeout while the child process was still logging. The runner now treats stdout as best-effort and keeps JSONL as the source of truth.
+- Diagnostic rerun: `technical_continuation --disable-expensive-loops` after source-section alignment completed PASS in 92.8s with real `zen` provider. This does not close the full gate, but it confirms the previous block was caused by smoke harness/configuration and expensive loops, not by an unavoidable provider hang.
+- Follow-up: keep source-section alignment in the runner; either run smoke with `--disable-expensive-loops` for gate diagnostics or add bounded per-agent-call timeouts before enabling full self-critique/retry loops.
