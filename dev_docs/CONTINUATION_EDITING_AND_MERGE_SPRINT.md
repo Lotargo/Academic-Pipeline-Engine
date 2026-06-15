@@ -377,14 +377,14 @@ Definition of done:
 
 ## Workstream 4: Merge Operation Schema
 
-Status: `[~] In progress`
+Status: `[x] Completed`
 
 Objective: Introduce deterministic edit operations between planning and writing.
 
 Tasks:
 
 - [x] Define Pydantic models for edit operations.
-- [~] Add validation for operation targets.
+- [x] Add validation for operation targets.
 - [x] Add operation application logic.
 - [x] Support replacing tail paragraphs for seamless bridges.
 - [x] Support inserting body content before terminal sections.
@@ -413,9 +413,9 @@ Tasks:
 - [x] Preserve source citation style where possible.
 - [x] Add source registry to runtime metadata.
 - [ ] Update researcher/planner to add sources through registry, not raw final prose.
-- [ ] Deduplicate references.
-- [ ] Rebuild final bibliography as one section.
-- [ ] Ensure body continuation is inserted before references.
+- [x] Deduplicate references.
+- [x] Rebuild final bibliography as one section.
+- [x] Ensure body continuation is inserted before references.
 - [ ] Add tests for adding a new source during continuation without adding "new references" labels.
 
 Definition of done:

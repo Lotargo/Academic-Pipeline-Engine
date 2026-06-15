@@ -123,6 +123,90 @@ def required_content_roles(operations: Iterable[MergeOperation | Mapping[str, ob
     return roles
 
 
+def validate_merge_operation_targets(
+    document_state: DocumentState,
+    operations: Iterable[MergeOperation | Mapping[str, object]],
+) -> List[str]:
+    assembled = OrderedDict(
+        (section.name, section.content)
+        for section in document_state.source_sections
+    )
+    terminal_names = list(document_state.terminal_sections)
+    section_names = set(assembled.keys())
+    terminal_set = set(terminal_names)
+    issues: List[str] = []
+
+    for raw_operation in operations:
+        operation = (
+            raw_operation
+            if isinstance(raw_operation, MergeOperation)
+            else MergeOperation.model_validate(raw_operation)
+        )
+        target = operation.target
+        resolved = _resolve_target(target, assembled, terminal_names)
+
+        if operation.op == MergeOperationType.preserve:
+            if target and target != "existing_body" and target not in section_names:
+                issues.append(f"preserve target '{target}' does not exist")
+            continue
+
+        if operation.op == MergeOperationType.move_terminal_sections_to_end:
+            continue
+
+        if operation.op == MergeOperationType.replace_tail:
+            if not resolved:
+                issues.append(f"replace_tail target '{target}' does not resolve to an existing body section")
+            elif resolved in terminal_set:
+                issues.append(f"replace_tail target '{target}' resolves to terminal section '{resolved}'")
+            continue
+
+        if operation.op == MergeOperationType.append_after:
+            if target and not resolved:
+                issues.append(f"append_after target '{target}' does not resolve to an existing section")
+            elif resolved in terminal_set:
+                issues.append(f"append_after target '{target}' resolves to terminal section '{resolved}'")
+            continue
+
+        if operation.op == MergeOperationType.insert_before:
+            if not target:
+                issues.append("insert_before requires a target anchor")
+            elif not resolved:
+                issues.append(f"insert_before target '{target}' does not resolve to an existing section")
+            continue
+
+        if operation.op == MergeOperationType.expand_section:
+            if target == "requested_section":
+                continue
+            if not resolved:
+                issues.append(f"expand_section target '{target}' does not resolve to an existing section")
+            elif resolved in terminal_set:
+                issues.append(f"expand_section target '{target}' resolves to terminal section '{resolved}'")
+            continue
+
+        if operation.op == MergeOperationType.replace_range:
+            if target == "existing_body":
+                continue
+            if not resolved:
+                issues.append(f"replace_range target '{target}' does not resolve to an existing section")
+            continue
+
+        if operation.op == MergeOperationType.update_references:
+            if target in {"", "references", "terminal_sections"}:
+                continue
+            if not resolved:
+                issues.append(f"update_references target '{target}' does not resolve to an existing section")
+            elif resolved not in terminal_set:
+                issues.append(f"update_references target '{target}' resolves to non-terminal section '{resolved}'")
+            continue
+
+        if operation.op == MergeOperationType.rename_heading:
+            if not resolved:
+                issues.append(f"rename_heading target '{target}' does not resolve to an existing section")
+            continue
+
+    return issues
+
+
 def compact_merge_patch_metadata(patch: MergePatch) -> dict:
     return {
         "operation_outputs": patch.operation_outputs,
@@ -426,12 +510,31 @@ def _merge_reference_text(existing: str, new_content: str) -> str:
         cleaned = line.strip()
         if not cleaned:
             continue
-        key = cleaned.lower()
+        if _is_reference_section_heading(cleaned):
+            continue
+        key = _reference_dedupe_key(cleaned)
         if key in seen:
             continue
         seen.add(key)
         lines.append(cleaned)
     return "\n".join(lines)
+
+
+def _reference_dedupe_key(line: str) -> str:
+    normalized = re.sub(r"^\s*(?:\[\d+\]|\d+[.)]|[-*])\s*", "", line.strip())
+    normalized = re.sub(r"\s+", " ", normalized).strip().lower()
+    return normalized
+
+
+def _is_reference_section_heading(line: str) -> bool:
+    normalized = re.sub(r"^\s{0,3}#{1,6}\s+", "", line.strip()).strip().lower()
+    return normalized.rstrip(":") in {
+        "references",
+        "bibliography",
+        "works cited",
+        "список литературы",
+        "источники",
+    }
 
 
 def _move_terminal_sections_to_end(

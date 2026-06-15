@@ -29,6 +29,7 @@ from academic_pe.core.merge_operations import (
     compact_merge_patch_metadata,
     parse_merge_operation_payload,
     required_content_roles,
+    validate_merge_operation_targets,
 )
 from academic_pe.manifests import ArtifactManifestResolver
 
@@ -625,6 +626,14 @@ class Orchestrator:
             logger.warning(
                 "Writer merge-operation payload is missing required content roles %s; falling back to section drafting.",
                 missing_roles,
+            )
+            return False
+
+        target_issues = validate_merge_operation_targets(document_state, operations)
+        if target_issues:
+            logger.warning(
+                "Writer merge-operation payload has invalid operation targets %s; falling back to section drafting.",
+                target_issues,
             )
             return False
 

@@ -10,6 +10,7 @@ from academic_pe.core.merge_operations import (
     compact_merge_patch_metadata,
     parse_merge_operation_payload,
     required_content_roles,
+    validate_merge_operation_targets,
 )
 
 
@@ -122,6 +123,22 @@ def test_update_references_deduplicates_and_records_terminal():
     assert patch.updated_references == ["references"]
 
 
+def test_update_references_deduplicates_across_marker_styles_and_skips_heading():
+    patch = apply_merge_operations(
+        _state(),
+        [
+            {
+                "op": "update_references",
+                "target": "references",
+                "content": "## References\n[1] Existing source.\n- New source.",
+                "mode": "dedupe_and_merge",
+            }
+        ],
+    )
+
+    assert patch.assembled_context["references"] == "1. Existing source.\n- New source."
+
+
 def test_merge_operation_validates_required_shape():
     with pytest.raises(ValueError, match="replace_tail requires paragraphs"):
         MergeOperation(op="replace_tail", target="analysis")
@@ -165,3 +182,35 @@ def test_compact_merge_patch_metadata_omits_full_assembled_context():
 
     assert metadata["assembled_section_order"] == ["introduction", "analysis", "references"]
     assert "assembled_context" not in metadata
+
+
+def test_validate_merge_operation_targets_accepts_default_plan():
+    state = _state()
+    plan = build_default_edit_plan(
+        ContinuationIntent.continue_append,
+        state.terminal_sections,
+    )
+
+    assert validate_merge_operation_targets(state, plan.operations) == []
+
+
+def test_validate_merge_operation_targets_rejects_unknown_insert_anchor():
+    issues = validate_merge_operation_targets(
+        _state(),
+        [{"op": "insert_before", "target": "missing_anchor", "content_role": "continuation"}],
+    )
+
+    assert issues == [
+        "insert_before target 'missing_anchor' does not resolve to an existing section"
+    ]
+
+
+def test_validate_merge_operation_targets_rejects_appending_after_terminal_section():
+    issues = validate_merge_operation_targets(
+        _state(),
+        [{"op": "append_after", "target": "references", "content_role": "continuation"}],
+    )
+
+    assert issues == [
+        "append_after target 'references' resolves to terminal section 'references'"
+    ]
