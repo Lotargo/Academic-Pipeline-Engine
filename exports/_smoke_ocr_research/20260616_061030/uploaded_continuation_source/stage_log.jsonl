@@ -1,0 +1,3 @@
+{"ts": "2026-06-16T06:10:30", "scenario": "uploaded_continuation_source", "kind": "scenario_start", "message": "Scenario started"}
+{"ts": "2026-06-16T06:10:30", "scenario": "uploaded_continuation_source", "kind": "scenario_check", "message": "uploaded continuation split checks completed", "sections": ["introduction", "development", "references"]}
+{"ts": "2026-06-16T06:10:30", "scenario": "uploaded_continuation_source", "kind": "scenario_result", "message": "Scenario completed", "result": "PASS", "issues": [], "details": {"sections": ["introduction", "development", "references"]}, "elapsed_seconds": 0.0}

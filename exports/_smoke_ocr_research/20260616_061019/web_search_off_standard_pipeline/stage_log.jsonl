@@ -1,0 +1,3 @@
+{"ts": "2026-06-16T06:10:19", "scenario": "web_search_off_standard_pipeline", "kind": "scenario_start", "message": "Scenario started"}
+{"ts": "2026-06-16T06:10:19", "scenario": "web_search_off_standard_pipeline", "kind": "scenario_check", "message": "web search off checks completed", "researcher_calls": 0}
+{"ts": "2026-06-16T06:10:19", "scenario": "web_search_off_standard_pipeline", "kind": "scenario_result", "message": "Scenario completed", "result": "PASS", "issues": [], "details": {"planner_calls": 1, "writer_calls": 1}, "elapsed_seconds": 0.0}

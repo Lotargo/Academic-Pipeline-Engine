@@ -1,0 +1,23 @@
+{
+  "scenario": "uploaded_continuation_micro_report",
+  "title": "Uploaded continuation micro-report",
+  "elapsed_seconds": 54.6,
+  "config_snapshot": "writer=zen/deepseek-v4-flash-free, planner=zen/big-pickle, researcher=mock/deterministic-search",
+  "rubric": [
+    "continues the existing report instead of restarting with a new introduction",
+    "preserves formal report style",
+    "adds useful recommendations",
+    "does not duplicate references or place new body content after references",
+    "does not expose internal continuation/planning labels"
+  ],
+  "search_findings_chars": 0,
+  "document_plan": "# Writing Plan: Recommendations for OCR Quality Control Report\n\n## Core Intent\nProvide a set of practical, evidence‑based recommendations for OCR quality control workflows, leveraging the findings already reported, without restarting or re‑introducing the report.\n\n## Section-by-Section Goals\n- **Overview** (preserved) – unchanged restatement of the core quality control approach.\n- **Findings** (preserved) – unchanged summary of observed outcomes (normalization effectiveness, need for human review).\n- **Recommendations** (new) – actionable guidelines derived from the findings, written in the same formal report style. Avoid any introductory or transitional meta‑text; assume the reader is already inside the report.\n- **References** (preserved) – reuse the existing reference list exactly; do not duplicate or append extra references unless directly relevant to the new recommendations.\n\n## Final-Document Headings\n- `## Overview`\n- `## Findings`\n- `## Recommendations`\n- `## References`\n\n(The planning document headings above are internal only; the final document uses exactly these four section headings, in that order.)\n\n## Continuation Actions\n- **Preserve** the existing `Overview` and `Findings` sections verbatim (style, wording, and content).\n- **Insert** the `Recommendations` section as a new body section directly before `References`.\n- **Keep** the `References` section unchanged; do not add a second reference block or repeat the original entries.\n- **Do not** add any new introductory paragraph or restate the report’s purpose – the continuation must read as a seamless addition.\n\n## Terminology and Style Consistency\nMaintain the exact terms and voice used in the original:\n- “OCR quality control”, “extracted text”, “source layout”, “headings and tables”, “low‑confidence sections”\n- “LLM processing”, “human review”, “scanned documents with mixed layouts”\n- Use the same sentence structure and formal register (e.g., third‑person, descriptive, no AI‑markers like “I think” or “as an AI”)\n\n## Consistency Requirements and Forbidden Inconsistencies\n- **Facts**: Recommendations must logically follow from the findings (e.g., if normalization improved results, recommend normalization steps; if human review is still needed, recommend review protocols).\n- **No contradictions**: Do not claim something in recommendations that contradicts the findings (e.g., do not say human review is unnecessary).\n- **Forbidden**:\n  - Introducing a new report title or restating the topic.\n  - Adding any “Introduction” or “Background” section.\n  - Duplicating or re‑listing the references.\n  - Using more academic or technical language than the original (e.g., avoid equations, detailed modeling, citations unless already present).\n  - Including placeholders, meta‑comments (e.g., “this section will contain…”), or AI filler.\n  - Breaking the numbering or order of existing sections.",
+  "output": "",
+  "all_context_keys": [
+    "continuation",
+    "document_plan",
+    "findings",
+    "overview",
+    "references"
+  ]
+}

@@ -211,3 +211,36 @@ Tasks:
 - [x] Decide whether Researcher should summarize each source itself or whether Planner should synthesize from structured JSON; document the chosen boundary.
   - Decision: Researcher performs deterministic source extraction and compaction only; Planner performs the semantic synthesis and chooses what source notes/citation instructions reach the Writer.
   - Future option: add an explicit Researcher summarization sub-step only if deterministic snippets/excerpts are insufficient for quality.
+
+---
+
+## Smoke Scenario Gate
+
+Status: `[x] Added`
+
+Objective: Catch integration and role-boundary regressions that unit tests can miss, without requiring a full real-provider writing run.
+
+Runner:
+
+```powershell
+poetry run python scripts/ocr_research_smoke_runner.py web_search_off_standard_pipeline
+poetry run python scripts/ocr_research_smoke_runner.py web_search_on_researcher_boundary
+poetry run python scripts/ocr_research_smoke_runner.py reference_attachment_planner_only
+poetry run python scripts/ocr_research_smoke_runner.py uploaded_continuation_source
+poetry run python scripts/ocr_research_smoke_runner.py mistral_ocr_direct
+poetry run python scripts/ocr_research_smoke_runner.py real_llm_web_research
+```
+
+Scenarios:
+
+- [x] `web_search_off_standard_pipeline`: verifies that disabling the activator keeps the standard pipeline and does not call Researcher.
+- [x] `web_search_on_researcher_boundary`: verifies Planner + Researcher integration and proves raw search findings do not reach Writer.
+- [x] `reference_attachment_planner_only`: verifies passive reference attachments reach Planner but not Writer as raw context.
+- [x] `uploaded_continuation_source`: verifies uploaded Markdown can be split into continuation sections and terminal references are recognized.
+- [x] `mistral_ocr_direct`: verifies the configured Mistral key can OCR a generated PDF and preserve a unique marker.
+- [x] `real_llm_web_research`: verifies the current real Planner/Writer configuration can run with web search enabled while preserving the Planner/Researcher/Writer role boundary.
+
+Latest local run:
+
+- [x] 2026-06-16: all five scenarios passed locally. Notes are written to `dev_docs/OCR_RESEARCH_SMOKE_NOTES.md`; JSONL logs are written under `exports/_smoke_ocr_research/`.
+- [x] 2026-06-16: `real_llm_web_research` passed locally with real `zen` Planner/Writer calls. Search findings were non-empty, Planner produced a source-aware plan, and Writer did not leak the raw reference marker.
