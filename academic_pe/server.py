@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload, PromptEnhanceRequest, PromptEnhanceResponse
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
+from academic_pe.core.continuation import is_terminal_section_name
 from academic_pe.core.document_structure import is_renderable_section
 from academic_pe.core.orchestrator import create_orchestrator_from_config, PipelineState, PipelineCancelled
 from academic_pe.core.template_library import TemplateLibrary
@@ -102,6 +103,72 @@ current_run: Dict[str, Any] = {
 
 def _exportable_context(context: Dict[str, str]) -> Dict[str, str]:
     return {key: value for key, value in context.items() if key != "document_plan"}
+
+
+def _terminal_section_names_from_runtime_template_data(rt_data: Optional[dict]) -> List[str]:
+    if not isinstance(rt_data, dict):
+        return []
+
+    terminal_names: List[str] = []
+    metadata = rt_data.get("metadata")
+    document_state = metadata.get("document_state") if isinstance(metadata, dict) else None
+    if isinstance(document_state, dict):
+        terminal_names.extend(
+            str(section)
+            for section in document_state.get("terminal_sections", [])
+            if str(section)
+        )
+
+    sections = rt_data.get("sections")
+    if isinstance(sections, list):
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            name = str(section.get("name") or "")
+            title = str(section.get("title") or section.get("topic") or "")
+            role = str(section.get("semantic_role") or "")
+            if (
+                role in {"reference_section", "appendix", "glossary"}
+                or is_terminal_section_name(name)
+                or is_terminal_section_name(title)
+            ):
+                terminal_names.append(name)
+
+    seen = set()
+    result: List[str] = []
+    for name in terminal_names:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        result.append(name)
+    return result
+
+
+def _move_terminal_export_sections_to_end(
+    context: Dict[str, str],
+    terminal_sections: List[str],
+) -> Dict[str, str]:
+    terminal_set = {section for section in terminal_sections if section in context}
+    if not terminal_set:
+        return context
+    result = {
+        key: value
+        for key, value in context.items()
+        if key not in terminal_set
+    }
+    for key, value in context.items():
+        if key in terminal_set:
+            result[key] = value
+    return result
+
+
+def _align_config_sections_to_export_context(config: AppConfig, export_context: Dict[str, str]) -> AppConfig:
+    order_index = {name: index for index, name in enumerate(export_context.keys())}
+    config.pipeline.sections = sorted(
+        config.pipeline.sections,
+        key=lambda section: order_index.get(section.name, len(order_index)),
+    )
+    return config
 
 
 # Thread lock for safety
@@ -1156,6 +1223,7 @@ def _prepare_export(payload: ExportRequest):
             from academic_pe.core.templates import RuntimeTemplate
             from academic_pe.core.orchestrator import _apply_runtime_template
             runtime_template = RuntimeTemplate(**rt_data)
+            terminal_section_names = _terminal_section_names_from_runtime_template_data(rt_data)
             hidden_section_names = {
                 section.name
                 for section in runtime_template.sections
@@ -1167,7 +1235,9 @@ def _prepare_export(payload: ExportRequest):
                     for key, value in export_context.items()
                     if key not in hidden_section_names
                 }
+            export_context = _move_terminal_export_sections_to_end(export_context, terminal_section_names)
             config = _apply_runtime_template(config, runtime_template)
+            config = _align_config_sections_to_export_context(config, export_context)
             config.pipeline.title = topic
         except Exception as e:
             logging.getLogger(__name__).warning("Failed to apply runtime template in export: %s", e)
@@ -1190,6 +1260,13 @@ def _prepare_export(payload: ExportRequest):
                         instruction=""
                     ))
             config.pipeline.sections = new_sections
+        terminal_section_names = [
+            key
+            for key in export_context
+            if is_terminal_section_name(key)
+        ]
+        export_context = _move_terminal_export_sections_to_end(export_context, terminal_section_names)
+        config = _align_config_sections_to_export_context(config, export_context)
         config.pipeline.title = topic
 
     return export_context, config, topic, timestamp, author, run_id, source_document_plan

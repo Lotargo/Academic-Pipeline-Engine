@@ -325,6 +325,70 @@ def test_export_endpoint_excludes_document_plan_from_export(monkeypatch, tmp_pat
     ]
 
 
+def test_export_endpoint_moves_terminal_sections_to_end(monkeypatch, tmp_path):
+    import copy
+    from academic_pe.core.config import load_config
+
+    mock_called = []
+    base_config = load_config("config/agents.yaml")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("academic_pe.server.load_config", lambda path: copy.deepcopy(base_config))
+
+    def mock_export_docx_with_qa(context, config, output_filename=None):
+        mock_called.append((context, config, output_filename))
+        from academic_pe.tools.export_qa import ExportResult, RenderResult
+        return ExportResult(
+            status="passed",
+            filename="paper.docx",
+            path=str(tmp_path / "paper.docx"),
+            issues=[],
+            render=RenderResult(status="skipped", message="QA skipped")
+        )
+
+    monkeypatch.setattr("academic_pe.server.export_docx_with_qa", mock_export_docx_with_qa)
+
+    client = TestClient(app)
+    payload = {
+        "filename": "paper.docx",
+        "topic": "Continuation Export",
+        "context": {
+            "analysis": "Analysis body.",
+            "references": "1. Existing source.",
+            "continuation": "Continuation body.",
+            "appendix_a": "Appendix material.",
+        },
+        "runtime_template": {
+            "source": "auto",
+            "name": "Continuation Template",
+            "category": "academic",
+            "metadata": {
+                "document_state": {
+                    "terminal_sections": ["references", "appendix_a"],
+                },
+            },
+            "sections": [
+                {"name": "analysis", "title": "Analysis", "instruction": ""},
+                {"name": "references", "title": "References", "instruction": "", "semantic_role": "reference_section"},
+                {"name": "continuation", "title": "Continuation", "instruction": ""},
+                {"name": "appendix_a", "title": "Appendix A", "instruction": "", "semantic_role": "appendix"},
+            ],
+        },
+    }
+
+    response = client.post("/api/export/docx", json=payload)
+
+    assert response.status_code == 200
+    assert len(mock_called) == 1
+    exported_context, resolved_config, _ = mock_called[0]
+    assert list(exported_context.keys()) == ["analysis", "continuation", "references", "appendix_a"]
+    assert [section.name for section in resolved_config.pipeline.sections] == [
+        "analysis",
+        "continuation",
+        "references",
+        "appendix_a",
+    ]
+
+
 def test_pdf_export_endpoint_with_runtime_template(monkeypatch, tmp_path):
     import copy
     from academic_pe.core.config import load_config

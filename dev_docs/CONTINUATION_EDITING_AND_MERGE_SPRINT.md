@@ -475,18 +475,18 @@ Definition of done:
 
 ## Workstream 8: Export And Preview Assembly
 
-Status: `[ ] Planned`
+Status: `[x] Completed`
 
 Objective: Ensure preview and exported DOCX/PDF render the same assembled final artifact.
 
 Tasks:
 
-- [ ] Route preview through the same assembly logic as export.
-- [ ] Hide internal-only sections in preview/export.
-- [ ] Keep references/appendices at the end.
-- [ ] Preserve heading levels and numbering.
-- [ ] Preserve source title/author metadata unless user changes it.
-- [ ] Add export tests for continuation with bibliography and appendices.
+- [x] Route preview through the same assembly logic as export.
+- [x] Hide internal-only sections in preview/export.
+- [x] Keep references/appendices at the end.
+- [x] Preserve heading levels and numbering.
+- [x] Preserve source title/author metadata unless user changes it.
+- [x] Add export tests for continuation with bibliography and appendices.
 
 Definition of done:
 
