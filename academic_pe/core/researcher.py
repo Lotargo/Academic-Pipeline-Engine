@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
 
 def _resolve_duckduckgo_url(href: str) -> str:
     if not href:
@@ -30,6 +32,32 @@ def _compact_text(text: str, limit: int = 700) -> str:
     if len(compacted) <= limit:
         return compacted
     return compacted[: limit - 1].rstrip() + "..."
+
+
+def _get_with_retries(
+    url: str,
+    *,
+    headers: dict,
+    timeout: int,
+    attempts: int = 2,
+    backoff_seconds: float = 0.5,
+):
+    last_error = None
+    for attempt in range(max(1, attempts)):
+        try:
+            response = requests.get(url, headers=headers, timeout=timeout)
+            if response.status_code in _RETRYABLE_STATUS_CODES and attempt < attempts - 1:
+                time.sleep(backoff_seconds * (attempt + 1))
+                continue
+            return response
+        except Exception as exc:
+            last_error = exc
+            if attempt < attempts - 1:
+                time.sleep(backoff_seconds * (attempt + 1))
+                continue
+            raise
+    if last_error:
+        raise last_error
 
 
 class Researcher:
@@ -59,7 +87,7 @@ class Researcher:
         results = []
         try:
             url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
-            res = requests.get(url, headers=headers, timeout=15)
+            res = _get_with_retries(url, headers=headers, timeout=15)
             if res.ok:
                 soup = BeautifulSoup(res.text, "html.parser")
                 for result_div in soup.find_all("div", class_=lambda x: x and "result" in x):
@@ -94,7 +122,7 @@ class Researcher:
             time.sleep(1.0)  # Rate limit/polite scraping delay
             content = ""
             try:
-                c_res = requests.get(r["url"], headers=headers, timeout=12)
+                c_res = _get_with_retries(r["url"], headers=headers, timeout=12)
                 if c_res.ok:
                     c_soup = BeautifulSoup(c_res.text, "html.parser")
                     # Clean up junk elements

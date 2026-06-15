@@ -153,9 +153,9 @@ Tasks:
   - [x] Measure the token length of OCR-processed Markdown.
   - [x] Make the token limit configurable (stored in the application configuration e.g. `config/agents.yaml`, default 20,000 tokens) to easily increase/decrease it.
   - [x] Reject files exceeding the configured token limit with a clear validation message.
-- [~] Inject parsed reference documents into the Planner context as background material/continuity source.
+- [x] Inject parsed reference documents into the Planner context as background material/continuity source.
   - Implemented: passive reference attachments are passed into the Planner prompt.
-  - Remaining: enforce the role boundary so raw passive reference materials are not also sent directly to the Writer; the Planner should curate the relevant information for the Writer through the document plan.
+  - Implemented: raw passive reference materials are no longer sent directly to the Writer; the Planner curates the relevant information through the document plan.
 - [x] Update Planner prompts so continuation sources are analyzed as existing document state, including preserved content, sections to revise/trim, bridge requirements, and new continuation sections.
 - [x] Update Writer prompts so generated content extends the existing document and can revise ending/transition sections instead of producing a separate standalone paper.
 - [x] Update Reviewer prompts/quality checks to validate continuity, avoid duplicated endings, and ensure the resulting output reads as one coherent document.
@@ -163,7 +163,7 @@ Tasks:
 ### Remaining Attachment/OCR Audit Fixes
 
 - [x] Add tests for `/api/attachments/upload` success, unsupported file type, and token-limit rejection.
-- [ ] Add a UI affordance to choose "reference material" vs "continuation source" before upload, or make the post-upload toggle clearer.
+- [x] Add a UI affordance to choose "reference material" vs "continuation source" before upload, or make the post-upload toggle clearer.
 - [ ] Confirm continuation-source uploads preserve enough previous-work metadata when available; uploaded external documents can only infer structure from Markdown unless the user provides prior prompt/instructions.
 
 ---
@@ -183,7 +183,7 @@ Tasks:
 - [~] **Search Anti-Blocking Guard**:
   - [x] Implement browser request simulation by mimicking headers of a real web browser (e.g. customized User-Agent, Accept-Language, Referrer).
   - [x] Add basic per-request delay/rate limiting.
-  - [ ] Add stronger timeout/error policy, retry/backoff, and tests for blocked/empty DDG result pages.
+  - [x] Add stronger timeout/error policy, retry/backoff, and tests for blocked/empty DDG result pages.
 - [~] **Parallel Execution & File-Based Exchange**:
   - [x] Support spawning a pool of parallel search workers, each assigned a specific search query.
   - [x] For each search worker, write fetched findings (crawled text, links, metadata) to a separate temporary JSON file inside the run directory.
@@ -195,9 +195,9 @@ Tasks:
   - [x] The Researcher executes searches and crawls top matches.
   - [x] The Researcher returns compact findings with citations/URLs back to the Planner.
     - Implemented: returned findings include source titles, URLs, snippets, and bounded excerpts rather than long raw crawled previews.
-- [~] Update FSM Planning to build the outline specifically around the retrieved research data and embed the citations (links) so the writer can output them.
+- [x] Update FSM Planning to build the outline specifically around the retrieved research data and embed the citations (links) so the writer can output them.
   - Implemented: retrieved findings are injected into the Planner prompt and the Planner prompt asks for citation/link embedding.
-  - Remaining: ensure the Writer receives only the Planner-curated plan/source notes, not raw `search_findings` or raw research context.
+  - Implemented: the Writer receives only the Planner-curated plan/source notes, not raw `search_findings` or raw research context.
 
 ### Remaining Researcher Audit Fixes
 

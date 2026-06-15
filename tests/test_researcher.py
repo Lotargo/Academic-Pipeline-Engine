@@ -138,6 +138,68 @@ def test_run_researcher_pool(mock_get):
     assert any(r["query"] == "query B" for r in results)
 
 
+@patch("academic_pe.core.researcher.time.sleep", return_value=None)
+@patch("requests.get")
+def test_search_retries_blocked_duckduckgo_page_and_handles_empty_results(mock_get, mock_sleep):
+    blocked_res = MagicMock()
+    blocked_res.ok = False
+    blocked_res.status_code = 429
+    blocked_res.text = "Too Many Requests"
+
+    empty_res = MagicMock()
+    empty_res.ok = True
+    empty_res.status_code = 200
+    empty_res.text = "<html><body>No results here</body></html>"
+
+    mock_get.side_effect = [blocked_res, empty_res]
+
+    researcher = Researcher(TEMP_RUN_DIR)
+    data = researcher.search_and_crawl("blocked query", 0)
+
+    assert data["query"] == "blocked query"
+    assert data["results"] == []
+    assert mock_get.call_count == 2
+
+
+@patch("academic_pe.core.researcher.time.sleep", return_value=None)
+@patch("requests.get")
+def test_search_retries_retryable_target_page_status(mock_get, mock_sleep):
+    ddg_html = """
+    <html>
+      <body>
+        <div class="result results_links">
+          <a class="result__a" href="https://example.com/retry">Retry Source</a>
+          <a class="result__snippet">Retry snippet.</a>
+        </div>
+      </body>
+    </html>
+    """
+    ddg_res = MagicMock()
+    ddg_res.ok = True
+    ddg_res.status_code = 200
+    ddg_res.text = ddg_html
+
+    retryable_res = MagicMock()
+    retryable_res.ok = False
+    retryable_res.status_code = 503
+    retryable_res.text = "Service unavailable"
+
+    page_res = MagicMock()
+    page_res.ok = True
+    page_res.status_code = 200
+    page_res.text = "<html><body><p>Recovered page content.</p></body></html>"
+
+    mock_get.side_effect = [ddg_res, retryable_res, page_res]
+
+    researcher = Researcher(TEMP_RUN_DIR)
+    data = researcher.search_and_crawl("retry query", 0)
+
+    assert len(data["results"]) == 1
+    assert data["results"][0]["title"] == "Retry Source"
+    assert "Recovered page content" in data["results"][0]["content"]
+    assert mock_get.call_count == 3
+
+
 def test_load_research_findings():
     researcher = Researcher(TEMP_RUN_DIR)
     # Manually create mock json results

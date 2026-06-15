@@ -50,6 +50,8 @@ const CONTINUATION_INTENT_OPTIONS = [
   { value: "restructure", label: "Restructure" },
 ]
 
+type AttachmentType = "passive_reference" | "continuation_source"
+
 function formatArtifactLabel(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return ""
   const knownOption = ARTIFACT_OVERRIDE_OPTIONS.find((option) => option.value === value)
@@ -129,6 +131,7 @@ export function Search() {
   const [artifactOverride, setArtifactOverride] = useState<string>("")
   const [continuationIntentOverride, setContinuationIntentOverride] = useState<string>("")
   const [activeAttachments, setActiveAttachments] = useState<any[]>([])
+  const [uploadAttachmentType, setUploadAttachmentType] = useState<AttachmentType>("passive_reference")
   const [uploadingFile, setUploadingFile] = useState(false)
   const notifiedRef = useRef(false)
   const fsmScrollRef = useRef<HTMLDivElement | null>(null)
@@ -906,6 +909,44 @@ export function Search() {
                     )}
                   </div>
 
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                      {language === "ru" ? "РўРёРї Р·Р°РіСЂСѓР·РєРё" : "Upload as"}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={uploadingFile}
+                        onClick={() => setUploadAttachmentType("passive_reference")}
+                        className={`rounded-lg border px-3 py-2 text-left text-[11px] font-semibold transition-all ${
+                          uploadAttachmentType === "passive_reference"
+                            ? "ape-status-primary border-ape-primary/30"
+                            : "bg-muted/40 dark:bg-ape-surface-subtle/30 border-border/50 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <span className="block">{language === "ru" ? "РЎРїСЂР°РІРєР°" : "Reference"}</span>
+                        <span className="block text-[10px] font-normal opacity-80">
+                          {language === "ru" ? "Р”Р»СЏ РїР»Р°РЅРёСЂРѕРІС‰РёРєР°" : "Planner background"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={uploadingFile}
+                        onClick={() => setUploadAttachmentType("continuation_source")}
+                        className={`rounded-lg border px-3 py-2 text-left text-[11px] font-semibold transition-all ${
+                          uploadAttachmentType === "continuation_source"
+                            ? "ape-status-primary border-ape-primary/30"
+                            : "bg-muted/40 dark:bg-ape-surface-subtle/30 border-border/50 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <span className="block">{language === "ru" ? "РџСЂРѕРґРѕР»Р¶РµРЅРёРµ" : "Continuation"}</span>
+                        <span className="block text-[10px] font-normal opacity-80">
+                          {language === "ru" ? "РћСЃРЅРѕРІР° РґР»СЏ РЅРѕРІРѕР№ РІРµСЂСЃРёРё" : "Base for new version"}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Drag-and-drop / Upload Area */}
                   <label className="flex flex-col items-center justify-center border-2 border-dashed border-border/60 hover:border-ape-primary/40 rounded-lg py-4 px-6 cursor-pointer bg-muted/20 dark:bg-ape-surface-subtle/20 transition-all hover:bg-muted/40 group">
                     <UploadCloud className="h-8 w-8 text-muted-foreground group-hover:text-ape-primary transition-colors" />
@@ -926,7 +967,7 @@ export function Search() {
                         setUploadingFile(true);
                         const formData = new FormData();
                         formData.append("file", file);
-                        formData.append("attachment_type", "passive_reference");
+                        formData.append("attachment_type", uploadAttachmentType);
                         try {
                           const res = await fetch("/api/attachments/upload", {
                             method: "POST",
