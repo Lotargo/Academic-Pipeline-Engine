@@ -49,3 +49,56 @@ Elapsed: 47.6s
 Config snapshot: writer=zen/deepseek-v4-flash-free, planner=zen/big-pickle, researcher=mock/deterministic-search
 Output: `exports\_quality_ocr_research\20260616_063644\uploaded_continuation_micro_report\result.md`
 JSON: `exports\_quality_ocr_research\20260616_063644\uploaded_continuation_micro_report\result.json`
+
+## Run 2026-06-16T06:45:19 - uploaded_continuation_micro_report
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 73.7s
+Config snapshot: writer=zen/deepseek-v4-flash-free, planner=zen/big-pickle, researcher=mock/deterministic-search
+Output: `exports\_quality_ocr_research\20260616_064405\uploaded_continuation_micro_report\result.md`
+JSON: `exports\_quality_ocr_research\20260616_064405\uploaded_continuation_micro_report\result.json`
+
+## Run 2026-06-16T06:49:49 - uploaded_continuation_micro_report
+
+Result: SUPERSEDED BY MANUAL REVIEW BELOW
+Elapsed: 48.9s
+Config snapshot: writer=zen/deepseek-v4-flash-free, planner=zen/big-pickle, researcher=mock/deterministic-search
+Output: `exports\_quality_ocr_research\20260616_064900\uploaded_continuation_micro_report\result.md`
+JSON: `exports\_quality_ocr_research\20260616_064900\uploaded_continuation_micro_report\result.json`
+
+## Run 2026-06-16T06:56:04 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 122.8s
+Config snapshot: writer=zen/deepseek-v4-flash-free, planner=zen/big-pickle, researcher=mock/deterministic-search
+Output: `exports\_quality_ocr_research\20260616_065401\web_research_operational_brief\result.md`
+JSON: `exports\_quality_ocr_research\20260616_065401\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T07:01:26 - web_research_operational_brief
+
+Result: PASS AFTER FIXES
+Elapsed: 162.4s
+Config snapshot: writer=zen/deepseek-v4-flash-free, planner=zen/big-pickle, researcher=zen/big-pickle
+Output: `exports\_quality_ocr_research\20260616_065843\web_research_operational_brief\result.md`
+JSON: `exports\_quality_ocr_research\20260616_065843\web_research_operational_brief\result.json`
+
+Manual review:
+- Pass: real Planner, Writer, and Researcher LLM calls were used; Researcher curated non-empty web findings for Planner.
+- Pass: output reads as a coherent operational brief with practical steps and a clear limitation.
+- Pass: no `References` heading, raw reference marker, or internal labels leaked.
+- Pass: final output is normalized to ASCII punctuation/spaces; no mojibake remains in the delivered section.
+- Note: document plan may include detailed JSON planning structure, which is acceptable because it is planner-facing rather than writer output.
+
+## Run 2026-06-16T06:49:49 - uploaded_continuation_micro_report
+
+Result: PASS AFTER FIXES
+Elapsed: 48.9s
+Config snapshot: writer=zen/deepseek-v4-flash-free, planner=zen/big-pickle, researcher=mock/deterministic-search
+Output: `exports\_quality_ocr_research\20260616_064900\uploaded_continuation_micro_report\result.md`
+JSON: `exports\_quality_ocr_research\20260616_064900\uploaded_continuation_micro_report\result.json`
+
+Manual review:
+- Pass: output continues the uploaded mini-report without restarting it.
+- Pass: recommendations are inserted before terminal references.
+- Pass: user-facing headings are `Overview`, `Findings`, `Practical Recommendations`, and `References`; internal `continuation` is not exposed.
+- Pass: document plan, output, and assembled output are normalized; no mojibake or smart-punctuation encoding artifacts remain.

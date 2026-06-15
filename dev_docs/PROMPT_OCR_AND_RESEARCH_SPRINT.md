@@ -209,8 +209,9 @@ Tasks:
 - [x] Add tests using realistic DuckDuckGo HTML and crawled-page failure modes.
 - [x] Fix query-list parsing edge cases in `_generate_search_queries` and add tests for numbered lists, bullet lists, and malformed model output.
 - [x] Decide whether Researcher should summarize each source itself or whether Planner should synthesize from structured JSON; document the chosen boundary.
-  - Decision: Researcher performs deterministic source extraction and compaction only; Planner performs the semantic synthesis and chooses what source notes/citation instructions reach the Writer.
-  - Future option: add an explicit Researcher summarization sub-step only if deterministic snippets/excerpts are insufficient for quality.
+  - Decision: Researcher performs source extraction and, when configured with a real provider, performs LLM curation of raw findings into compact source-grounded notes for Planner.
+  - Boundary: Planner performs the semantic document plan and chooses what source notes/citation instructions reach Writer. Writer still receives only planner-curated context and must not run research.
+  - Deterministic/mock mode remains available for smoke tests and no-key local runs.
 
 ---
 
@@ -242,5 +243,38 @@ Scenarios:
 
 Latest local run:
 
-- [x] 2026-06-16: all five scenarios passed locally. Notes are written to `dev_docs/OCR_RESEARCH_SMOKE_NOTES.md`; JSONL logs are written under `exports/_smoke_ocr_research/`.
+- [x] 2026-06-16: all six scenarios passed locally. Notes are written to `dev_docs/OCR_RESEARCH_SMOKE_NOTES.md`; JSONL logs are written under `exports/_smoke_ocr_research/`.
 - [x] 2026-06-16: `real_llm_web_research` passed locally with real `zen` Planner/Writer calls. Search findings were non-empty, Planner produced a source-aware plan, and Writer did not leak the raw reference marker.
+
+---
+
+## Semi-Manual Quality Evaluation
+
+Status: `[x] Added and run locally`
+
+Objective: Run a small number of real-provider scenarios, then manually inspect whether role boundaries and final writing quality are actually acceptable.
+
+Runner:
+
+```powershell
+poetry run python scripts/ocr_research_quality_eval_runner.py web_research_operational_brief
+poetry run python scripts/ocr_research_quality_eval_runner.py uploaded_continuation_micro_report
+```
+
+Scenarios:
+
+- [x] `web_research_operational_brief`: real Planner/Writer/Researcher run with web search enabled, source curation, operational brief output, and no Writer-side raw reference leak.
+- [x] `uploaded_continuation_micro_report`: real Planner/Writer continuation merge run that inserts recommendations before references without exposing the internal `continuation` role key.
+
+Issues found and fixed:
+
+- [x] Normalized common mojibake/smart punctuation and special spaces in search findings, document plans, and generated section content.
+- [x] Continuation merge sections now derive user-facing titles from visible Markdown headings, so `continuation` can render as `Recommendations`/`Practical Recommendations`.
+- [x] Quality runner now writes failure artifacts when the pipeline raises, making contract-drift failures inspectable.
+- [x] Web brief scenario now forbids academic `References` headings and uses inline/source-note attribution.
+- [x] ResearcherAgent now uses real LLM curation when configured with a non-mock provider; local `config/agents.yaml` uses `zen/big-pickle`.
+
+Latest local quality runs:
+
+- [x] 2026-06-16: `uploaded_continuation_micro_report` passed after normalization/title fixes. Output headings: Overview, Findings, Practical Recommendations, References.
+- [x] 2026-06-16: `web_research_operational_brief` passed with `writer=zen/deepseek-v4-flash-free`, `planner=zen/big-pickle`, `researcher=zen/big-pickle`; no `References` heading, no raw marker leak, and no internal labels.

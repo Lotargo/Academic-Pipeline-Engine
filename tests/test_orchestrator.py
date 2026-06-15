@@ -1141,6 +1141,46 @@ def test_pipeline_applies_structured_merge_operation_payload():
     assert any("Produce merge-operation payloads" in prompt for prompt in llm.prompts)
 
 
+def test_merge_continuation_section_uses_visible_heading_as_title():
+    config = _make_config()
+    config.pipeline.sections = [
+        SectionPrompt(name="overview", topic="Overview", instruction="Preserve."),
+        SectionPrompt(name="references", topic="References", instruction="Preserve."),
+    ]
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    runtime_template = RuntimeTemplate(
+        source=RuntimeTemplateSource.custom,
+        name="Continuation",
+        category="general",
+        sections=[
+            TemplateSection(name="overview", title="Overview", instruction="Preserve."),
+            TemplateSection(
+                name="references",
+                title="References",
+                instruction="Preserve.",
+                semantic_role="reference_section",
+            ),
+        ],
+    )
+    orch = Orchestrator(writer=writer, config=config, runtime_template=runtime_template)
+
+    orch._sync_sections_to_context_order(
+        {
+            "overview": "Existing overview.",
+            "continuation": "## Recommendations\nUse OCR normalization before planning.",
+            "references": "1. Existing source.",
+        }
+    )
+
+    continuation_section = next(section for section in orch._config.pipeline.sections if section.name == "continuation")
+    continuation_template_section = next(
+        section for section in orch.runtime_template.sections if section.name == "continuation"
+    )
+    assert continuation_section.topic == "Recommendations"
+    assert continuation_template_section.title == "Recommendations"
+
+
 def test_create_orchestrator_from_config_inherits_top_level_continuation_artifact_metadata():
     config = _make_config()
     manifests = {
@@ -1371,7 +1411,7 @@ def test_continuation_source_is_included_in_planning_context():
 
 
 def test_strip_markdown_fences():
-    from academic_pe.core.orchestrator import strip_markdown_fences
+    from academic_pe.core.orchestrator import normalize_generated_text, strip_markdown_fences
     
     # Strict wrapped
     assert strip_markdown_fences("```markdown\nHello\n```") == "Hello"
@@ -1385,6 +1425,9 @@ def test_strip_markdown_fences():
     
     # Normal text remains same
     assert strip_markdown_fences("Normal paragraph.") == "Normal paragraph."
+    assert normalize_generated_text('Alpha вЂ” beta в†’ gamma вЂњquotedвЂќ') == 'Alpha - beta -> gamma "quoted"'
+    assert normalize_generated_text("Alpha \u2014 beta \u2192 gamma \u201cquoted\u201d") == 'Alpha - beta -> gamma "quoted"'
+    assert normalize_generated_text("1\u202f000\u00a0chars") == "1 000 chars"
 
 
 def test_quality_gate_automated_rejection_in_loop():

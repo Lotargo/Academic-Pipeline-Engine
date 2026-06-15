@@ -47,14 +47,16 @@ def scenario_catalog() -> dict[str, QualityScenario]:
             topic="AI OCR and web research workflow for academic document drafting",
             instructions=(
                 "Use current web context during planning. Produce a concise operational brief. "
-                "Do not mention internal pipeline mechanics unless they are user-facing workflow steps."
+                "Do not mention internal pipeline mechanics unless they are user-facing workflow steps. "
+                "Do not add a References section; keep source awareness inline or as a short source note."
             ),
             section=SectionPrompt(
                 name="brief",
                 topic="AI OCR and web research workflow for academic document drafting",
                 instruction=(
                     "Write a clear operational brief with source-aware claims, practical workflow steps, "
-                    "and one limitation. Keep it reasonably compact; do not optimize for an exact character count."
+                    "and one limitation. Keep it reasonably compact; do not optimize for an exact character count. "
+                    "Do not use academic headings such as References, Literature Review, or Methodology."
                 ),
             ),
             web_search_enabled=True,
@@ -177,6 +179,16 @@ def _append_note(text: str) -> None:
             f.write("\n")
 
 
+def _strip_duplicate_heading(content: str, title: str) -> str:
+    lines = str(content or "").splitlines()
+    if not lines:
+        return ""
+    first = lines[0].strip()
+    if first.startswith("#") and first.lstrip("#").strip().lower() == title.strip().lower():
+        return "\n".join(lines[1:]).strip()
+    return str(content)
+
+
 def run_scenario(scenario: QualityScenario) -> int:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = OUTPUT_DIR / stamp / scenario.scenario_id
@@ -197,13 +209,23 @@ def run_scenario(scenario: QualityScenario) -> int:
         reference_materials=list(scenario.reference_materials),
         web_search_enabled=scenario.web_search_enabled,
     )
-    orchestrator.run_pipeline(render_artifact=False)
+    error = ""
+    exit_code = 0
+    try:
+        orchestrator.run_pipeline(render_artifact=False)
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        exit_code = 1
     elapsed = time.monotonic() - started
 
     plan = orchestrator.context.get("document_plan", "")
     body = orchestrator.context.get(scenario.section.name, "")
+    section_titles = {
+        section.name: getattr(section, "topic", None) or getattr(section, "title", None) or section.name
+        for section in orchestrator._config.pipeline.sections
+    }
     assembled_output = "\n\n".join(
-        f"## {name}\n{content}"
+        f"## {section_titles.get(name, name)}\n{_strip_duplicate_heading(str(content), section_titles.get(name, name))}"
         for name, content in orchestrator.context.items()
         if name != "document_plan" and str(content).strip()
     )
@@ -216,6 +238,7 @@ def run_scenario(scenario: QualityScenario) -> int:
         "config_snapshot": snapshot,
         "rubric": list(scenario.rubric),
         "search_findings_chars": len(orchestrator.search_findings),
+        "error": error,
         "document_plan": plan,
         "output": body,
         "assembled_output": assembled_output,
@@ -233,6 +256,7 @@ def run_scenario(scenario: QualityScenario) -> int:
                 f"Elapsed: {elapsed:.1f}s",
                 f"Config: {snapshot}",
                 f"Search findings chars: {len(orchestrator.search_findings)}",
+                *(["", "## Error", error] if error else []),
                 "",
                 "## Rubric",
                 *[f"- [ ] {item}" for item in scenario.rubric],
@@ -255,6 +279,7 @@ def run_scenario(scenario: QualityScenario) -> int:
                 f"## Run {datetime.now().isoformat(timespec='seconds')} - {scenario.scenario_id}",
                 "",
                 f"Result: PENDING MANUAL REVIEW",
+                *(["Pipeline error: `" + error.replace("`", "'") + "`"] if error else []),
                 f"Elapsed: {elapsed:.1f}s",
                 f"Config snapshot: {snapshot}",
                 f"Output: `{md_path.relative_to(ROOT)}`",
@@ -264,7 +289,7 @@ def run_scenario(scenario: QualityScenario) -> int:
         )
     )
     print(f"Wrote {md_path}")
-    return 0
+    return exit_code
 
 
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:

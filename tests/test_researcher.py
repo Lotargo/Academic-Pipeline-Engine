@@ -52,6 +52,38 @@ def test_researcher_agent_runs_deterministic_research(mock_run_pool, mock_load):
     mock_load.assert_called_once_with(TEMP_RUN_DIR)
 
 
+@patch("academic_pe.agents.researcher.load_research_findings", return_value="Raw finding with https://example.com")
+@patch("academic_pe.agents.researcher.run_researcher_pool")
+def test_researcher_agent_curates_findings_with_llm_for_real_provider(mock_run_pool, mock_load):
+    class CapturingProvider:
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            self.calls.append((system_prompt, user_prompt, model, temperature))
+            return "Curated finding: Example source - https://example.com"
+
+    cfg = AgentConfig(
+        role="Researcher",
+        provider="zen",
+        model="research-model",
+        temperature=0.1,
+        system_prompt="Curate source findings.",
+        agent_type="researcher",
+    )
+    provider = CapturingProvider()
+    agent = ResearcherAgent(cfg, provider)
+
+    findings = agent.run_research([" query A "], TEMP_RUN_DIR)
+
+    assert findings == "Curated finding: Example source - https://example.com"
+    mock_run_pool.assert_called_once_with(["query A"], TEMP_RUN_DIR)
+    mock_load.assert_called_once_with(TEMP_RUN_DIR)
+    assert provider.calls
+    assert "[Raw Findings]" in provider.calls[0][1]
+    assert "Raw finding with https://example.com" in provider.calls[0][1]
+
+
 @patch("requests.get")
 def test_search_and_crawl(mock_get):
     # Mock DuckDuckGo response HTML

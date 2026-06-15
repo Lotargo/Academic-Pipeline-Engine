@@ -83,6 +83,47 @@ HookFn = Callable[[PipelineState, PipelineState], None]
 SectionDeltaFn = Callable[[str, str, str], None]
 
 
+_COMMON_MOJIBAKE_REPLACEMENTS = {
+    "\u2014": " - ",
+    "\u2013": "-",
+    "\u2011": "-",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u2026": "...",
+    "\u2022": "-",
+    "\u2192": "->",
+    "\u00a0": " ",
+    "\u202f": " ",
+    "\u2009": " ",
+    "вЂ”": " - ",
+    "вЂ“": "-",
+    "вЂ‘": "-",
+    "вЂњ": '"',
+    "вЂќ": '"',
+    "вЂ˜": "'",
+    "вЂ™": "'",
+    "вЂ¦": "...",
+    "вЂў": "-",
+    "в†’": "->",
+    "В ": " ",
+    "В\xa0": " ",
+    "В«": '"',
+    "В»": '"',
+    "тАФ": " - ",
+    "тАУ": "-",
+    "тАС": "-",
+    "тАЬ": '"',
+    "тАЭ": '"',
+    "тАШ": "'",
+    "тАЩ": "'",
+    "тАж": "...",
+    "тАв": "-",
+    "тЖТ": "->",
+}
+
+
 def strip_markdown_fences(text: str) -> str:
     if not text:
         return ""
@@ -125,6 +166,18 @@ def strip_markdown_fences(text: str) -> str:
             return "\n".join(lines).strip()
             
     return text
+
+
+def normalize_generated_text(text: str) -> str:
+    if not text:
+        return ""
+    normalized = text
+    for bad, replacement in sorted(_COMMON_MOJIBAKE_REPLACEMENTS.items(), key=lambda item: len(item[0]), reverse=True):
+        normalized = normalized.replace(bad, replacement)
+    normalized = re.sub(r"[ \t]{2,}", " ", normalized)
+    normalized = re.sub(r" ?-  ?", " - ", normalized)
+    normalized = re.sub(r"\s+([,.;:!?])", r"\1", normalized)
+    return normalized
 
 
 def compact_log_preview(text: str, max_chars: int = 700) -> str:
@@ -529,8 +582,11 @@ class Orchestrator:
         for hook in self._section_delta_hooks:
             hook(section_name, delta, accumulated)
 
+    def _clean_section_content(self, content: str) -> str:
+        return normalize_generated_text(strip_markdown_fences(content))
+
     def _set_section_content(self, section_name: str, content: str) -> None:
-        cleaned_content = strip_markdown_fences(content)
+        cleaned_content = self._clean_section_content(content)
         self.context[section_name] = cleaned_content
         self._emit_section_delta(section_name, cleaned_content, cleaned_content)
 
@@ -724,10 +780,11 @@ class Orchestrator:
         resolved_config_sections: List[SectionPrompt] = []
         resolved_template_sections: List[TemplateSection] = []
         for name in section_names:
+            default_title = _section_title_from_content(name, assembled_context.get(name, ""))
             template_section = existing_template_sections.get(name) or TemplateSection(
                 name=name,
-                title=_humanize_section_name(name),
-                topic=_humanize_section_name(name),
+                title=default_title,
+                topic=default_title,
                 instruction="Merged continuation content.",
                 semantic_role="body",
                 heading_policy="render_allowed",
@@ -777,6 +834,7 @@ class Orchestrator:
                     run_dir = self._config.pipeline.output_dir
                     logger.info("[Researcher] Spawning parallel search agents to retrieve search results...")
                     self.search_findings = self._researcher.run_research(queries, run_dir)
+                    self.search_findings = normalize_generated_text(self.search_findings)
                     logger.info("[Researcher] Parallel search completed. Sourcing findings...")
 
             plan_task = render_template(
@@ -797,6 +855,7 @@ class Orchestrator:
             )
             logger.info("Creating document plan before drafting sections.")
             self._draft_plan = self._planner.process(plan_task)
+            self._draft_plan = self._clean_section_content(self._draft_plan)
             self._capture_self_critique_summary(self._planner, stage="planning", section_name="document_plan")
             self._set_section_content("document_plan", self._draft_plan)
 
@@ -869,11 +928,11 @@ class Orchestrator:
                         else:
                             break
 
-                    draft_content = strip_markdown_fences(draft_content)
+                    draft_content = self._clean_section_content(draft_content)
                     if target_language == "ru" and not has_cyrillic(draft_content):
                         logger.info("Translating section %s to Russian...", section.name)
                         draft_content = translate_markdown_to_ru(draft_content)
-                    self.context[section.name] = strip_markdown_fences(draft_content)
+                    self.context[section.name] = self._clean_section_content(draft_content)
 
             # --- REVIEWING ---
             self.transition_to(PipelineState.REVIEWING)
@@ -1455,6 +1514,24 @@ def _compact_document_state_metadata(document_state: Any) -> dict:
 
 def _humanize_section_name(name: str) -> str:
     return re.sub(r"[_-]+", " ", name).strip().title()
+
+
+def _first_markdown_heading(text: str) -> Optional[str]:
+    if not text:
+        return None
+    match = re.search(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", text, flags=re.MULTILINE)
+    if not match:
+        return None
+    heading = re.sub(r"[*_`]+", "", match.group(1)).strip()
+    return heading or None
+
+
+def _section_title_from_content(name: str, content: str) -> str:
+    if name == "continuation":
+        heading = _first_markdown_heading(content)
+        if heading:
+            return heading
+    return _humanize_section_name(name)
 
 
 def _pipeline_execution_mode(config: AppConfig) -> str:
