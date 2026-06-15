@@ -1,6 +1,7 @@
 from typing import Dict, Optional, Type
 
 from academic_pe.agents.base import BaseAgent, DefaultAgent
+from academic_pe.agents.researcher import ResearcherAgent
 from academic_pe.agents.writer import WriterAgent, ReviewerAgent
 from academic_pe.agents.prompt_enhancer import PromptEnhancerAgent
 from academic_pe.core.config import AppConfig, AgentConfig, RetryConfig, CircuitBreakerConfig
@@ -11,6 +12,7 @@ _AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "writer": WriterAgent,
     "reviewer": ReviewerAgent,
     "prompt_enhancer": PromptEnhancerAgent,
+    "researcher": ResearcherAgent,
 }
 
 

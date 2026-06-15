@@ -318,11 +318,13 @@ class Orchestrator:
         reference_materials: Optional[List[Dict[str, Any]]] = None,
         web_search_enabled: bool = False,
         planner: Optional[BaseAgent] = None,
+        researcher: Optional[BaseAgent] = None,
     ):
         self._writer = writer
         self._reviewer = reviewer
         self._has_dedicated_planner = planner is not None
         self._planner = planner or writer
+        self._researcher = researcher
         self._renderer = renderer
         self._config = config
         self.runtime_template = runtime_template
@@ -763,16 +765,19 @@ class Orchestrator:
                         "Web search requires a dedicated planner agent. Configure agents.planner "
                         "or disable web_search_enabled so the writer is not used as a research planner."
                     )
+                if self._researcher is None:
+                    raise PipelineError(
+                        "Web search requires a dedicated researcher agent. Configure agents.researcher "
+                        "or disable web_search_enabled."
+                    )
                 logger.info("[Researcher] Spawning search agent: Generating research queries...")
                 queries = self._generate_search_queries()
                 logger.info(f"[Researcher] Generated queries: {queries}")
                 if queries:
-                    from academic_pe.core.researcher import run_researcher_pool, load_research_findings
                     run_dir = self._config.pipeline.output_dir
                     logger.info("[Researcher] Spawning parallel search agents to retrieve search results...")
-                    run_researcher_pool(queries, run_dir)
+                    self.search_findings = self._researcher.run_research(queries, run_dir)
                     logger.info("[Researcher] Parallel search completed. Sourcing findings...")
-                    self.search_findings = load_research_findings(run_dir)
 
             plan_task = render_template(
                 DEFAULT_PLAN_TEMPLATE,
@@ -1350,11 +1355,15 @@ def create_orchestrator_from_config(
     planner = None
     if "planner" in resolved_config.agents:
         planner = create_agent("planner", resolved_config.agents["planner"], retry_cfg=resolved_config.retry)
+    researcher = None
+    if "researcher" in resolved_config.agents:
+        researcher = create_agent("researcher", resolved_config.agents["researcher"], retry_cfg=resolved_config.retry)
 
     orchestrator = Orchestrator(
         writer=writer,
         reviewer=reviewer,
         planner=planner,
+        researcher=researcher,
         config=resolved_config,
         renderer=renderer,
         runtime_template=runtime_template,

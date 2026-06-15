@@ -143,9 +143,9 @@ The attachment/OCR feature is not only a passive reference-material upload. It m
 Tasks:
 - [x] Create file upload component in the UI workspace panel supporting PDF, DOCX, and MD.
 - [x] Add UI action to continue from an existing generated/archive document directly from the document/archive controls.
-- [~] Integrate **Mistral OCR API** client in the backend to parse uploaded documents into clean Markdown.
+- [x] Integrate **Mistral OCR API** client in the backend to parse uploaded documents into clean Markdown.
   - Implemented: backend upload endpoint, Mistral file upload + OCR call, page Markdown merge, cleanup attempt, and local PDF/DOCX/MD fallback.
-  - Remaining: verify against a real Mistral OCR account/key and confirm file/document payload shape against current API behavior.
+  - Verified: direct smoke test with the configured `config/secrets.json` Mistral key successfully OCR'd a generated PDF and preserved a unique marker.
 - [x] Add a visual list of active attachments in the UI.
 - [x] Add attachment metadata distinguishing passive reference material from continuation source documents.
 - [x] **Token Guardrail**:
@@ -177,9 +177,9 @@ Objective: Implement an optional Researcher agent that performs internet search 
 Tasks:
 - [x] Add an "Enable Web Search" toggle in the UI generation settings.
 - [x] Add `web_search_enabled` request plumbing from UI -> API model -> backend thread -> Orchestrator.
-- [~] Create a `ResearcherAgent` in the backend.
-  - Implemented: `academic_pe/core/researcher.py` with a `Researcher` worker, DuckDuckGo search/crawl, pool runner, and findings loader.
-  - Remaining: align naming/contract with the planned `ResearcherAgent` role if the codebase expects agent-style adapters, and keep it outside Writer responsibilities.
+- [x] Create a `ResearcherAgent` in the backend.
+  - Implemented: `academic_pe/agents/researcher.py` with `ResearcherAgent`, registered in the agent factory as `agent_type: researcher`.
+  - Implemented: `academic_pe/core/researcher.py` remains the deterministic search/crawl implementation used by the agent.
 - [~] **Search Anti-Blocking Guard**:
   - [x] Implement browser request simulation by mimicking headers of a real web browser (e.g. customized User-Agent, Accept-Language, Referrer).
   - [x] Add basic per-request delay/rate limiting.

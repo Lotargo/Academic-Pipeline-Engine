@@ -14,6 +14,17 @@ from academic_pe.manifests.models import ArtifactManifest, ArtifactModeOverlay
 from typing import Dict
 
 
+class FakeResearcher(DefaultAgent):
+    def __init__(self, config, llm, findings: str = "Research findings"):
+        super().__init__(config, llm)
+        self.findings = findings
+        self.calls = []
+
+    def run_research(self, queries, run_dir):
+        self.calls.append((queries, run_dir))
+        return self.findings
+
+
 def _make_config() -> AppConfig:
     return AppConfig(
         agents={
@@ -1439,14 +1450,16 @@ def test_quality_gate_automated_rejection_in_loop():
     assert orch.context["theory"] == "Clean section content."
 
 
-@patch("academic_pe.core.researcher.run_researcher_pool")
-@patch("academic_pe.core.researcher.load_research_findings", return_value="### Research query: 'test query'\nSource 1: Title (http://url)\nSnippet: Snippet...\n")
-def test_orchestrator_web_search_integration(mock_load, mock_run):
-
+def test_orchestrator_web_search_integration():
     config = _make_config()
     llm = MockProvider()
     writer = DefaultAgent(config.agents["writer"], llm)
     planner = DefaultAgent(config.agents["writer"], llm)
+    researcher = FakeResearcher(
+        config.agents["writer"],
+        llm,
+        findings="### Research query: 'test query'\nSource 1: Title (http://url)\nSnippet: Snippet...\n",
+    )
     
     # Mock planner process to return a distinct document plan
     planner.process = MagicMock(return_value="My Custom Document Plan")
@@ -1454,6 +1467,7 @@ def test_orchestrator_web_search_integration(mock_load, mock_run):
     orch = Orchestrator(
         writer=writer,
         planner=planner,
+        researcher=researcher,
         config=config,
         web_search_enabled=True,
     )
@@ -1466,8 +1480,7 @@ def test_orchestrator_web_search_integration(mock_load, mock_run):
     assert orch.state == PipelineState.DONE
     assert orch.web_search_enabled is True
     orch._generate_search_queries.assert_called_once()
-    mock_run.assert_called_once_with(["test query"], config.pipeline.output_dir)
-    mock_load.assert_called_once_with(config.pipeline.output_dir)
+    assert researcher.calls == [(["test query"], config.pipeline.output_dir)]
     assert orch.search_findings == "### Research query: 'test query'\nSource 1: Title (http://url)\nSnippet: Snippet...\n"
     
     # Verify that it was the planner that created the plan
@@ -1475,18 +1488,18 @@ def test_orchestrator_web_search_integration(mock_load, mock_run):
     assert orch.context["document_plan"] == "My Custom Document Plan"
 
 
-@patch("academic_pe.core.researcher.run_researcher_pool")
-@patch("academic_pe.core.researcher.load_research_findings")
-def test_orchestrator_web_search_disabled_does_not_run_researcher(mock_load, mock_run):
+def test_orchestrator_web_search_disabled_does_not_run_researcher():
     config = _make_config()
     llm = MockProvider()
     writer = DefaultAgent(config.agents["writer"], llm)
     planner = DefaultAgent(config.agents["writer"], llm)
+    researcher = FakeResearcher(config.agents["writer"], llm)
     planner.process = MagicMock(return_value="Plan without web search")
 
     orch = Orchestrator(
         writer=writer,
         planner=planner,
+        researcher=researcher,
         config=config,
         web_search_enabled=False,
     )
@@ -1495,20 +1508,19 @@ def test_orchestrator_web_search_disabled_does_not_run_researcher(mock_load, moc
     orch.run_pipeline(render_artifact=False)
 
     orch._generate_search_queries.assert_not_called()
-    mock_run.assert_not_called()
-    mock_load.assert_not_called()
+    assert researcher.calls == []
     assert orch.context["document_plan"] == "Plan without web search"
 
 
-@patch("academic_pe.core.researcher.run_researcher_pool")
-@patch("academic_pe.core.researcher.load_research_findings")
-def test_orchestrator_web_search_requires_dedicated_planner(mock_load, mock_run):
+def test_orchestrator_web_search_requires_dedicated_planner():
     config = _make_config()
     llm = MockProvider()
     writer = DefaultAgent(config.agents["writer"], llm)
+    researcher = FakeResearcher(config.agents["writer"], llm)
 
     orch = Orchestrator(
         writer=writer,
+        researcher=researcher,
         config=config,
         web_search_enabled=True,
     )
@@ -1518,8 +1530,27 @@ def test_orchestrator_web_search_requires_dedicated_planner(mock_load, mock_run)
         orch.run_pipeline(render_artifact=False)
 
     orch._generate_search_queries.assert_not_called()
-    mock_run.assert_not_called()
-    mock_load.assert_not_called()
+    assert researcher.calls == []
+
+
+def test_orchestrator_web_search_requires_dedicated_researcher():
+    config = _make_config()
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    planner = DefaultAgent(config.agents["writer"], llm)
+
+    orch = Orchestrator(
+        writer=writer,
+        planner=planner,
+        config=config,
+        web_search_enabled=True,
+    )
+    orch._generate_search_queries = MagicMock(return_value=["should not run"])
+
+    with pytest.raises(PipelineError, match="dedicated researcher agent"):
+        orch.run_pipeline(render_artifact=False)
+
+    orch._generate_search_queries.assert_not_called()
 
 
 @patch("academic_pe.core.llm._call_provider_generate")

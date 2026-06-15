@@ -4,6 +4,9 @@ import pytest
 import shutil
 from unittest.mock import MagicMock, patch
 
+from academic_pe.agents.researcher import ResearcherAgent
+from academic_pe.core.config import AgentConfig
+from academic_pe.core.llm import MockProvider
 from academic_pe.core.researcher import (
     Researcher,
     run_researcher_pool,
@@ -28,6 +31,25 @@ def test_researcher_initialization():
     researcher = Researcher(TEMP_RUN_DIR)
     assert researcher.run_dir == TEMP_RUN_DIR
     assert os.path.exists(researcher.research_dir)
+
+
+@patch("academic_pe.agents.researcher.load_research_findings", return_value="Loaded findings")
+@patch("academic_pe.agents.researcher.run_researcher_pool")
+def test_researcher_agent_runs_deterministic_research(mock_run_pool, mock_load):
+    cfg = AgentConfig(
+        role="Researcher",
+        model="deterministic-search",
+        temperature=0.0,
+        system_prompt="Researcher.",
+        agent_type="researcher",
+    )
+    agent = ResearcherAgent(cfg, MockProvider())
+
+    findings = agent.run_research([" query A ", "", "query B"], TEMP_RUN_DIR)
+
+    assert findings == "Loaded findings"
+    mock_run_pool.assert_called_once_with(["query A", "query B"], TEMP_RUN_DIR)
+    mock_load.assert_called_once_with(TEMP_RUN_DIR)
 
 
 @patch("requests.get")

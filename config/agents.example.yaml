@@ -10,7 +10,7 @@
 # Supported providers: mock, openai, custom_openai, anthropic, google, lm_studio, zen
 # base_url is used by custom_openai and lm_studio.
 # agent_type is an optional override for the agent class.
-# Built-in agent types include: default, writer, reviewer, prompt_enhancer.
+# Built-in agent types include: default, writer, reviewer, prompt_enhancer, researcher.
 
 agents:
   writer:
@@ -128,6 +128,17 @@ agents:
          - Set 'latex_allowed' to true and 'markdown_allowed' to true.
       5. JSON format:
          - Output ONLY valid JSON matching the requested structure. Never include body drafting.
+
+  researcher:
+    role: "Researcher"
+    provider: mock
+    model: "deterministic-search"
+    temperature: 0.0
+    agent_type: "researcher"
+    system_prompt: |
+      Deterministic web researcher. Search only when the web-search activator is enabled by the user.
+      Return compact source findings with titles, URLs, snippets, and bounded relevant excerpts for the Planner.
+      Do not write document sections.
 
   example_generator:
     role: "Example Generator"

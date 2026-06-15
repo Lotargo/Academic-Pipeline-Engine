@@ -73,6 +73,15 @@ class TestAgentFactory:
         agent = create_agent("reviewer", cfg)
         assert isinstance(agent, ReviewerAgent)
 
+    def test_create_researcher_by_name(self):
+        from academic_pe.agents.researcher import ResearcherAgent
+        cfg = AgentConfig(
+            role="Researcher", model="m", temperature=0.0,
+            system_prompt="test",
+        )
+        agent = create_agent("researcher", cfg)
+        assert isinstance(agent, ResearcherAgent)
+
     def test_create_with_explicit_agent_type(self):
         from academic_pe.agents.writer import WriterAgent
         cfg = AgentConfig(
