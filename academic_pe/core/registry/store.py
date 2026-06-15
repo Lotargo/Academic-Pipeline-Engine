@@ -90,3 +90,23 @@ class RegistryStore:
     def get_run_events(self, run_id: str) -> List[Event]:
         """Retrieve all diagnostic events associated with a specific run."""
         raise NotImplementedError
+
+    def update_run(self, run: Run) -> None:
+        """Update an existing run's metadata."""
+        raise NotImplementedError
+
+    def delete_run(self, run_id: str) -> None:
+        """Delete a run and all its cascaded relations from the registry."""
+        raise NotImplementedError
+
+    def delete_run_artifacts(self, run_id: str, artifact_type: Optional[str] = None) -> None:
+        """Delete artifacts of a run, optionally filtered by artifact_type."""
+        raise NotImplementedError
+
+    def delete_run_snapshots(self, run_id: str, snapshot_type: Optional[str] = None) -> None:
+        """Delete snapshots of a run, optionally filtered by snapshot_type."""
+        raise NotImplementedError
+
+    def delete_run_sources(self, run_id: str, source_type: Optional[str] = None) -> None:
+        """Delete sources of a run, optionally filtered by source_type."""
+        raise NotImplementedError

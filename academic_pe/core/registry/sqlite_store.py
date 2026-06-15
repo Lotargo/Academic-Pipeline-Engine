@@ -457,6 +457,70 @@ class SQLiteRegistryStore(RegistryStore):
                 )
         return events
 
+    def update_run(self, run: Run) -> None:
+        sql = """
+        UPDATE runs SET
+            kind = ?, status = ?, topic = ?, instructions_preview = ?,
+            pipeline_mode = ?, web_search_enabled = ?, created_at = ?, started_at = ?,
+            finished_at = ?, output_dir = ?, error_type = ?, error_message = ?, metadata_json = ?
+        WHERE run_id = ?
+        """
+        with self._connection() as conn:
+            conn.execute(
+                sql,
+                (
+                    run.kind,
+                    run.status,
+                    run.topic,
+                    run.instructions_preview,
+                    run.pipeline_mode,
+                    1 if run.web_search_enabled else 0,
+                    run.created_at,
+                    run.started_at,
+                    run.finished_at,
+                    run.output_dir,
+                    run.error_type,
+                    run.error_message,
+                    run.metadata_json,
+                    run.run_id,
+                ),
+            )
+
+    def delete_run(self, run_id: str) -> None:
+        sql = "DELETE FROM runs WHERE run_id = ?"
+        with self._connection() as conn:
+            conn.execute(sql, (run_id,))
+
+    def delete_run_artifacts(self, run_id: str, artifact_type: Optional[str] = None) -> None:
+        if artifact_type is None:
+            sql = "DELETE FROM artifacts WHERE run_id = ?"
+            params = (run_id,)
+        else:
+            sql = "DELETE FROM artifacts WHERE run_id = ? AND artifact_type = ?"
+            params = (run_id, artifact_type)
+        with self._connection() as conn:
+            conn.execute(sql, params)
+
+    def delete_run_snapshots(self, run_id: str, snapshot_type: Optional[str] = None) -> None:
+        if snapshot_type is None:
+            sql = "DELETE FROM runtime_snapshots WHERE run_id = ?"
+            params = (run_id,)
+        else:
+            sql = "DELETE FROM runtime_snapshots WHERE run_id = ? AND snapshot_type = ?"
+            params = (run_id, snapshot_type)
+        with self._connection() as conn:
+            conn.execute(sql, params)
+
+    def delete_run_sources(self, run_id: str, source_type: Optional[str] = None) -> None:
+        if source_type is None:
+            sql = "DELETE FROM sources WHERE run_id = ?"
+            params = (run_id,)
+        else:
+            sql = "DELETE FROM sources WHERE run_id = ? AND source_type = ?"
+            params = (run_id, source_type)
+        with self._connection() as conn:
+            conn.execute(sql, params)
+
 
 class NoopRegistryStore(RegistryStore):
     def create_run(self, run: Run) -> None:
@@ -526,3 +590,18 @@ class NoopRegistryStore(RegistryStore):
 
     def get_run_events(self, run_id: str) -> List[Event]:
         return []
+
+    def update_run(self, run: Run) -> None:
+        pass
+
+    def delete_run(self, run_id: str) -> None:
+        pass
+
+    def delete_run_artifacts(self, run_id: str, artifact_type: Optional[str] = None) -> None:
+        pass
+
+    def delete_run_snapshots(self, run_id: str, snapshot_type: Optional[str] = None) -> None:
+        pass
+
+    def delete_run_sources(self, run_id: str, source_type: Optional[str] = None) -> None:
+        pass

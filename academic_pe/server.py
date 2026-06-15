@@ -23,12 +23,28 @@ from academic_pe.core.template_library import TemplateLibrary
 from academic_pe.tools.export_qa import export_docx_with_qa, export_pdf_with_qa
 from academic_pe.tools.libreoffice import discover_soffice
 
+from academic_pe.core.registry import SQLiteRegistryStore, NoopRegistryStore
+# Initialize registry store
+try:
+    registry_store = SQLiteRegistryStore("exports/_metadata/academic_pe_registry.sqlite3")
+except Exception as e:
+    logging.getLogger(__name__).warning("Failed to initialize SQLite Registry, falling back to Noop: %s", e)
+    registry_store = NoopRegistryStore()
+
 _background_tasks = set()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Clean up empty run directories on startup
     cleanup_empty_run_directories()
+
+    # Import legacy metadata JSONs on startup
+    try:
+        from academic_pe.core.registry import import_all_metadata_jsons
+        import_all_metadata_jsons(registry_store)
+        logging.getLogger(__name__).info("Successfully imported legacy metadata into SQLite Registry.")
+    except Exception as e:
+        logging.getLogger(__name__).warning("Failed to import legacy metadata into SQLite Registry: %s", e)
     
     # Start dynamic examples generator loop
     from academic_pe.core.dynamic_examples import dynamic_examples_loop
@@ -319,6 +335,11 @@ def _write_history_metadata(metadata_path: str, data: dict) -> None:
     data["updated_at"] = datetime.now().isoformat(timespec="seconds")
     with open(metadata_path, "w", encoding="utf-8") as file:
         json.dump(data, file, ensure_ascii=False, indent=2)
+    try:
+        from academic_pe.core.registry import import_metadata_json
+        import_metadata_json(registry_store, metadata_path)
+    except Exception as ree:
+        logging.getLogger(__name__).warning("Failed to sync written metadata to SQLite registry: %s", ree)
 
 
 def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
@@ -1057,6 +1078,11 @@ def run_pipeline_thread(
         })
         with open(metadata_filename, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
+        try:
+            from academic_pe.core.registry import import_metadata_json
+            import_metadata_json(registry_store, metadata_filename)
+        except Exception as ree:
+            logging.getLogger(__name__).warning("Failed to sync completed run metadata to SQLite registry: %s", ree)
         success = True
             
     except PipelineCancelled:
@@ -1546,9 +1572,15 @@ def delete_history_item(metadata_id: str):
     metadata_path, data = _load_history_metadata(metadata_id)
     _delete_export_asset(data.get("docx_filename"))
     _delete_export_asset(data.get("pdf_filename"))
+    run_id = _resolve_history_run_id(metadata_id, data)
+    if run_id:
+        try:
+            registry_store.delete_run(run_id)
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to delete run from SQLite: %s", e)
     if metadata_id.startswith("run_"):
-        run_id = metadata_id.split(".")[0]
-        _delete_run_directory(run_id)
+        run_id_for_dir = metadata_id.split(".")[0]
+        _delete_run_directory(run_id_for_dir)
     os.remove(metadata_path)
     return {"status": "deleted", "id": metadata_id}
 

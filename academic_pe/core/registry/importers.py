@@ -72,11 +72,6 @@ def import_metadata_json(
         logger.warning("Could not resolve a valid run_id for metadata file %s", filename)
         return None
         
-    # Check if run already exists in DB
-    existing_run = store.get_run(run_id)
-    if existing_run:
-        logger.info("Run %s already exists in registry, skipping import.", run_id)
-        return run_id
 
     # Determine status
     status_raw = data.get("status", "COMPLETED")
@@ -134,8 +129,18 @@ def import_metadata_json(
         metadata_json=json.dumps(metadata_fields, ensure_ascii=False)
     )
     
-    # Create the run in the store
-    store.create_run(run)
+    # Check if run already exists in DB
+    existing_run = store.get_run(run_id)
+    if existing_run:
+        logger.info("Run %s already exists in registry, updating run metadata.", run_id)
+        store.update_run(run)
+        # Clean up existing relations that this import will overwrite
+        store.delete_run_artifacts(run_id)
+        store.delete_run_snapshots(run_id)
+        store.delete_run_sources(run_id)
+    else:
+        # Create the run in the store
+        store.create_run(run)
     
     # Import runtime snapshots
     for snapshot_key, snapshot_type in [("runtime_template", "runtime_template"), ("runtime_prompt_manifest", "runtime_prompt_manifest")]:
