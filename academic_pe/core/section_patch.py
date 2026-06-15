@@ -17,7 +17,7 @@ class LineReplaceBlock:
 
 
 _BLOCK_RE = re.compile(
-    r"<<<<<<< REPLACE (?P<start>\d+)-(?P<end>\d+)\s*\n(?P<content>.*?)\n>>>>>>>[ \t]*(?:REPLACE)?",
+    r"<<<<<<<[ \t]+REPLACE[ \t]+(?P<start>\d+)-(?P<end>\d+)\s*\n(?P<content>.*?)\n>>>>>>>[ \t]*(?:REPLACE)?",
     re.DOTALL,
 )
 
@@ -29,7 +29,27 @@ def add_line_numbers(text: str) -> str:
     return "\n".join(f"{i+1}: {line}" for i, line in enumerate(lines))
 
 
-def parse_line_replace_blocks(raw: str) -> List[LineReplaceBlock]:
+def strip_patch_code_fence(raw: str) -> str:
+    text = raw.strip()
+    if not text.startswith("```"):
+        return text
+
+    lines = text.splitlines()
+    if len(lines) >= 2:
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        return "\n".join(lines).strip()
+
+    return text
+
+
+def parse_line_replace_blocks(
+    raw: str,
+    *,
+    allow_text_outside_blocks: bool = False,
+) -> List[LineReplaceBlock]:
     text = raw.strip()
     if text == "NO_CHANGES":
         return []
@@ -45,7 +65,7 @@ def parse_line_replace_blocks(raw: str) -> List[LineReplaceBlock]:
         raise SectionPatchError("No REPLACE blocks found.")
 
     consumed = _BLOCK_RE.sub("", raw).strip()
-    if consumed:
+    if consumed and not allow_text_outside_blocks:
         raise SectionPatchError("Patch response contains text outside REPLACE blocks.")
 
     # Validate ranges and overlaps
@@ -70,6 +90,17 @@ def parse_line_replace_blocks(raw: str) -> List[LineReplaceBlock]:
     return blocks
 
 
+def is_valid_line_replace_patch_response(raw: str) -> bool:
+    try:
+        parse_line_replace_blocks(
+            strip_patch_code_fence(raw),
+            allow_text_outside_blocks=True,
+        )
+    except SectionPatchError:
+        return False
+    return True
+
+
 def replace_lines(original: str, start_line: int, end_line: int, replacement: str) -> str:
     lines = original.split('\n')
     num_lines = len(lines)
@@ -90,17 +121,9 @@ def replace_lines(original: str, start_line: int, end_line: int, replacement: st
 
 def apply_line_replace_patch(original: str, patch_text: str) -> str:
     # Strip markdown fences if the LLM wrapped its response
-    clean_patch_text = patch_text.strip()
-    if clean_patch_text.startswith("```"):
-        lines = clean_patch_text.splitlines()
-        if len(lines) >= 2:
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].startswith("```"):
-                lines = lines[:-1]
-            clean_patch_text = "\n".join(lines).strip()
+    clean_patch_text = strip_patch_code_fence(patch_text)
 
-    blocks = parse_line_replace_blocks(clean_patch_text)
+    blocks = parse_line_replace_blocks(clean_patch_text, allow_text_outside_blocks=True)
     if not blocks:
         return original
 

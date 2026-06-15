@@ -4,6 +4,7 @@ from academic_pe.core.section_patch import (
     SectionPatchError,
     add_line_numbers,
     apply_line_replace_patch,
+    is_valid_line_replace_patch_response,
     parse_line_replace_blocks,
 )
 
@@ -73,3 +74,24 @@ def test_patch_fails_when_response_has_extra_text():
 <<<<<<< REPLACE 1-1
 new
 >>>>>>>""")
+
+
+def test_apply_patch_accepts_common_llm_wrapper_text():
+    original = "Old line.\nSecond line."
+    patch = """Here is the patch:
+```markdown
+<<<<<<< REPLACE 1-1
+New line.
+>>>>>>>
+```"""
+
+    assert apply_line_replace_patch(original, patch) == "New line.\nSecond line."
+
+
+def test_patch_response_validator_accepts_wrapped_blocks_and_no_changes():
+    assert is_valid_line_replace_patch_response("NO_CHANGES")
+    assert is_valid_line_replace_patch_response("""```text
+<<<<<<< REPLACE 1-1
+New text.
+>>>>>>>
+```""")

@@ -104,6 +104,7 @@ Address these reviewer issues: {{ reviewer_reason }}
 Make the smallest possible targeted edits to the existing section.
 Preserve unaffected paragraphs, wording, Markdown structure, requested tone/register, and existing LaTeX formulas whenever they are not part of the reviewer issue.
 Do not introduce new chapter numbering schemes, new missing references, or unrelated claims.
+Context may include other document sections for continuity. Treat those other sections as read-only reference material; do not include or rewrite them in your output.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
 {% if continuation_context|default("") %}
@@ -122,7 +123,7 @@ IMPORTANT: Preserve or correct the python-run code block used for visualization.
 If correcting a visualization error, ensure the block starts with ` ```python-run `, sets `matplotlib.use("Agg")`, saves to `{{ output_dir | default('exports') }}/plot_{{ section.name }}.png`, and prints the Markdown image tag `![Caption]({{ output_dir | default('exports') }}/plot_{{ section.name }}.png)`.
 {% endif %}
 
-IMPORTANT: Return only the final corrected Markdown text of this section. Do not return diffs, search/replace blocks, edit instructions, or explanations.
+IMPORTANT: Return only the final corrected Markdown text of the current section. Do not return the full document, other sections, diffs, search/replace blocks, edit instructions, or explanations.
 """
 
 
@@ -220,6 +221,7 @@ If the section text is completely free of those errors, reply with exactly:
 VERIFIED
 
 If any of those errors are still present, correct them and return the final corrected Markdown text of this section. Do not return diffs, search/replace blocks, edit instructions, or explanations.
+Context may include other document sections for continuity. Treat those other sections as read-only reference material; do not include or rewrite them in your output.
 
 {% if academic_mode|default(false) %}
 Academic Mode: verify the specific reviewer feedback while preserving compatible rigor and the artifact's requested genre.

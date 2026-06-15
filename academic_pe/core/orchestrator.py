@@ -114,6 +114,104 @@ def strip_markdown_fences(text: str) -> str:
     return text
 
 
+def compact_log_preview(text: str, max_chars: int = 700) -> str:
+    compact = " ".join((text or "").split())
+    if len(compact) <= max_chars:
+        return compact
+    return compact[: max_chars - 3].rstrip() + "..."
+
+
+_SECTION_HEADING_RE = re.compile(
+    r"^(?P<prefix>#{1,6}\s+|===\s*Section:\s*)(?P<label>.+?)(?:\s*===)?\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+_SECTION_NAME_ALIASES: Dict[str, List[str]] = {
+    "introduction": ["intro", "введение"],
+    "main_part": ["main part", "body", "основная часть"],
+    "conclusion": ["summary", "заключение", "вывод", "выводы"],
+    "references": ["bibliography", "список литературы", "источники"],
+}
+
+
+def _normalize_section_label(label: str) -> str:
+    label = re.sub(r"^\s*\d+(?:[.)]\d+)*[.)]?\s*", "", label.strip())
+    label = re.sub(r"[*_`#]+", "", label)
+    return re.sub(r"[\W_]+", "", label, flags=re.UNICODE).lower()
+
+
+def _section_label_set(section: SectionPrompt) -> set[str]:
+    labels = {
+        _normalize_section_label(section.name),
+        _normalize_section_label(section.topic),
+    }
+    for alias in _SECTION_NAME_ALIASES.get(section.name, []):
+        labels.add(_normalize_section_label(alias))
+    return {label for label in labels if label}
+
+
+def _match_configured_section(label: str, sections: List[SectionPrompt]) -> Optional[str]:
+    normalized = _normalize_section_label(label)
+    if not normalized:
+        return None
+    for section in sections:
+        if normalized in _section_label_set(section):
+            return section.name
+    return None
+
+
+def isolate_current_section_revision(
+    text: str,
+    current_section: SectionPrompt,
+    sections: List[SectionPrompt],
+) -> str:
+    stripped = strip_markdown_fences(text).strip()
+    matches = []
+    for match in _SECTION_HEADING_RE.finditer(stripped):
+        section_name = _match_configured_section(match.group("label"), sections)
+        if section_name:
+            matches.append((match.start(), match.end(), section_name))
+
+    if not matches:
+        return stripped
+
+    other_matches = [match for match in matches if match[2] != current_section.name]
+    if not other_matches:
+        return stripped
+
+    current_matches = [match for match in matches if match[2] == current_section.name]
+    if current_matches:
+        start = current_matches[0][0]
+        following = [match for match in matches if match[0] > start]
+        end = following[0][0] if following else len(stripped)
+        extracted = stripped[start:end].strip()
+        if extracted:
+            logger.warning(
+                "Full-section revision for %s included other configured sections; extracted current section block.",
+                current_section.name,
+            )
+            return extracted
+
+    section_order = {section.name: idx for idx, section in enumerate(sections)}
+    current_idx = section_order.get(current_section.name, -1)
+    if current_idx >= 0 and all(section_order.get(match[2], -1) > current_idx for match in other_matches):
+        earliest_other = min(other_matches, key=lambda match: match[0])
+        extracted = stripped[: earliest_other[0]].strip()
+        if extracted:
+            logger.warning(
+                "Full-section revision for %s appended later sections; trimmed output before the next section heading.",
+                current_section.name,
+            )
+            return extracted
+
+    section_names = sorted({match[2] for match in matches})
+    raise SectionPatchError(
+        "Full-section revision returned multiple configured sections: "
+        + ", ".join(section_names)
+        + ". Return only the current section."
+    )
+
+
 def parse_rejection_reasons(reason: str, sections: List[SectionPrompt]) -> Dict[str, str]:
     reasons_by_section: Dict[str, List[str]] = {s.name: [] for s in sections}
     general_reasons = []
@@ -649,9 +747,10 @@ class Orchestrator:
                                 revised_content = execute_sandbox_blocks(revised_content)
                         except Exception as exc:
                             logger.warning(
-                                "Patch revision failed for section %s: %s. Falling back to full-section revision.",
+                                "Patch revision failed for section %s: %s. Falling back to full-section revision. Raw patch preview: %r",
                                 section.name,
                                 exc,
+                                compact_log_preview(patch_text),
                             )
                             max_sandbox_retries = 3
                             error_feedback = ""
@@ -674,7 +773,7 @@ class Orchestrator:
                                 self._check_cancelled()
                                 current_fallback_task = fallback_task
                                 if error_feedback:
-                                    current_fallback_task += f"\n\n[Sandbox Error Feedback]\nYour previous code failed. {error_feedback}"
+                                    current_fallback_task += f"\n\n[Revision Feedback]\nYour previous response could not be accepted. {error_feedback}"
 
                                 revised_content = self._writer.process(
                                     current_fallback_task,
@@ -683,6 +782,26 @@ class Orchestrator:
                                 )
                                 self._capture_self_critique_summary(self._writer, stage="fallback_revision", section_name=section.name)
                                 revised_content = strip_markdown_fences(revised_content)
+                                try:
+                                    revised_content = isolate_current_section_revision(
+                                        revised_content,
+                                        section,
+                                        self._config.pipeline.sections,
+                                    )
+                                except SectionPatchError as scope_exc:
+                                    logger.warning(
+                                        "Fallback revision for section %s returned invalid section scope (attempt %d/%d): %s",
+                                        section.name,
+                                        fallback_attempt + 1,
+                                        max_sandbox_retries,
+                                        scope_exc,
+                                    )
+                                    if fallback_attempt == max_sandbox_retries - 1:
+                                        raise PipelineError(
+                                            f"Fallback revision for section {section.name} did not return a single section: {scope_exc}"
+                                        ) from scope_exc
+                                    error_feedback = f"{scope_exc} Other sections in context are read-only; return only section '{section.name}'."
+                                    continue
 
                                 if self._sandbox_enabled():
                                     try:
@@ -722,6 +841,7 @@ class Orchestrator:
                             self._check_cancelled()
                             sec_verify_reason = verify_reasons_by_section.get(section.name, self.first_attempt_reason)
                             verified = False
+                            verify_scope_feedback = ""
                             for verify_attempt in range(2):
                                 verify_task = render_template(
                                     DEFAULT_VERIFY_TEMPLATE,
@@ -738,6 +858,8 @@ class Orchestrator:
                                         "output_dir": self._config.pipeline.output_dir,
                                     }
                                 )
+                                if verify_scope_feedback:
+                                    verify_task += f"\n\n[Revision Scope Feedback]\nYour previous response could not be accepted. {verify_scope_feedback}"
                                 response = self._writer.process(
                                     verify_task,
                                     context=self._document_memory(section.name),
@@ -753,6 +875,25 @@ class Orchestrator:
                                         "Section %s verification failed. Writer corrected the text (attempt %d/2).",
                                         section.name, verify_attempt + 1
                                     )
+                                    try:
+                                        response = isolate_current_section_revision(
+                                            response,
+                                            section,
+                                            self._config.pipeline.sections,
+                                        )
+                                    except SectionPatchError as scope_exc:
+                                        logger.warning(
+                                            "Self-verification for section %s returned invalid section scope (attempt %d/2): %s",
+                                            section.name,
+                                            verify_attempt + 1,
+                                            scope_exc,
+                                        )
+                                        if verify_attempt == 1:
+                                            raise PipelineError(
+                                                f"Self-verification for section {section.name} did not return a single section: {scope_exc}"
+                                            ) from scope_exc
+                                        verify_scope_feedback = f"{scope_exc} Other sections in context are read-only; return only section '{section.name}'."
+                                        continue
                                     if self._sandbox_enabled():
                                         try:
                                             from academic_pe.core.sandbox import execute_sandbox_blocks

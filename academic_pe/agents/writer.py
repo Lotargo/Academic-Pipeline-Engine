@@ -53,7 +53,7 @@ class WriterAgent(BaseAgent):
                 "where <pattern> is a case-insensitive regular expression or substring to search for.\n"
                 "Do not output anything else in that turn. The system will return the matching lines with their section names and line numbers.\n"
                 "You can run the GREP tool multiple times to locate all issues before generating your final response.\n"
-                "When you are ready to provide your final output (e.g. the section text or SEARCH/REPLACE blocks), "
+                "When you are ready to provide your final output (e.g. the section text or REPLACE blocks), "
                 "output it directly without using the GREP tool."
             )
 

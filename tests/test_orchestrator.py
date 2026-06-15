@@ -1,3 +1,5 @@
+import pytest
+
 from academic_pe.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError, create_orchestrator_from_config
 from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig, SectionPrompt, TemplateMode, LanguagePolicy
 from academic_pe.core.llm import MockProvider
@@ -639,6 +641,64 @@ def test_parse_rejection_reasons():
     # "calculation" should have its specific reason and the general reason (matched by topic)
     assert "complexity claims do not match" in res["calculation"]
     assert "the overall formatting should be improved" in res["calculation"]
+
+
+def test_isolate_current_section_revision_extracts_current_block_from_full_document():
+    from academic_pe.core.orchestrator import isolate_current_section_revision
+
+    sections = [
+        SectionPrompt(name="introduction", topic="Введение", instruction=""),
+        SectionPrompt(name="main_part", topic="Основная часть", instruction=""),
+        SectionPrompt(name="conclusion", topic="Заключение", instruction=""),
+    ]
+    full_document = """## Введение
+Исправленное введение.
+
+## Основная часть
+Текст основной части.
+
+## Заключение
+Итог."""
+
+    result = isolate_current_section_revision(full_document, sections[0], sections)
+
+    assert result == "## Введение\nИсправленное введение."
+
+
+def test_isolate_current_section_revision_trims_appended_later_sections():
+    from academic_pe.core.orchestrator import isolate_current_section_revision
+
+    sections = [
+        SectionPrompt(name="introduction", topic="Введение", instruction=""),
+        SectionPrompt(name="main_part", topic="Основная часть", instruction=""),
+    ]
+    response = """Исправленное введение без отдельного заголовка.
+
+## Основная часть
+Лишняя основная часть."""
+
+    result = isolate_current_section_revision(response, sections[0], sections)
+
+    assert result == "Исправленное введение без отдельного заголовка."
+
+
+def test_isolate_current_section_revision_rejects_ambiguous_multi_section_response():
+    from academic_pe.core.orchestrator import isolate_current_section_revision
+    from academic_pe.core.section_patch import SectionPatchError
+
+    sections = [
+        SectionPrompt(name="introduction", topic="Введение", instruction=""),
+        SectionPrompt(name="main_part", topic="Основная часть", instruction=""),
+        SectionPrompt(name="conclusion", topic="Заключение", instruction=""),
+    ]
+    response = """## Введение
+Чужое введение.
+
+## Заключение
+Чужой итог."""
+
+    with pytest.raises(SectionPatchError, match="multiple configured sections"):
+        isolate_current_section_revision(response, sections[1], sections)
 
 
 def test_document_memory_includes_subsequent_sections():

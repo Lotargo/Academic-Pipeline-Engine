@@ -7,6 +7,7 @@ from typing import Optional
 
 from academic_pe.core.config import AgentConfig
 from academic_pe.core.llm import LLMProvider, _call_provider_generate
+from academic_pe.core.section_patch import is_valid_line_replace_patch_response
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,20 @@ def run_self_critique(
         )
 
     repaired = repaired.strip()
+    if _is_patch_revision_task(task_description):
+        if is_valid_line_replace_patch_response(repaired):
+            return SelfCritiqueResult(
+                output=repaired,
+                summary=_short_summary(summary),
+                changed=repaired != draft_output.strip(),
+            )
+        if is_valid_line_replace_patch_response(draft_output):
+            return SelfCritiqueResult(
+                output=draft_output.strip(),
+                summary="Self-critique skipped: repair broke patch format.",
+                skipped_reason="invalid_patch_repair",
+            )
+
     return SelfCritiqueResult(
         output=repaired,
         summary=_short_summary(summary),
@@ -98,6 +113,7 @@ def _build_self_critique_prompt(
     context: Optional[str],
 ) -> str:
     agent_rules = _agent_rules(agent_name)
+    patch_rules = _patch_revision_rules(task_description)
     is_academic = "academic_mode" in system_prompt or "execution_mode academic" in system_prompt
     
     academic_rules = ""
@@ -114,6 +130,7 @@ def _build_self_critique_prompt(
     return (
         f"Agent: {agent_name}\n"
         f"{agent_rules}\n"
+        f"{patch_rules}"
         f"{academic_rules}\n\n"
         "[Active System Prompt And Contract]\n"
         f"{system_prompt}\n"
@@ -159,6 +176,27 @@ def _agent_rules(agent_name: str) -> str:
             "or academic apparatus unless requested. Directly rewrite to fix formatting."
         )
     return "Self-critique: repair only material contract, consistency, style, and user-constraint issues."
+
+
+def _is_patch_revision_task(task_description: str) -> bool:
+    normalized = task_description.lower()
+    return (
+        "minimal patch" in normalized
+        and "replace blocks" in normalized
+        and "no_changes" in normalized
+    )
+
+
+def _patch_revision_rules(task_description: str) -> str:
+    if not _is_patch_revision_task(task_description):
+        return ""
+    return (
+        "\nPatch revision self-critique rules:\n"
+        "- Preserve the machine-readable patch protocol exactly.\n"
+        "- The output field must be either exactly NO_CHANGES or one or more valid REPLACE blocks.\n"
+        "- Do not convert a patch into final section Markdown, prose explanations, bullets, or edit notes.\n"
+        "- Do not add text outside the REPLACE blocks.\n"
+    )
 
 
 def _normalize_agent_name(agent_name: str) -> str:

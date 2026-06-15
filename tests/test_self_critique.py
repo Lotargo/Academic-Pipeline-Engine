@@ -136,3 +136,51 @@ def test_self_critique_applies_academic_mode_rules():
 
     assert "unsupported claims" in provider.calls[0]["user_prompt"]
     assert "methodological clarity" in provider.calls[0]["user_prompt"]
+
+
+def test_self_critique_preserves_valid_patch_when_repair_breaks_format():
+    draft_patch = """<<<<<<< REPLACE 1-1
+Corrected line.
+>>>>>>>"""
+    provider = StaticCritiqueProvider(
+        '{"summary":"Rewrote patch as text.","output":"Corrected line."}'
+    )
+
+    result = run_self_critique(
+        agent_name="writer",
+        config=_config(),
+        llm=provider,
+        task_description=(
+            "Edit the current section by returning a minimal patch. "
+            "If changes are needed, return one or more REPLACE blocks. "
+            "If not, return NO_CHANGES."
+        ),
+        draft_output=draft_patch,
+        system_prompt="Contract prompt.",
+    )
+
+    assert result.output == draft_patch
+    assert result.skipped_reason == "invalid_patch_repair"
+    assert "Preserve the machine-readable patch protocol" in provider.calls[0]["user_prompt"]
+
+
+def test_self_critique_accepts_valid_patch_repair():
+    provider = StaticCritiqueProvider(
+        '{"summary":"Restored patch format.","output":"<<<<<<< REPLACE 1-1\\nCorrected line.\\n>>>>>>>"}'
+    )
+
+    result = run_self_critique(
+        agent_name="writer",
+        config=_config(),
+        llm=provider,
+        task_description=(
+            "Edit the current section by returning a minimal patch. "
+            "If changes are needed, return one or more REPLACE blocks. "
+            "If not, return NO_CHANGES."
+        ),
+        draft_output="Corrected line.",
+        system_prompt="Contract prompt.",
+    )
+
+    assert result.output == "<<<<<<< REPLACE 1-1\nCorrected line.\n>>>>>>>"
+    assert result.summary == "Restored patch format."
