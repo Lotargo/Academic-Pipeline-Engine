@@ -1475,3 +1475,71 @@ def test_orchestrator_web_search_integration(mock_load, mock_run):
     assert orch.context["document_plan"] == "My Custom Document Plan"
 
 
+@patch("academic_pe.core.researcher.run_researcher_pool")
+@patch("academic_pe.core.researcher.load_research_findings")
+def test_orchestrator_web_search_disabled_does_not_run_researcher(mock_load, mock_run):
+    config = _make_config()
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    planner = DefaultAgent(config.agents["writer"], llm)
+    planner.process = MagicMock(return_value="Plan without web search")
+
+    orch = Orchestrator(
+        writer=writer,
+        planner=planner,
+        config=config,
+        web_search_enabled=False,
+    )
+    orch._generate_search_queries = MagicMock(return_value=["should not run"])
+
+    orch.run_pipeline(render_artifact=False)
+
+    orch._generate_search_queries.assert_not_called()
+    mock_run.assert_not_called()
+    mock_load.assert_not_called()
+    assert orch.context["document_plan"] == "Plan without web search"
+
+
+@patch("academic_pe.core.researcher.run_researcher_pool")
+@patch("academic_pe.core.researcher.load_research_findings")
+def test_orchestrator_web_search_requires_dedicated_planner(mock_load, mock_run):
+    config = _make_config()
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+
+    orch = Orchestrator(
+        writer=writer,
+        config=config,
+        web_search_enabled=True,
+    )
+    orch._generate_search_queries = MagicMock(return_value=["should not run"])
+
+    with pytest.raises(PipelineError, match="dedicated planner agent"):
+        orch.run_pipeline(render_artifact=False)
+
+    orch._generate_search_queries.assert_not_called()
+    mock_run.assert_not_called()
+    mock_load.assert_not_called()
+
+
+@patch("academic_pe.core.llm._call_provider_generate")
+def test_generate_search_queries_parses_numbered_and_bulleted_lists(mock_generate):
+    mock_generate.return_value = "\n".join(
+        [
+            "1. first query",
+            "2) second query",
+            "- third query",
+            "* fourth query ignored by limit",
+        ]
+    )
+    config = _make_config()
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    planner = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, planner=planner, config=config)
+
+    assert orch._generate_search_queries() == [
+        "first query",
+        "second query",
+        "third query",
+    ]

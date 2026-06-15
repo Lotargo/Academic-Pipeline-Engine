@@ -24,6 +24,26 @@ def test_draft_template_uses_section_not_chapter():
     assert "Write a chapter" not in prompt
 
 
+def test_draft_template_does_not_accept_raw_research_or_reference_context():
+    prompt = render_template(
+        DEFAULT_DRAFT_TEMPLATE,
+        {
+            "section": SectionPrompt(name="body", topic="Draft section", instruction="Write clean prose."),
+            "language_instruction": "Write the entire document in English.",
+            "user_topic": "Topic",
+            "user_instructions": "",
+            "reference_materials": [
+                {"filename": "source.md", "content": "RAW_REFERENCE_CONTENT_SHOULD_NOT_APPEAR"},
+            ],
+            "search_findings": "RAW_SEARCH_FINDINGS_SHOULD_NOT_APPEAR",
+        },
+    )
+
+    assert "RAW_REFERENCE_CONTENT_SHOULD_NOT_APPEAR" not in prompt
+    assert "RAW_SEARCH_FINDINGS_SHOULD_NOT_APPEAR" not in prompt
+    assert "Research drafting rules" not in prompt
+
+
 def test_review_template_accepts_focus_and_limits_issues():
     prompt = render_template(
         DEFAULT_REVIEW_TEMPLATE,

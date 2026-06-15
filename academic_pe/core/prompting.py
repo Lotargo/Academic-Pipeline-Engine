@@ -55,24 +55,6 @@ This output tag will automatically embed the figure in the final Word document.
 Ensure your code is clean, executable, and does not print any other text besides the Markdown image tag.
 {% endif %}
 
-{% if reference_materials %}
-[Reference Materials / Background Documents]
-{% for ref in reference_materials %}
-File: {{ ref.filename }} (Type: Reference)
-Content:
-{{ ref.content }}
----
-{% endfor %}
-{% endif %}
-
-{% if search_findings %}
-[Web Search Findings / Current Literature]
-{{ search_findings }}
-
-Research drafting rules:
-- Utilize the retrieved research data and embed the citations (links) in the content.
-- Reference the URLs of the sources where appropriate.
-{% endif %}
 """
 
 
@@ -317,4 +299,3 @@ def render_template(template: str, context: Dict[str, Any]) -> str:
         **context
     }
     return _env.from_string(template).render(**merged).strip()
-

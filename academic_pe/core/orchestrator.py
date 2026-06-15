@@ -321,6 +321,7 @@ class Orchestrator:
     ):
         self._writer = writer
         self._reviewer = reviewer
+        self._has_dedicated_planner = planner is not None
         self._planner = planner or writer
         self._renderer = renderer
         self._config = config
@@ -414,7 +415,7 @@ class Orchestrator:
                 line = line.strip()
                 if not line:
                     continue
-                match = re.match(r"^(?:\d+[\b.)]|-|\*)\s*(.+)$", line)
+                match = re.match(r"^(?:\d+[\).]|[-*])\s*(.+)$", line)
                 if match:
                     queries.append(match.group(1).strip())
                 elif len(line) > 5:
@@ -637,8 +638,6 @@ class Orchestrator:
                 "user_instructions": self.user_instructions,
                 "edit_plan_json": json.dumps(edit_plan.model_dump(mode="json"), ensure_ascii=False, indent=2),
                 "document_state_json": json.dumps(document_state.model_dump(mode="json"), ensure_ascii=False, indent=2),
-                "reference_materials": self.reference_materials,
-                "search_findings": None,
             },
         )
         raw_payload = self._writer.process(
@@ -759,6 +758,11 @@ class Orchestrator:
             # --- PLANNING ---
             self.transition_to(PipelineState.PLANNING)
             if self.web_search_enabled:
+                if not self._has_dedicated_planner:
+                    raise PipelineError(
+                        "Web search requires a dedicated planner agent. Configure agents.planner "
+                        "or disable web_search_enabled so the writer is not used as a research planner."
+                    )
                 logger.info("[Researcher] Spawning search agent: Generating research queries...")
                 queries = self._generate_search_queries()
                 logger.info(f"[Researcher] Generated queries: {queries}")
@@ -809,8 +813,6 @@ class Orchestrator:
                             "academic_mode": self._academic_mode_enabled(),
                             "visualization_required": self._visualization_required(),
                             "output_dir": self._config.pipeline.output_dir,
-                            "reference_materials": self.reference_materials,
-                            "search_findings": None,
                         },
                     )
                     logger.debug("Drafting section: %s", section.name)

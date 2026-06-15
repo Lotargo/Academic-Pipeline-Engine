@@ -203,11 +203,11 @@ Tasks:
 
 ### Remaining Researcher Audit Fixes
 
-- [ ] Enforce the activator contract with tests: when `web_search_enabled=False`, no query generation, researcher import/calls, or research files are created.
-- [ ] Enforce the Planner-only research contract with tests: when `web_search_enabled=True`, the system must use a dedicated Planner and must not fall back to the Writer as planner/research director.
-- [ ] Remove `search_findings` support and research-drafting rules from the Writer draft template; search data should only reach Writer through the Planner's document plan.
-- [ ] Stop passing raw passive reference attachments directly into the Writer draft template; let the Planner curate/summarize them first.
-- [ ] Fix DuckDuckGo result parsing to use the real result link element/redirect format, not the displayed URL element only.
-- [ ] Add tests using realistic DuckDuckGo HTML and crawled-page failure modes.
-- [ ] Fix query-list parsing edge cases in `_generate_search_queries` and add tests for numbered lists, bullet lists, and malformed model output.
+- [x] Enforce the activator contract with tests: when `web_search_enabled=False`, no query generation, researcher import/calls, or research files are created.
+- [x] Enforce the Planner-only research contract with tests: when `web_search_enabled=True`, the system must use a dedicated Planner and must not fall back to the Writer as planner/research director.
+- [x] Remove `search_findings` support and research-drafting rules from the Writer draft template; search data should only reach Writer through the Planner's document plan.
+- [x] Stop passing raw passive reference attachments directly into the Writer draft template; let the Planner curate/summarize them first.
+- [x] Fix DuckDuckGo result parsing to use the real result link element/redirect format, not the displayed URL element only.
+- [x] Add tests using realistic DuckDuckGo HTML and crawled-page failure modes.
+- [x] Fix query-list parsing edge cases in `_generate_search_queries` and add tests for numbered lists, bullet lists, and malformed model output.
 - [ ] Decide whether Researcher should summarize each source itself or whether Planner should synthesize from structured JSON; document the chosen boundary.

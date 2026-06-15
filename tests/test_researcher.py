@@ -37,11 +37,13 @@ def test_search_and_crawl(mock_get):
     <html>
       <body>
         <div class="result results_links">
-          <a class="result__url" href="https://example.com/page1">Example Page 1</a>
+          <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpage1">Example Page 1</a>
+          <a class="result__url" href="https://example.com/page1">example.com/page1</a>
           <a class="result__snippet">This is snippet 1.</a>
         </div>
         <div class="result results_links">
-          <a class="result__url" href="https://example.com/page2">Example Page 2</a>
+          <a class="result__a" href="https://example.com/page2">Example Page 2</a>
+          <a class="result__url" href="https://example.com/page2">example.com/page2</a>
           <a class="result__snippet">This is snippet 2.</a>
         </div>
       </body>
@@ -102,7 +104,7 @@ def test_search_and_crawl_connection_errors(mock_get):
     <html>
       <body>
         <div class="result results_links">
-          <a class="result__url" href="https://example.com/page1">Example Page 1</a>
+          <a class="result__a" href="https://example.com/page1">Example Page 1</a>
           <a class="result__snippet">Snippet 1.</a>
         </div>
       </body>

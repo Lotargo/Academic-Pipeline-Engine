@@ -10,6 +10,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _resolve_duckduckgo_url(href: str) -> str:
+    if not href:
+        return ""
+    if href.startswith("//"):
+        href = "https:" + href
+    if href.startswith("/"):
+        href = "https://duckduckgo.com" + href
+
+    parsed = urllib.parse.urlparse(href)
+    query_params = urllib.parse.parse_qs(parsed.query)
+    if "uddg" in query_params:
+        return query_params["uddg"][0]
+    return href
+
+
 class Researcher:
     def __init__(self, run_dir: str):
         self.run_dir = run_dir
@@ -43,17 +58,16 @@ class Researcher:
                 for result_div in soup.find_all("div", class_=lambda x: x and "result" in x):
                     if "results_links" not in result_div.get("class", []):
                         continue
-                    title_a = result_div.find("a", class_="result__url")
+                    result_a = result_div.find("a", class_="result__a")
+                    display_url_a = result_div.find("a", class_="result__url")
                     snippet_a = result_div.find("a", class_="result__snippet")
-                    if title_a:
-                        title = title_a.get_text(strip=True)
-                        href = title_a.get("href", "")
-                        actual_url = href
-                        if "/l/?" in href:
-                            parsed = urllib.parse.urlparse(href)
-                            query_params = urllib.parse.parse_qs(parsed.query)
-                            if "uddg" in query_params:
-                                actual_url = query_params["uddg"][0]
+                    link_a = result_a or display_url_a
+                    if link_a:
+                        title = (result_a or link_a).get_text(strip=True)
+                        href = link_a.get("href", "")
+                        actual_url = _resolve_duckduckgo_url(href)
+                        if not actual_url.startswith(("http://", "https://")):
+                            continue
 
                         snippet = snippet_a.get_text(strip=True) if snippet_a else ""
                         results.append({
