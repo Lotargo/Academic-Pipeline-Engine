@@ -61,3 +61,62 @@ def test_extract_document_state_ignores_document_plan_context():
 
     assert [section.name for section in state.source_sections] == ["body"]
     assert "document_plan" not in state.rendered_body
+
+
+def test_extract_document_state_builds_heading_tree_style_and_dossier():
+    state = extract_document_state(
+        {
+            "context": {
+                "chapter_1": (
+                    "## 1.1 Problem\n\n"
+                    "We analyze Pipeline Engine behavior and preserve style.\n\n"
+                    "Table 1 shows the baseline. Formula (1) defines the score.\n\n"
+                    "The next step must continue from this point."
+                ),
+                "references": (
+                    "1. Smith (2024). Pipeline testing.\n"
+                    "- Иванов (2023). Академические пайплайны.\n"
+                    "1. Smith (2024). Pipeline testing."
+                ),
+            },
+            "runtime_template": {
+                "sections": [
+                    {
+                        "name": "chapter_1",
+                        "title": "Chapter 1",
+                        "semantic_role": "chapter",
+                        "heading_policy": "render_required",
+                    },
+                    {
+                        "name": "references",
+                        "title": "References",
+                        "semantic_role": "reference_section",
+                    },
+                ]
+            },
+        }
+    )
+
+    assert [(heading.title, heading.level, heading.source) for heading in state.heading_tree] == [
+        ("Chapter 1", 1, "section"),
+        ("1.1 Problem", 2, "markdown"),
+        ("References", 1, "section"),
+    ]
+    assert state.style_profile.language_hint == "en"
+    assert state.style_profile.heading_style == "markdown"
+    assert state.style_profile.citation_style == "numbered"
+    assert state.style_profile.has_numbered_headings is True
+    assert [(entry.marker, entry.style) for entry in state.reference_registry] == [
+        ("1", "numbered"),
+        ("", "author_year"),
+    ]
+    assert ("table", "1", "chapter_1") in [
+        (label.label_type, label.label, label.section_name)
+        for label in state.structural_labels
+    ]
+    assert ("formula", "1", "chapter_1") in [
+        (label.label_type, label.label, label.section_name)
+        for label in state.structural_labels
+    ]
+    assert state.continuity_dossier.current_stopping_point == "The next step must continue from this point."
+    assert state.continuity_dossier.reference_summary == "2 reference(s), style=numbered"

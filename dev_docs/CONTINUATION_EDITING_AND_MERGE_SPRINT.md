@@ -353,19 +353,19 @@ Definition of done:
 
 ## Workstream 3: Document State Extraction
 
-Status: `[~] In progress`
+Status: `[x] Completed`
 
 Objective: Convert the existing generated/archive/uploaded document into a structured state object before planning.
 
 Tasks:
 
-- [ ] Extract heading tree from Markdown/context sections.
+- [x] Extract heading tree from Markdown/context sections.
 - [x] Identify terminal sections.
 - [x] Identify source section order and visible titles.
-- [ ] Extract style profile.
-- [ ] Extract reference registry when references exist.
-- [ ] Extract table/figure/formula labels when present.
-- [ ] Store a compact continuity dossier in metadata.
+- [x] Extract style profile.
+- [x] Extract reference registry when references exist.
+- [x] Extract table/figure/formula labels when present.
+- [x] Store a compact continuity dossier in metadata.
 
 Definition of done:
 
@@ -408,10 +408,10 @@ Objective: Make citation and bibliography updates seamless for educational and s
 
 Tasks:
 
-- [ ] Detect bibliography/reference sections by aliases and source style.
-- [ ] Parse simple numbered, bullet, and author-year references.
-- [ ] Preserve source citation style where possible.
-- [ ] Add source registry to runtime metadata.
+- [x] Detect bibliography/reference sections by aliases and source style.
+- [x] Parse simple numbered, bullet, and author-year references.
+- [x] Preserve source citation style where possible.
+- [x] Add source registry to runtime metadata.
 - [ ] Update researcher/planner to add sources through registry, not raw final prose.
 - [ ] Deduplicate references.
 - [ ] Rebuild final bibliography as one section.
