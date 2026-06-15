@@ -103,3 +103,29 @@ Result: PASS
 Elapsed: 116.6s
 Observed imbalance: none
 Follow-up: exports\_smoke\20260616_031234\creative_bridge\stage_log.jsonl
+
+## Run 2026-06-16T03:15:07 - school_revision
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: School revision (school_revision)
+Expected checks: revises in place instead of appending; student-level register preserved; no duplicate essay/introduction/conclusion; intent is revise_in_place
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: SUPERSEDED
+Elapsed: 268.7s
+Observed imbalance: runner rubric was too weak: JSONL showed final reviewer rejection on attempt 3/3, but the run was initially recorded as PASS.
+Follow-up: exports\_smoke\20260616_031507\school_revision\stage_log.jsonl
+
+## Run 2026-06-16T03:20:20 - school_revision
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: School revision (school_revision)
+Expected checks: revises in place instead of appending; student-level register preserved; no duplicate essay/introduction/conclusion; intent is revise_in_place
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: PASS
+Elapsed: 182.6s
+Observed imbalance: none
+Follow-up: exports\_smoke\20260616_032020\school_revision\stage_log.jsonl

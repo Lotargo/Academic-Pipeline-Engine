@@ -193,6 +193,7 @@ class SmokeLogger:
         self.log_path = log_path
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self.events: list[dict[str, Any]] = []
 
     def event(self, kind: str, message: str, **data: Any) -> None:
         record = {
@@ -204,6 +205,7 @@ class SmokeLogger:
         }
         text = json.dumps(record, ensure_ascii=False)
         with self._lock:
+            self.events.append(record)
             with self.log_path.open("a", encoding="utf-8") as file:
                 file.write(text + "\n")
                 file.flush()
@@ -527,7 +529,12 @@ def final_text(context: Dict[str, str]) -> str:
     return "\n\n".join(value for key, value in context.items() if key != "document_plan")
 
 
-def run_checks(scenario: SmokeScenario, context: Dict[str, str], metadata: Dict[str, Any]) -> tuple[bool, list[str]]:
+def run_checks(
+    scenario: SmokeScenario,
+    context: Dict[str, str],
+    metadata: Dict[str, Any],
+    events: Optional[list[dict[str, Any]]] = None,
+) -> tuple[bool, list[str]]:
     text = final_text(context)
     lower = text.lower()
     issues: list[str] = []
@@ -559,6 +566,16 @@ def run_checks(scenario: SmokeScenario, context: Dict[str, str], metadata: Dict[
 
     if len(text.strip()) < 200:
         issues.append("final text is unexpectedly short")
+
+    stage_messages = [
+        str(event.get("message") or "")
+        for event in (events or [])
+        if event.get("kind") == "stage_log"
+    ]
+    if any("Reviewer rejected (attempt 3/3)" in message for message in stage_messages):
+        issues.append("reviewer rejected the final retry but pipeline proceeded to DONE")
+    if any("Max retries reached" in message for message in stage_messages):
+        issues.append("review loop exhausted retries")
 
     return not issues, issues
 
@@ -665,7 +682,7 @@ def run_scenario(scenario: SmokeScenario, args: argparse.Namespace) -> int:
 
     elapsed = time.monotonic() - started
     metadata = orchestrator._runtime_metadata()
-    passed, issues = run_checks(scenario, orchestrator.context, metadata)
+    passed, issues = run_checks(scenario, orchestrator.context, metadata, smoke_log.events)
     smoke_log.event(
         "scenario_result",
         "Scenario rubric completed",

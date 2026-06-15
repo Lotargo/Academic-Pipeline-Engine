@@ -9,6 +9,7 @@ from scripts.continuation_smoke_runner import (
     scenario_catalog,
     safe_config_for_smoke,
     safe_error_message,
+    run_checks,
 )
 from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, ProviderEnum, SectionPrompt, TemplateMode
 
@@ -117,3 +118,17 @@ def test_align_config_sections_to_continuation_source_uses_scenario_context():
     assert [section.name for section in smoke.pipeline.sections] == ["readme"]
     assert smoke.pipeline.template_mode == TemplateMode.custom
     assert [section.name for section in config.pipeline.sections] == ["body"]
+
+
+def test_run_checks_fails_when_final_reviewer_retry_rejected():
+    scenario = scenario_catalog()["school_revision"]
+
+    passed, issues = run_checks(
+        scenario,
+        {"essay": "Improved essay content that is long enough. " * 8},
+        {"continuation_intent": {"intent": "revise_in_place"}, "edit_plan": {"operations": []}},
+        [{"kind": "stage_log", "message": "Reviewer rejected (attempt 3/3): [content redacted]"}],
+    )
+
+    assert passed is False
+    assert "reviewer rejected the final retry" in issues[0]
