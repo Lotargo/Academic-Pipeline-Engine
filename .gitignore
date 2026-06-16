@@ -121,6 +121,7 @@ desktop.ini
 config/agents.yaml
 config/secrets.json
 config/dynamic_examples.json
+config/dynamic_examples_meta.json
 ui/next-env.d.ts
 *.docx
 *.png

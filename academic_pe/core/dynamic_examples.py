@@ -121,7 +121,7 @@ def clean_and_parse_json(text: str) -> List[Dict[str, str]]:
     raise ValueError(f"Could not parse valid JSON array from agent response: {text[:200]}")
 
 
-async def generate_new_examples(timeout_seconds: Optional[float] = None):
+async def generate_new_examples(timeout_seconds: Optional[float] = 45.0):
     """
     Invokes the Example Generator agent to formulate 3 new artifact requests.
     Serializes requests using an asyncio.Lock to prevent overlapping runs,

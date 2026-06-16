@@ -116,7 +116,11 @@ export function SearchBar({
         const data = await res.json()
         setExamples(data.examples || [])
         setTtl(data.ttl || 0)
-        toast.success("Examples refreshed successfully!")
+        if (data.refreshed === false) {
+          toast.warning(data.error || "Could not generate new examples; showing cached examples.")
+        } else {
+          toast.success("Examples refreshed successfully!")
+        }
       } else {
         toast.error("Failed to refresh examples.")
       }

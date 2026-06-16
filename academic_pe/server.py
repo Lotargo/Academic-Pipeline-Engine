@@ -555,22 +555,42 @@ async def refresh_examples():
     """
     Manually triggers generation of new dynamic examples and returns them.
     """
+    from academic_pe.core import dynamic_examples
+
+    refreshed = True
+    refresh_error = None
     try:
-        from academic_pe.core.dynamic_examples import generate_new_examples, load_cached_examples
-        await generate_new_examples()
-        
+        await dynamic_examples.generate_new_examples()
+    except Exception as e:
+        refreshed = False
+        refresh_error = str(e) or e.__class__.__name__
+        logging.getLogger(__name__).warning(
+            "Manual dynamic examples refresh failed; returning cached examples: %s",
+            refresh_error,
+        )
+
+    try:
         config = load_config("config/agents.yaml")
         lang = config.ui.language
-        examples = await load_cached_examples(lang)
-        from academic_pe.core.dynamic_examples import last_generated_at
-        return {
+        interval_sec = max(getattr(config, "dynamic_examples_interval_mins", 15) * 60, 60)
+    except Exception:
+        lang = "ru"
+        interval_sec = 15 * 60
+
+    try:
+        examples = await dynamic_examples.load_cached_examples(lang)
+        response = {
             "examples": examples,
-            "last_generated": last_generated_at * 1000,
-            "ttl": max(getattr(config, "dynamic_examples_interval_mins", 15) * 60, 60),
-            "dynamic": True
+            "last_generated": dynamic_examples.last_generated_at * 1000,
+            "ttl": interval_sec,
+            "dynamic": True,
+            "refreshed": refreshed,
         }
+        if refresh_error:
+            response["error"] = f"Failed to generate new examples: {refresh_error}"
+        return response
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to generate new examples: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"Failed to load examples: {str(e)}")
 
 
 def _build_prompt_enhancement_prompt(
