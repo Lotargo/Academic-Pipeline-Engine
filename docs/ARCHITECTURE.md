@@ -163,16 +163,14 @@ INIT -> PLANNING -> DRAFTING -> REVIEWING -> RENDERING -> DONE
 - `export_qa.py` проверяет структуру экспорта, имена файлов, DOCX/PDF результат;
 - `libreoffice.py` ищет `soffice` для PDF conversion.
 
-### Storage
+### Storage & Registry Layer (`academic_pe/core/registry/`)
 
-Текущая реализация простая и локальная:
+Система хранения переведена с чисто файловой структуры на гибридную модель долговечного реестра на базе **SQLite**:
 
-- active run state - in-memory `current_run`;
-- run artifacts - `exports/<run_id>/`;
-- draft/export history metadata - `exports/_metadata/*.metadata.json`;
-- secrets - `config/secrets.json`.
-
-Это сознательный local-dev слой. Для production-режима логичная эволюция - выделить интерфейсы `RunStore`, `EventBus`, `JobQueue` и заменить in-memory/file-backed части на PostgreSQL/Redis adapters.
+- **Реестр SQLite**: располагается по пути `exports/_metadata/academic_pe_registry.sqlite3` и является единым источником правды для хранения метаданных запусков, конфигураций агентов, снимков настроек шаблонов, секций, оценок и логов событий.
+- **Файловая система (Blob Store)**: файлы результатов (`exports/<run_id>/`), вложения (`exports/<run_id>/attachments/`), логи веб-поиска (`exports/<run_id>/research/`) хранятся на диске.
+- **Legacy Fallback**: сохраняется совместимость и резервное чтение истории из файлов `.metadata.json`. На старте сервера автоматически выполняется синхронизация старых JSON-файлов в SQLite.
+- **Секреты**: API-ключи хранятся локально в файле `config/secrets.json`.
 
 ## Структура Директорий
 
@@ -182,7 +180,7 @@ INIT -> PLANNING -> DRAFTING -> REVIEWING -> RENDERING -> DONE
 │   ├── agent_adapters/    # agent-specific manifest/contract guidance
 │   ├── agents/            # agent implementations and factory
 │   ├── contracts/         # contracts, S-expression renderer, drift checks
-│   ├── core/              # orchestration, config, LLM, templates, sandbox
+│   ├── core/              # orchestration, config, LLM, templates, sandbox, registry
 │   ├── manifests/         # manifest models, loader, resolver, fallback
 │   ├── tools/             # DOCX/PDF/export utilities
 │   ├── api_models.py

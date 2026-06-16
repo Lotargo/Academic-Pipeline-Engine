@@ -155,10 +155,21 @@ GOOGLE_API_KEY=...
 CUSTOM_API_KEY=...
 LM_STUDIO_API_KEY=...
 ZEN_API_KEY=...
+MISTRAL_API_KEY=...
 LIBREOFFICE_PATH=/path/to/soffice
 ```
 
-`config/secrets.json` локален и не должен попадать в Git.
+`config/secrets.json` локален, создается автоматически при сохранении ключей через интерфейс и не должен попадать в Git. Он имеет следующий формат:
+
+```json
+{
+  "openai": "sk-...",
+  "anthropic": "sk-ant-...",
+  "google": "AIzaSy...",
+  "zen": "zen-...",
+  "mistral": "mistral-..."
+}
+```
 
 ## Pipeline
 
@@ -342,4 +353,26 @@ dynamic_examples_interval_mins: 15
 
 ```bash
 poetry run python scripts/export_schema.py
+```
+
+## Конфигурация Локального Реестра (Registry)
+
+Для работы реестра SQLite используется база данных, путь к которой жестко задан в API-сервере как `exports/_metadata/academic_pe_registry.sqlite3`. Дополнительной настройки в файлах конфигурации не требуется. При запуске тестов или скриптов раннеров база данных автоматически мокается или перенаправляется во временную папку.
+
+## Запуск Сценариев Тестирования (Runners)
+
+Скрипты-раннеры запускаются через Poetry и читают общую конфигурацию из `config/agents.yaml`. 
+
+Пример запуска смоук-тестов:
+```bash
+# Запуск сценария продолжения документов
+poetry run python scripts/continuation_smoke_runner.py academic_references
+
+# Запуск смоук-теста OCR и поиска с использованием реального провайдера
+poetry run python scripts/ocr_research_smoke_runner.py real_llm_web_research
+```
+
+Если вы хотите запустить сценарии с использованием заглушек (без отправки запросов к реальным API), передайте флаг `--allow-mock`:
+```bash
+poetry run python scripts/continuation_smoke_runner.py academic_references --allow-mock
 ```

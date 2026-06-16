@@ -27,13 +27,16 @@ Academic Pipeline Engine - рабочий прототип агентной си
   - `auto` строит runtime-шаблон через `PlannerAgent`.
 - Manifest/contract слой компилирует пользовательский замысел в проверяемый runtime contract и S-expression блок для агентов.
 - Prompt enhancement через `/api/prompt/enhance` с сохранением выбранного manifest/contract metadata.
-- Continuation mode: новая генерация может продолжать прошлую работу, наследуя структуру, стиль, manifest и contract metadata.
+- Continuation mode с автоматическим определением намерений (`append`/`bridge`/`revise_in_place`), построением Edit Plan и слиянием через `section_patch` (новая генерация продолжает прошлую работу, сохраняя исходную структуру, стиль и метаданные).
 - Агентный pipeline `INIT -> PLANNING -> DRAFTING -> REVIEWING -> RENDERING -> DONE`.
 - Writer/Reviewer loop с line-based patch revision и fallback на полную перегенерацию секции.
 - One-pass self-critique для агентов, если включен `self_critique`.
 - Quality gate: объем секций, LaTeX-баланс, raw code fence/Markdown artifacts.
 - Contract drift checks: жанровый дрейф, AI markers, запрещенные title page/citations/rubric/visualizations.
 - Academic sandbox для блоков `python-run` с `pandas`, `sympy`, `scipy`, `matplotlib` и автоисправлением при ошибках выполнения.
+- Интеграция распознавания вложений (PDF/картинки через Mistral Document AI OCR) и веб-исследований (DuckDuckGo crawling, BeautifulSoup парсинг, SHA-256 дедупликация) с Leakage Barrier защитой писателя от утечки контекста.
+- Полноценная база данных SQLite (`academic_pe_registry.sqlite3`) для надежного сохранения истории запусков, конфигураций агентов, шаблонов, оценок и логов событий с контекстным управлением транзакциями (locked-safe).
+- Сценарии автоматического тестирования и оценки качества (Smoke & Quality runners для OCR, поиска и продолжения документов) с сохранением результатов в реестр.
 - Explicit export: генерация сохраняет черновик, а DOCX/PDF создаются отдельным действием.
 - DOCX renderer на `python-docx`: Markdown headings, списки, таблицы, формулы, простые chart-блоки.
 - PDF export через LibreOffice/`soffice`, если он доступен в системе.
@@ -296,21 +299,24 @@ pnpm run dev
 
 ## Текущее Состояние И Ограничения
 
-- Это активный прототип, а не стабильный публичный SDK.
-- Runtime state в backend пока опирается на in-memory `current_run`; история и артефакты хранятся файлово под `exports/`.
-- Одновременно поддерживается один активный запуск backend-процесса.
+- Это активный прототип, ориентированный на локальное использование разработчиком.
+- История запусков, конфигурации агентов, артефакты и оценки полностью сохраняются в долговечной базе данных SQLite (`exports/_metadata/academic_pe_registry.sqlite3`).
+- Пайплайн поддерживает параллельные и вложенные запуски пайплайнов (например, при вызовах смоук-тестов).
 - PDF export требует установленный LibreOffice/`soffice`.
-- Visual QA зависит от возможности рендера DOCX и будущих reviewer/vision capabilities; структурный export QA уже выполняется без vision-модели.
-- OCR attachments и web research agent находятся в плане развития; continuation из уже созданных работ поддержан через metadata.
-- В frontend build включено `typescript.ignoreBuildErrors`; TypeScript-долг лучше закрыть отдельным стабилизационным проходом.
+- Интеграция распознавания вложений (PDF OCR via Mistral API), веб-исследований (DuckDuckGo crawling/scraping) и продолжения работы (FSM merge & patch) полностью реализована и протестирована на реальных моделях.
 
 ## Документация
 
-- `docs/ARCHITECTURE.md` - архитектура backend, UI, template/manifest/contract и export слоев.
-- `docs/ORCHESTRATION.md` - FSM, sequence flow, review loop, cancellation и explicit export.
-- `docs/CONFIGURATION_GUIDE.md` - структура `agents.yaml`, шаблоны, провайдеры, секреты.
-- `docs/AGENTS_AND_TOOLS.md` - агенты, LLM providers, sandbox, renderer, export QA.
-- `docs/MANIFEST_CONTRACT_ARCHITECTURE.md` - границы manifest/contract пакетов и non-executable DSL.
+- [ARCHITECTURE.md](file:///f:/projects/Academic-Pipeline-Engine/docs/ARCHITECTURE.md) — архитектура backend, UI, template/manifest/contract и registry слоев.
+- [ORCHESTRATION.md](file:///f:/projects/Academic-Pipeline-Engine/docs/ORCHESTRATION.md) — FSM, sequence flow, review loop, cancellation и explicit export.
+- [CONFIGURATION_GUIDE.md](file:///f:/projects/Academic-Pipeline-Engine/docs/CONFIGURATION_GUIDE.md) — структура `agents.yaml`, шаблоны, провайдеры, секреты, реестр.
+- [AGENTS_AND_TOOLS.md](file:///f:/projects/Academic-Pipeline-Engine/docs/AGENTS_AND_TOOLS.md) — агенты, LLM providers, sandbox, renderer, export QA.
+- [MANIFEST_CONTRACT_ARCHITECTURE.md](file:///f:/projects/Academic-Pipeline-Engine/docs/MANIFEST_CONTRACT_ARCHITECTURE.md) — границы manifest/contract пакетов и non-executable DSL.
+- [REGISTRY_SYSTEM.md](file:///f:/projects/Academic-Pipeline-Engine/docs/REGISTRY_SYSTEM.md) — схема БД SQLite, таблицы, миграции и API чтения реестра.
+- [SMOKE_AND_QUALITY_RUNNERS.md](file:///f:/projects/Academic-Pipeline-Engine/docs/SMOKE_AND_QUALITY_RUNNERS.md) — сценарии смоук-тестов и качественной оценки, запуск и верификация.
+- [CONTINUATION_AND_MERGE.md](file:///f:/projects/Academic-Pipeline-Engine/docs/CONTINUATION_AND_MERGE.md) — интент-анализ продолжения документов, Edit Plan и слияние патчами.
+- [OCR_AND_RESEARCH.md](file:///f:/projects/Academic-Pipeline-Engine/docs/OCR_AND_RESEARCH.md) — краулинг веб-поиска, дедупликация и оцифровка через Mistral Document AI OCR.
+- [PROJECT_STRENGTHS.md](file:///f:/projects/Academic-Pipeline-Engine/docs/PROJECT_STRENGTHS.md) — обзор сильных сторон проекта и решений для расширения кодовой базы.
 
 ## Лицензия
 
