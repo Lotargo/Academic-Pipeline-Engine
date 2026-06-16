@@ -1444,6 +1444,11 @@ class Orchestrator:
                         try:
                             revised_content = apply_line_replace_patch(current_content, patch_text)
                             revised_content = strip_markdown_fences(revised_content)
+                            revised_content = isolate_current_section_revision(
+                                revised_content,
+                                section,
+                                self._config.pipeline.sections,
+                            )
                             if self._sandbox_enabled():
                                 from academic_pe.core.sandbox import execute_sandbox_blocks
                                 revised_content = execute_sandbox_blocks(revised_content)

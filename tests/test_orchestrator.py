@@ -747,6 +747,57 @@ def test_isolate_current_section_revision_rejects_ambiguous_multi_section_respon
         isolate_current_section_revision(response, sections[1], sections)
 
 
+def test_patch_revision_trims_leaked_following_section():
+    class LeakyPatchProvider(MockProvider):
+        def __init__(self):
+            self.review_calls = 0
+
+        def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
+            if "Check the provided text for material quality issues" in user_prompt:
+                self.review_calls += 1
+                if self.review_calls == 1:
+                    return "REJECTED\n- [overview]: line 1: tighten the overview"
+                return "APPROVED"
+
+            if "Your task is to verify if the text of section" in user_prompt:
+                return "VERIFIED"
+
+            if "minimal patch" in user_prompt:
+                if "Section topic: Overview" in user_prompt:
+                    return """<<<<<<< REPLACE 1-1
+Overview fixed.
+
+## Endpoints
+Leaked duplicate endpoint block.
+>>>>>>>
+"""
+                return "NO_CHANGES"
+
+            if "Overview" in user_prompt:
+                return "Overview draft."
+            if "Endpoints" in user_prompt:
+                return "Endpoints draft."
+            return "Draft."
+
+    config = _make_config()
+    config.pipeline.sections = [
+        SectionPrompt(name="overview", topic="Overview", instruction="Draft overview."),
+        SectionPrompt(name="endpoints", topic="Endpoints", instruction="Draft endpoints."),
+    ]
+    provider = LeakyPatchProvider()
+    writer = DefaultAgent(config.agents["writer"], provider)
+    reviewer = DefaultAgent(
+        AgentConfig(role="Reviewer", model="mock", temperature=0.0, system_prompt="Reviewer prompt."),
+        provider,
+    )
+    orch = Orchestrator(writer=writer, reviewer=reviewer, config=config)
+
+    orch.run_pipeline(render_artifact=False)
+
+    assert orch.context["overview"] == "Overview fixed."
+    assert orch.context["endpoints"] == "Endpoints draft."
+
+
 def test_document_memory_includes_subsequent_sections():
     config = _make_config()
     # Modify config to have two sections
