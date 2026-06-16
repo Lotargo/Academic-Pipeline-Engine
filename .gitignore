@@ -124,6 +124,8 @@ config/dynamic_examples.json
 ui/next-env.d.ts
 *.docx
 *.png
+!docs/assets/
+!docs/assets/hero-pipeline-workspace.png
 exports/_metadata/
 exports/_smoke/
 exports/_smoke_ocr_research/

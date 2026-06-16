@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Academic Pipeline Engine: agent-first workspace for structured document generation, review, continuation, OCR, research and DOCX/PDF export."
+    />
+    <title>Academic Pipeline Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="nav">
+        <a class="brand" href="#top" aria-label="Academic Pipeline Engine">
+          <span class="brand-mark">APE</span>
+          <span class="brand-text">
+            <strong>Academic Pipeline Engine</strong>
+            <span>agent document workspace</span>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="Project navigation">
+          <a href="#features">Возможности</a>
+          <a href="#pipeline">Pipeline</a>
+          <a href="#start">Запуск</a>
+          <a href="#docs">Документация</a>
+          <a href="https://github.com/Lotargo/Academic-Pipeline-Engine">GitHub</a>
+        </nav>
+      </header>
+
+      <section class="hero" id="top">
+        <div class="hero-inner">
+          <div class="hero-copy">
+            <p class="eyebrow">LLM agents · contracts · document QA</p>
+            <h1>Academic Pipeline Engine</h1>
+            <p class="lead">
+              Локальный агентный workspace для подготовки, ревью, продолжения и экспорта
+              сложных документов. Система превращает пользовательский brief в проверяемый
+              runtime contract, ведет секционный pipeline и сохраняет результат в DOCX/PDF.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="https://github.com/Lotargo/Academic-Pipeline-Engine">Открыть GitHub</a>
+              <a class="button secondary" href="#start">Быстрый старт</a>
+              <a class="button secondary" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/ARCHITECTURE.md">Архитектура</a>
+            </div>
+          </div>
+
+          <aside class="hero-panel" aria-label="Pipeline status overview">
+            <div class="status-row">
+              <div>
+                <span>runtime flow</span>
+                <strong>artifact-first orchestration</strong>
+              </div>
+              <em class="pill">active prototype</em>
+            </div>
+            <div class="state-list">
+              <div class="state">
+                <i class="state-dot"></i>
+                <div><strong>Manifest & contract</strong><span>artifact type, language, constraints</span></div>
+                <span>01</span>
+              </div>
+              <div class="state">
+                <i class="state-dot"></i>
+                <div><strong>Writer / Reviewer loop</strong><span>section drafts, gates, line patches</span></div>
+                <span>02</span>
+              </div>
+              <div class="state">
+                <i class="state-dot"></i>
+                <div><strong>Export QA</strong><span>explicit DOCX/PDF rendering</span></div>
+                <span>03</span>
+              </div>
+            </div>
+            <div class="metrics">
+              <div class="metric"><strong>FastAPI</strong><span>backend</span></div>
+              <div class="metric"><strong>Next.js</strong><span>workspace</span></div>
+              <div class="metric"><strong>SQLite</strong><span>registry</span></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <main>
+        <section class="section" id="features">
+          <div class="section-header">
+            <h2>Не генератор текста, а управляемый документный pipeline.</h2>
+            <p>
+              APE разделяет пользовательский замысел, шаблон, контракт, работу агентов,
+              deterministic gates и экспорт. Поэтому проект подходит не только для academic paper,
+              но и для отчетов, планов, README, школьных эссе, creative artifacts и продолжений.
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature">
+              <small>routing</small>
+              <h3>Artifact-first поведение</h3>
+              <p>Manifest resolver определяет тип артефакта и не дает системе превращать любой запрос в академическую статью.</p>
+            </article>
+            <article class="feature">
+              <small>contracts</small>
+              <h3>Runtime contract</h3>
+              <p>Пользовательский brief компилируется в явные constraints, S-expression блок и role-specific guidance для агентов.</p>
+            </article>
+            <article class="feature">
+              <small>quality</small>
+              <h3>Review loop и gates</h3>
+              <p>Reviewer работает вместе с deterministic checks: объем секций, LaTeX, raw Markdown, genre drift и AI markers.</p>
+            </article>
+            <article class="feature">
+              <small>continuation</small>
+              <h3>Продолжение работ</h3>
+              <p>Continuation mode строит Edit Plan, выбирает append, bridge или revise_in_place и сохраняет исходный стиль.</p>
+            </article>
+            <article class="feature">
+              <small>research</small>
+              <h3>OCR и web research</h3>
+              <p>Система умеет подключать PDF/изображения и веб-источники, но изолирует writer от сырого шума через leakage barrier.</p>
+            </article>
+            <article class="feature">
+              <small>export</small>
+              <h3>Explicit DOCX/PDF export</h3>
+              <p>Генерация сохраняет черновик, а экспорт запускается отдельным действием с renderer, LibreOffice и QA-отчетом.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section alt" id="pipeline">
+          <div class="section-header">
+            <h2>FSM-оркестратор держит процесс читаемым.</h2>
+            <p>
+              Основной поток устроен как конечный автомат. UI получает SSE-статусы, backend сохраняет
+              metadata, а агенты работают в четко ограниченных ролях.
+            </p>
+          </div>
+          <div class="pipeline">
+            <div class="step"><b>01</b><strong>INIT</strong><span>runtime config, agents, run metadata</span></div>
+            <div class="step"><b>02</b><strong>PLANNING</strong><span>template, manifest, document plan</span></div>
+            <div class="step"><b>03</b><strong>DRAFTING</strong><span>section writing and streaming deltas</span></div>
+            <div class="step"><b>04</b><strong>REVIEWING</strong><span>quality gates, reviewer, revisions</span></div>
+            <div class="step"><b>05</b><strong>RENDERING</strong><span>draft is finalized for export</span></div>
+            <div class="step"><b>06</b><strong>DONE</strong><span>history, registry, download actions</span></div>
+          </div>
+        </section>
+
+        <section class="section" id="start">
+          <div class="split">
+            <div>
+              <p class="eyebrow">local-first</p>
+              <h2>Первый запуск возможен в mock-режиме.</h2>
+              <p class="lead">
+                Скопируйте пример конфига и поднимите backend + frontend через Docker Compose.
+                API-ключи можно добавить позже через UI, переменные окружения или локальный secrets-файл.
+              </p>
+            </div>
+            <div class="code-block">
+              <div class="code-title"><span>quick start</span><span>PowerShell / bash</span></div>
+              <pre><code>cp config/agents.example.yaml config/agents.yaml
+docker compose up --build
+
+# Backend API
+http://localhost:8000
+
+# Frontend workspace
+http://localhost:3000</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section class="section alt" id="docs">
+          <div class="section-header">
+            <h2>Документация по слоям проекта.</h2>
+            <p>Технические документы остаются обычными Markdown-файлами в репозитории. GitHub отрендерит их напрямую.</p>
+          </div>
+          <div class="doc-list">
+            <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/ARCHITECTURE.md"><strong>Architecture</strong><span>слои backend, UI, template, manifest, contract и registry</span></a>
+            <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/ORCHESTRATION.md"><strong>Orchestration</strong><span>FSM, sequence flow, review loop и explicit export</span></a>
+            <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/AGENTS_AND_TOOLS.md"><strong>Agents and tools</strong><span>агенты, providers, sandbox, renderer и export QA</span></a>
+            <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/MANIFEST_CONTRACT_ARCHITECTURE.md"><strong>Manifest contract architecture</strong><span>границы manifest/contract DSL</span></a>
+            <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/OCR_AND_RESEARCH.md"><strong>OCR and research</strong><span>web crawling, OCR и leakage barrier</span></a>
+            <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/REGISTRY_SYSTEM.md"><strong>Registry system</strong><span>SQLite schema, migrations and read model</span></a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Academic Pipeline Engine · GPLv3</span>
+        <span>FastAPI · Next.js · Pydantic · python-docx · SQLite</span>
+      </footer>
+    </div>
+  </body>
+</html>
