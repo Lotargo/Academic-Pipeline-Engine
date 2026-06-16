@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, type ChangeEvent, type DragEvent } from "react"
 import { Sidebar } from "./sidebar"
 import { SearchBar } from "./search-bar"
 import { ConfigEditor } from "./config-editor"
@@ -51,6 +51,11 @@ const CONTINUATION_INTENT_OPTIONS = [
 ]
 
 type AttachmentType = "passive_reference" | "continuation_source"
+
+const REFERENCE_ATTACHMENT_ACCEPT = ".pdf,.docx,.md,.txt,.csv,.xlsx,.pptx"
+const CONTINUATION_ATTACHMENT_ACCEPT = ".pdf,.docx,.md,.txt"
+const REFERENCE_ATTACHMENT_LABEL = "PDF, DOCX, MD, TXT, CSV, XLSX, PPTX"
+const CONTINUATION_ATTACHMENT_LABEL = "PDF, DOCX, TXT, MD"
 
 function formatArtifactLabel(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return ""
@@ -133,6 +138,7 @@ export function Search() {
   const [activeAttachments, setActiveAttachments] = useState<any[]>([])
   const [uploadAttachmentType, setUploadAttachmentType] = useState<AttachmentType>("passive_reference")
   const [uploadingFile, setUploadingFile] = useState(false)
+  const [isDraggingAttachment, setIsDraggingAttachment] = useState(false)
   const notifiedRef = useRef(false)
   const fsmScrollRef = useRef<HTMLDivElement | null>(null)
   const lastFsmScrollResetKeyRef = useRef<string>("")
@@ -543,6 +549,63 @@ export function Search() {
     setArchivedWorksOpen(false)
     setActiveTab("workspace")
     toast.info(language === "ru" ? "Режим продолжения включён" : "Continuation mode enabled")
+  }
+
+  const uploadAttachmentFile = async (file: File) => {
+    setUploadingFile(true)
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("attachment_type", uploadAttachmentType)
+    try {
+      const res = await fetch("/api/attachments/upload", {
+        method: "POST",
+        body: formData,
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || "Upload failed")
+      }
+      const data = await res.json()
+      if (data.attachment_type === "continuation_source") {
+        setActiveAttachments(prev => [
+          ...prev.map(a => ({ ...a, attachment_type: "passive_reference" })),
+          data,
+        ])
+      } else {
+        setActiveAttachments(prev => [...prev, data])
+      }
+      toast.success(language === "ru" ? `Файл '${data.filename}' успешно прикреплен` : `File '${data.filename}' attached successfully`)
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process document")
+    } finally {
+      setUploadingFile(false)
+    }
+  }
+
+  const handleAttachmentInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    await uploadAttachmentFile(file)
+    event.target.value = ""
+  }
+
+  const handleAttachmentDragOver = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!uploadingFile) {
+      event.dataTransfer.dropEffect = "copy"
+      setIsDraggingAttachment(true)
+    }
+  }
+
+  const handleAttachmentDrop = async (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingAttachment(false)
+    if (uploadingFile) return
+    const file = event.dataTransfer.files?.[0]
+    if (!file) return
+    await uploadAttachmentFile(file)
   }
 
   const handleStartGeneration = async (
@@ -956,52 +1019,36 @@ export function Search() {
                   </div>
 
                   {/* Drag-and-drop / Upload Area */}
-                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-border/60 hover:border-ape-primary/40 rounded-lg py-4 px-6 cursor-pointer bg-muted/20 dark:bg-ape-surface-subtle/20 transition-all hover:bg-muted/40 group">
+                  <label
+                    onDragEnter={handleAttachmentDragOver}
+                    onDragOver={handleAttachmentDragOver}
+                    onDragLeave={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      setIsDraggingAttachment(false)
+                    }}
+                    onDrop={handleAttachmentDrop}
+                    className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg py-4 px-6 cursor-pointer transition-all group ${
+                      isDraggingAttachment
+                        ? "border-ape-primary/70 bg-ape-primary-soft/40"
+                        : "border-border/60 bg-muted/20 hover:border-ape-primary/40 hover:bg-muted/40 dark:bg-ape-surface-subtle/20"
+                    }`}
+                  >
                     <UploadCloud className="h-8 w-8 text-muted-foreground group-hover:text-ape-primary transition-colors" />
                     <span className="mt-2 text-xs font-bold text-foreground">
-                      {language === "ru" ? "Загрузить документ (PDF, DOCX, MD)" : "Upload document (PDF, DOCX, MD)"}
+                      {language === "ru"
+                        ? `Загрузить документ (${uploadAttachmentType === "passive_reference" ? REFERENCE_ATTACHMENT_LABEL : CONTINUATION_ATTACHMENT_LABEL})`
+                        : `Upload document (${uploadAttachmentType === "passive_reference" ? REFERENCE_ATTACHMENT_LABEL : CONTINUATION_ATTACHMENT_LABEL})`}
                     </span>
                     <span className="mt-1 text-[10px] text-muted-foreground">
                       {language === "ru" ? "Лимит: 20k токенов на файл" : "Limit: 20k tokens per file"}
                     </span>
                     <input
                       type="file"
-                      accept=".pdf,.docx,.md"
+                      accept={uploadAttachmentType === "passive_reference" ? REFERENCE_ATTACHMENT_ACCEPT : CONTINUATION_ATTACHMENT_ACCEPT}
                       disabled={uploadingFile}
                       className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        setUploadingFile(true);
-                        const formData = new FormData();
-                        formData.append("file", file);
-                        formData.append("attachment_type", uploadAttachmentType);
-                        try {
-                          const res = await fetch("/api/attachments/upload", {
-                            method: "POST",
-                            body: formData
-                          });
-                          if (!res.ok) {
-                            const err = await res.json();
-                            throw new Error(err.detail || "Upload failed");
-                          }
-                          const data = await res.json();
-                          // If adding continuation source, ensure other source toggles are turned off
-                          if (data.attachment_type === "continuation_source") {
-                            setActiveAttachments(prev => [
-                              ...prev.map(a => ({ ...a, attachment_type: "passive_reference" })),
-                              data
-                            ]);
-                          } else {
-                            setActiveAttachments(prev => [...prev, data]);
-                          }
-                          toast.success(language === "ru" ? `Файл '${data.filename}' успешно прикреплен` : `File '${data.filename}' attached successfully`);
-                        } catch (err: any) {
-                          toast.error(err.message || "Failed to process document");
-                        } finally {
-                          setUploadingFile(false);
-                        }
-                      }}
+                      onChange={handleAttachmentInputChange}
                     />
                   </label>
 

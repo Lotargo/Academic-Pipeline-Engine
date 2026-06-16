@@ -31,6 +31,46 @@ def test_upload_attachment_success(monkeypatch):
     }
 
 
+def test_upload_reference_allows_tabular_and_presentation_formats(monkeypatch):
+    seen = {}
+
+    def parse_document(filename, file_bytes, mime_type):
+        seen["filename"] = filename
+        return "# Parsed"
+
+    monkeypatch.setattr("academic_pe.core.ocr.parse_document", parse_document)
+    monkeypatch.setattr("academic_pe.core.ocr.count_tokens", lambda text: 3)
+    monkeypatch.setattr("academic_pe.server.load_config", lambda path: SimpleNamespace(ocr_token_limit=20))
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/attachments/upload",
+        data={"attachment_type": "passive_reference"},
+        files={"file": ("slides.pptx", b"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "# Parsed"
+    assert seen["filename"] == "slides.pptx"
+
+
+def test_upload_continuation_rejects_tabular_and_presentation_formats(monkeypatch):
+    def fail_parse(filename, file_bytes, mime_type):
+        raise AssertionError("parse_document should not be called")
+
+    monkeypatch.setattr("academic_pe.core.ocr.parse_document", fail_parse)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/attachments/upload",
+        data={"attachment_type": "continuation_source"},
+        files={"file": ("sheet.xlsx", b"xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+
+    assert response.status_code == 400
+    assert "Unsupported continuation source format: .xlsx" in response.json()["detail"]
+
+
 def test_upload_attachment_returns_parse_error(monkeypatch):
     def fail_parse(filename, file_bytes, mime_type):
         raise ValueError("Unsupported file format: .txt")

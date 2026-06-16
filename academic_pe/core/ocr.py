@@ -3,6 +3,7 @@ import re
 import requests
 import logging
 import io
+import csv
 from typing import Optional, Tuple, Dict, List, Any
 import tiktoken
 
@@ -98,17 +99,33 @@ def extract_text_locally_docx(file_bytes: bytes) -> str:
     return "\n".join(text)
 
 
+def extract_text_locally_text(file_bytes: bytes) -> str:
+    return file_bytes.decode("utf-8-sig", errors="replace")
+
+
+def extract_text_locally_csv(file_bytes: bytes) -> str:
+    content = extract_text_locally_text(file_bytes)
+    rows = csv.reader(io.StringIO(content))
+    lines = []
+    for row in rows:
+        lines.append(" | ".join(cell.strip() for cell in row))
+    return "\n".join(line for line in lines if line.strip())
+
+
 def parse_document(filename: str, file_bytes: bytes, mime_type: str) -> str:
     """
-    Parse uploaded file. Uses Mistral OCR if configured, otherwise falls back to local parsing.
+    Parse uploaded file. Uses Mistral OCR only for OCR-worthy document formats when
+    configured, otherwise falls back to local parsing.
     Returns clean markdown/plain text.
     """
     ext = os.path.splitext(filename)[1].lower()
-    if ext == ".md":
-        return file_bytes.decode("utf-8", errors="replace")
+    if ext in {".md", ".txt"}:
+        return extract_text_locally_text(file_bytes)
+    if ext == ".csv":
+        return extract_text_locally_csv(file_bytes)
 
     api_key = get_secret("mistral")
-    if api_key:
+    if api_key and ext in {".pdf", ".docx", ".pptx", ".xlsx"}:
         try:
             return process_file_via_mistral_ocr(filename, file_bytes, mime_type)
         except Exception as e:

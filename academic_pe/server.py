@@ -36,6 +36,9 @@ except Exception as e:
 
 _background_tasks = set()
 
+REFERENCE_ATTACHMENT_EXTENSIONS = {".pdf", ".docx", ".md", ".txt", ".csv", ".xlsx", ".pptx"}
+CONTINUATION_ATTACHMENT_EXTENSIONS = {".pdf", ".docx", ".md", ".txt"}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Clean up empty run directories on startup
@@ -1264,6 +1267,26 @@ async def upload_attachment(
         filename = filename.encode("latin-1").decode("utf-8")
     except (UnicodeEncodeError, UnicodeDecodeError):
         pass
+
+    ext = os.path.splitext(filename)[1].lower()
+    allowed_extensions = (
+        CONTINUATION_ATTACHMENT_EXTENSIONS
+        if attachment_type == "continuation_source"
+        else REFERENCE_ATTACHMENT_EXTENSIONS
+    )
+    if ext not in allowed_extensions:
+        allowed_label = ", ".join(sorted(allowed_extensions))
+        if attachment_type == "continuation_source":
+            detail = (
+                f"Unsupported continuation source format: {ext or 'no extension'}. "
+                f"Allowed formats: {allowed_label}."
+            )
+        else:
+            detail = (
+                f"Unsupported reference attachment format: {ext or 'no extension'}. "
+                f"Allowed formats: {allowed_label}."
+            )
+        raise HTTPException(status_code=400, detail=detail)
     
     mime_type = file.content_type or "application/octet-stream"
 

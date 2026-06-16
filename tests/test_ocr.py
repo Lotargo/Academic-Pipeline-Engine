@@ -87,6 +87,22 @@ def test_parse_document_markdown():
     assert res == content
 
 
+@patch("academic_pe.core.ocr.process_file_via_mistral_ocr")
+@patch("academic_pe.core.ocr.get_secret", return_value="fake_mistral_key")
+def test_parse_document_text_formats_skip_mistral(mock_get_secret, mock_mistral):
+    assert parse_document("notes.txt", b"plain text", "text/plain") == "plain text"
+    assert parse_document("data.csv", b"name,value\nA,1", "text/csv") == "name | value\nA | 1"
+    mock_mistral.assert_not_called()
+
+
+@patch("academic_pe.core.ocr.process_file_via_mistral_ocr", return_value="# Parsed")
+@patch("academic_pe.core.ocr.get_secret", return_value="fake_mistral_key")
+def test_parse_document_office_reference_formats_use_mistral(mock_get_secret, mock_mistral):
+    assert parse_document("slides.pptx", b"pptx_bytes", "application/vnd.openxmlformats-officedocument.presentationml.presentation") == "# Parsed"
+    assert parse_document("sheet.xlsx", b"xlsx_bytes", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") == "# Parsed"
+    assert mock_mistral.call_count == 2
+
+
 @patch("academic_pe.core.ocr.get_secret", return_value=None)
 @patch("fitz.open")
 def test_parse_document_pdf_fallback(mock_fitz_open, mock_get_secret):
