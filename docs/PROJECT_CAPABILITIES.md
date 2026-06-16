@@ -6,6 +6,10 @@
 
 ## Product Positioning
 
+Academic Pipeline Engine был создан в первую очередь как локальный инструмент для реальной помощи: подготовить документ, продолжить прошлую работу, проверить структуру, собрать источники, выполнить расчеты и получить аккуратный DOCX/PDF без ручного склеивания.
+
+Проект не пытается выглядеть как готовый enterprise SaaS. Его текущий фокус - single-user local workspace. При этом архитектура разделяет pipeline, registry, artifacts, agents и adapters так, чтобы в будущем было возможно вынести проект в SaaS/B2B-интеграцию без переписывания доменной логики с нуля.
+
 Academic Pipeline Engine построен как локальный document workspace, а не как один prompt вокруг LLM.
 
 Ключевая идея: пользователь просит не просто "текст", а конкретный артефакт. Поэтому система сначала определяет тип работы, режим исполнения, ограничения, структуру и источники контекста, а уже потом передает задачу агентам.
@@ -220,7 +224,7 @@ SQLite хранит:
 
 Filesystem хранит большие payloads: DOCX/PDF/Markdown, OCR outputs, research logs, rendered previews and diagnostics.
 
-PostgreSQL/Redis остаются будущими адаптерами для multi-user/server mode, но не являются текущей зависимостью.
+PostgreSQL/Redis остаются будущими адаптерами для multi-user/server mode, но не являются текущей зависимостью. Это осознанный выбор: локальный продукт не должен становиться тяжелее только ради архитектурного вида.
 
 ## Frontend Workspace
 
@@ -285,3 +289,16 @@ Next.js UI развивается как desktop-grade workspace, а не как
 - optional future PostgreSQL/Redis adapters;
 - более полный DOCX round-trip editing с сохранением Word styles;
 - расширенная UI-навигация по registry/read model.
+
+## SaaS/B2B Readiness Without Overclaiming
+
+Текущая реализация ориентирована на локальную соло-работу, но несколько решений уже готовят проект к более широкому применению:
+
+- runtime registry отделен от filesystem blob store;
+- provider/model metadata сохраняется отдельно от generated artifacts;
+- agents имеют явные роли и adapter boundaries;
+- manifests/contracts являются data-driven слоем;
+- export, QA, OCR/research и continuation имеют отдельные сервисные границы;
+- PostgreSQL/Redis могут появиться как future adapters, когда появятся multi-user, queueing или shared-library требования.
+
+Иначе говоря: проект уже архитектурно не "скрипт для себя", но и не притворяется завершенной B2B-платформой раньше времени.
