@@ -40,6 +40,15 @@ def test_import_single_metadata_json(temp_db, temp_dir):
         "status": "COMPLETED",
         "docx_filename": docx_file,
         "pdf_filename": pdf_file,
+        "context": {
+            "document_plan": "# Plan",
+            "overview": "Generated overview text.",
+        },
+        "document_plan": "# Plan",
+        "previous_prompt": "Topic: Machine Learning\nInstructions: Use python to implement ML models",
+        "template_mode": "auto",
+        "resolved_manifest": {"id": "technical_readme", "version": 1},
+        "decision_summary": {"confidence": 0.95},
         "runtime_template": {
             "template_id": "compat_template",
             "metadata": {"test": "ok"}
@@ -64,6 +73,13 @@ def test_import_single_metadata_json(temp_db, temp_dir):
     assert run.run_id == run_id
     assert run.topic == "Machine Learning"
     assert run.status == "succeeded"
+    run_meta = json.loads(run.metadata_json)
+    assert run_meta["context"]["overview"] == "Generated overview text."
+    assert run_meta["document_plan"] == "# Plan"
+    assert run_meta["previous_prompt"].startswith("Topic: Machine Learning")
+    assert run_meta["template_mode"] == "auto"
+    assert run_meta["resolved_manifest"] == {"id": "technical_readme", "version": 1}
+    assert run_meta["decision_summary"] == {"confidence": 0.95}
     
     # Check artifacts (should have docx, pdf, and metadata json)
     artifacts = store.get_run_artifacts(run_id)

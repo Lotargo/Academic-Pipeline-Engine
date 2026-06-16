@@ -59,6 +59,16 @@ class TestRenderPaper:
         full_text = "\n".join(p.text for p in doc.paragraphs)
         assert "My Heading" in full_text
 
+    def test_uses_blue_document_accents(self, tmp_doc):
+        content = {"theory": "# My Heading\n\n| H1 | Description |\n|---|---|\n| V1 | V2 |\n"}
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+
+        assert str(doc.styles["Heading 1"].font.color.rgb) == "1F4E79"
+        assert str(doc.styles["Document Title"].font.color.rgb) == "17365D"
+        assert "D9F2EF" not in doc.tables[0]._tbl.xml
+        assert "DDEBF7" in doc.tables[0]._tbl.xml
+
     def test_bold_text(self, tmp_doc):
         content = {"theory": "This is **bold** text."}
         render_paper(content, tmp_doc)
@@ -287,6 +297,58 @@ class TestNewRendererFeatures:
         assert doc.tables[0].rows[0].cells[0].text == "H1"
         assert doc.tables[0].rows[1].cells[1].text == "V2"
 
+    def test_renders_inline_code_without_backticks(self, tmp_doc):
+        content = {
+            "theory": "Use `async_data_processor.Stage` with `workers` and `error_policy`."
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+
+        assert "`" not in full_text
+        assert "async_data_processor.Stage" in full_text
+        assert any(
+            run.text == "workers" and run.font.name == "Consolas"
+            for paragraph in doc.paragraphs
+            for run in paragraph.runs
+        )
+
+    def test_renders_bold_inline_code_without_backticks(self, tmp_doc):
+        content = {
+            "theory": "**`__init__`** and **`__aenter__` / `__aexit__`** are lifecycle hooks."
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+
+        assert "`" not in full_text
+        assert "__init__" in full_text
+        assert any(
+            run.text == "__init__" and run.bold and run.font.name == "Consolas"
+            for paragraph in doc.paragraphs
+            for run in paragraph.runs
+        )
+
+    def test_table_parser_preserves_pipes_inside_code_spans(self, tmp_doc):
+        content = {
+            "theory": (
+                "| Parameter | Type | Description |\n"
+                "|---|---|---|\n"
+                "| `rate_limit` | `float | None` | Maximum items per second. |\n"
+                "| `items` | `Iterable | AsyncIterable | None` | Optional input stream. |\n"
+            )
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        table = doc.tables[0]
+
+        assert len(table.columns) == 3
+        assert table.rows[0].cells[2].width > table.rows[0].cells[0].width
+        assert table.rows[1].cells[1].text == "float | None"
+        assert table.rows[2].cells[1].text == "Iterable | AsyncIterable | None"
+        assert all("`" not in cell.text for row in table.rows for cell in row.cells)
+        assert all("w:cantSplit" in row._tr.xml for row in table.rows)
+
     def test_renders_fenced_code_blocks_without_delimiters(self, tmp_doc):
         content = {
             "theory": (
@@ -307,6 +369,58 @@ class TestNewRendererFeatures:
         assert "curl https://api.example.test/weather" in full_text
         assert "{\"ok\": true}" in full_text
         assert "```" not in full_text
+
+    def test_renders_fenced_code_block_as_single_paragraph(self, tmp_doc):
+        content = {
+            "theory": (
+                "```python\n"
+                "def first():\n"
+                "    return 1\n"
+                "def second():\n"
+                "    return 2\n"
+                "```"
+            )
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        code_paragraphs = [
+            paragraph
+            for paragraph in doc.paragraphs
+            if "def first" in paragraph.text or "def second" in paragraph.text
+        ]
+
+        assert len(code_paragraphs) == 1
+        assert "return 1" in code_paragraphs[0].text
+        assert "return 2" in code_paragraphs[0].text
+        assert code_paragraphs[0].paragraph_format.keep_together is True
+
+    def test_renders_markdown_links_as_hyperlinks(self, tmp_doc):
+        content = {
+            "theory": "See [Contributor Covenant](https://www.contributor-covenant.org/version/2/0/code_of_conduct/) for details."
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        hyperlink_targets = [
+            rel.target_ref
+            for rel in doc.part.rels.values()
+            if "hyperlink" in rel.reltype
+        ]
+
+        assert "[Contributor Covenant]" not in full_text
+        assert "(https://www.contributor-covenant.org" not in full_text
+        assert "Contributor Covenant" in full_text
+        assert "https://www.contributor-covenant.org/version/2/0/code_of_conduct/" in hyperlink_targets
+
+    def test_horizontal_rule_is_not_rendered_as_literal_text(self, tmp_doc):
+        content = {"theory": "Before\n\n---\n\nAfter"}
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        visible_text = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+
+        assert "Before" in visible_text
+        assert "After" in visible_text
+        assert "---" not in visible_text
 
     def test_numbered_lists_do_not_auto_increment_between_blocks(self, tmp_doc):
         content = {

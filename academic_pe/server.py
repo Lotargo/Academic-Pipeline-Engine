@@ -385,6 +385,32 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
     }
 
 
+def _load_legacy_metadata_for_registry_item(metadata_id: Optional[str]) -> dict:
+    if not metadata_id:
+        return {}
+    try:
+        metadata_path = _safe_metadata_path(metadata_id)
+        with open(metadata_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _hydrate_registry_metadata(meta: dict) -> dict:
+    legacy_data = _load_legacy_metadata_for_registry_item(meta.get("legacy_metadata_file"))
+    if not legacy_data:
+        return meta
+    merged = dict(legacy_data)
+    overrides = {
+        key: value
+        for key, value in meta.items()
+        if value is not None and not (key in {"context", "original_context"} and value == {})
+    }
+    merged.update(overrides)
+    return merged
+
+
 def _artifact_manifest_metadata(runtime_prompt_manifest: Optional[dict]) -> dict:
     if not isinstance(runtime_prompt_manifest, dict):
         return {}
@@ -1565,6 +1591,7 @@ def get_history(archived: Optional[bool] = None, include_archived: bool = False)
                         meta = json.loads(run.metadata_json)
                     except Exception:
                         pass
+                meta = _hydrate_registry_metadata(meta)
                 
                 is_archived = bool(meta.get("archived", False))
                 if archived is not None and is_archived != archived:
@@ -1642,8 +1669,8 @@ def get_history(archived: Optional[bool] = None, include_archived: bool = False)
                     "export_report": meta.get("export_report"),
                     "template_mode": template_mode,
                     "template_id": template_id,
-                    "runtime_template": runtime_template,
-                    "runtime_prompt_manifest": runtime_prompt_manifest,
+                    "runtime_template": runtime_template or meta.get("runtime_template"),
+                    "runtime_prompt_manifest": runtime_prompt_manifest or meta.get("runtime_prompt_manifest"),
                     "resolved_manifest": meta.get("resolved_manifest"),
                     "resolved_contract": meta.get("resolved_contract"),
                     "contract_sexpr": meta.get("contract_sexpr"),

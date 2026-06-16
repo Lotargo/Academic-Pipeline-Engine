@@ -158,3 +158,66 @@ def test_delete_history_item_without_metadata_file(test_env):
     # 3. Verify that the run has been successfully deleted from the database
     fetched_run_after = store.get_run(run_id)
     assert fetched_run_after is None
+
+
+def test_history_hydrates_registry_item_from_legacy_metadata_file(test_env):
+    from academic_pe.core.registry import Run
+    client, store, metadata_dir = test_env
+
+    run_id = "run_20260617_031148"
+    metadata_id = f"{run_id}.20260617032651.metadata.json"
+    metadata_filename = os.path.join(metadata_dir, metadata_id)
+
+    with open(metadata_filename, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "run_id": run_id,
+                "topic": "README: AsyncDataProcessor Python Library",
+                "instructions": "Write the README.",
+                "timestamp": "2026-06-17 03:11:48",
+                "status": "COMPLETED",
+                "context": {
+                    "document_plan": "# Plan",
+                    "introduction": "Generated introduction.",
+                    "installation": "Generated installation.",
+                },
+                "document_plan": "# Plan",
+                "runtime_template": {
+                    "sections": [
+                        {"name": "introduction", "title": "Introduction"},
+                        {"name": "installation", "title": "Installation"},
+                    ]
+                },
+                "decision_summary": {"confidence": 0.95},
+            },
+            f,
+        )
+
+    store.create_run(
+        Run(
+            run_id=run_id,
+            kind="generation",
+            status="succeeded",
+            topic="README: AsyncDataProcessor Python Library",
+            instructions_preview="Write the README.",
+            created_at="2026-06-17 03:11:48",
+            metadata_json=json.dumps(
+                {
+                    "author": "Lotargo",
+                    "context": {},
+                    "legacy_metadata_file": metadata_id,
+                }
+            ),
+        )
+    )
+
+    response = client.get("/api/history")
+
+    assert response.status_code == 200
+    history = response.json()
+    assert len(history) == 1
+    assert history[0]["context"]["introduction"] == "Generated introduction."
+    assert history[0]["context"]["installation"] == "Generated installation."
+    assert history[0]["document_plan"] == "# Plan"
+    assert history[0]["runtime_template"]["sections"][0]["name"] == "introduction"
+    assert history[0]["decision_summary"] == {"confidence": 0.95}

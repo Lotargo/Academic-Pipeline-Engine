@@ -100,16 +100,32 @@ def import_metadata_json(
         else:
             created_at = datetime.fromtimestamp(os.path.getctime(metadata_path)).isoformat()
 
-    # Collect additional fields for metadata_json
+    # Collect fields that the history API needs to reconstruct a legacy-compatible item.
     metadata_fields = {
         "author": data.get("author"),
+        "previous_prompt": data.get("previous_prompt"),
         "academic_mode": data.get("academic_mode", False),
         "archived": data.get("archived", False),
         "archived_at": data.get("archived_at"),
+        "context": data.get("context", {}),
+        "document_plan": data.get("document_plan"),
         "self_critique_summary": data.get("self_critique_summary"),
         "reviewer_feedback": data.get("reviewer_feedback"),
         "original_context": data.get("original_context"),
         "logs": data.get("logs", []),
+        "export_report": data.get("export_report"),
+        "template_mode": data.get("template_mode"),
+        "template_id": data.get("template_id"),
+        "resolved_manifest": data.get("resolved_manifest"),
+        "resolved_contract": data.get("resolved_contract"),
+        "contract_sexpr": data.get("contract_sexpr"),
+        "manifest_selection": data.get("manifest_selection"),
+        "decision_summary": data.get("decision_summary"),
+        "artifact_override": data.get("artifact_override"),
+        "continuation_intent": data.get("continuation_intent"),
+        "document_state": data.get("document_state"),
+        "edit_plan": data.get("edit_plan"),
+        "merge_patch": data.get("merge_patch"),
         "legacy_metadata_file": filename
     }
     

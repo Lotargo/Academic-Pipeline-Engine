@@ -12,14 +12,21 @@ from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.shared import Cm, Inches, Pt, RGBColor
 
 from academic_pe.core.document_structure import renderable_sections
 
 logger = logging.getLogger(__name__)
 
+ACCENT_BLUE = RGBColor(31, 78, 121)
+ACCENT_BLUE_DARK = RGBColor(23, 54, 93)
+TABLE_HEADER_FILL = "DDEBF7"
 
-_INLINE_TOKEN_RE = re.compile(r"(\$\$.*?\$\$|\$.*?\$|\\\(.*?\\\)|\\\[.*?\\\]|\*\*.*?\*\*|\*[^*\n]+\*)", re.DOTALL)
+_INLINE_TOKEN_RE = re.compile(
+    r"(\[[^\]\n]+\]\([^)]+\)|`+[^`\n]+`+|\$\$.*?\$\$|\$.*?\$|\\\(.*?\\\)|\\\[.*?\\\]|\*\*.*?\*\*|\*[^*\n]+\*)",
+    re.DOTALL,
+)
 _LIST_RE = re.compile(r"^(\s*)([-*]|\d+[.)])\s+(.+)$")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 _CODE_FENCE_RE = re.compile(r"^```([A-Za-z0-9_-]*)\s*$")
@@ -121,6 +128,95 @@ def _set_repeat_table_header(row) -> None:
     tr_pr.append(tbl_header)
 
 
+def _set_table_row_cant_split(row) -> None:
+    tr_pr = row._tr.get_or_add_trPr()
+    cant_split = tr_pr.find(qn("w:cantSplit"))
+    if cant_split is None:
+        cant_split = OxmlElement("w:cantSplit")
+        tr_pr.append(cant_split)
+    cant_split.set(qn("w:val"), "true")
+
+
+def _set_previous_paragraph_keep_with_next(doc: Document) -> None:
+    for paragraph in reversed(doc.paragraphs):
+        if paragraph.text.strip():
+            paragraph.paragraph_format.keep_with_next = True
+            return
+
+
+def _set_cell_width(cell, width_cm: float) -> None:
+    cell.width = Cm(width_cm)
+    tc_pr = cell._tc.get_or_add_tcPr()
+    tc_w = tc_pr.find(qn("w:tcW"))
+    if tc_w is None:
+        tc_w = OxmlElement("w:tcW")
+        tc_pr.append(tc_w)
+    tc_w.set(qn("w:w"), str(int(width_cm * 567)))
+    tc_w.set(qn("w:type"), "dxa")
+
+
+def _table_column_widths(headers: List[str], total_width_cm: float = 15.6) -> List[float]:
+    if not headers:
+        return []
+    normalized = [header.strip().lower() for header in headers]
+    descriptive_columns = {
+        index
+        for index, header in enumerate(normalized)
+        if header in {"description", "notes", "purpose", "details"} or "description" in header
+    }
+    if not descriptive_columns and len(headers) >= 3:
+        descriptive_columns = {len(headers) - 1}
+
+    descriptive_width = total_width_cm * (0.46 if len(headers) >= 4 else 0.5)
+    remaining_width = total_width_cm - descriptive_width * len(descriptive_columns)
+    regular_count = max(len(headers) - len(descriptive_columns), 1)
+    regular_width = remaining_width / regular_count
+
+    return [
+        descriptive_width if index in descriptive_columns else regular_width
+        for index in range(len(headers))
+    ]
+
+
+def _add_hyperlink(paragraph, label: str, url: str, font_name: str, font_size: int, bold: bool, italic: bool) -> None:
+    relationship_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), relationship_id)
+
+    run_element = OxmlElement("w:r")
+    run_properties = OxmlElement("w:rPr")
+
+    r_fonts = OxmlElement("w:rFonts")
+    r_fonts.set(qn("w:ascii"), font_name)
+    r_fonts.set(qn("w:hAnsi"), font_name)
+    r_fonts.set(qn("w:eastAsia"), font_name)
+    run_properties.append(r_fonts)
+
+    size = OxmlElement("w:sz")
+    size.set(qn("w:val"), str(font_size * 2))
+    run_properties.append(size)
+
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "0563C1")
+    run_properties.append(color)
+
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    run_properties.append(underline)
+
+    if bold:
+        run_properties.append(OxmlElement("w:b"))
+    if italic:
+        run_properties.append(OxmlElement("w:i"))
+
+    text = OxmlElement("w:t")
+    text.text = label
+    run_element.append(run_properties)
+    run_element.append(text)
+    hyperlink.append(run_element)
+    paragraph._p.append(hyperlink)
+
+
 def _normalize_latex(math_content: str) -> str:
     text = math_content.strip()
     text = re.sub(r"\\frac\{([^{}]+)\}\{([^{}]+)\}", r"(\1)/(\2)", text)
@@ -165,29 +261,43 @@ def parse_math_content(
         set_font_style(run, font_name, font_size, bold=bold, italic=italic)
 
 
-def add_formatted_text(paragraph, text: str, font_name: str = "Times New Roman", font_size: int = 14):
+def add_formatted_text(
+    paragraph,
+    text: str,
+    font_name: str = "Times New Roman",
+    font_size: int = 14,
+    bold: bool = False,
+    italic: bool = False,
+):
     for part in _INLINE_TOKEN_RE.split(text):
         if not part:
             continue
-        if part.startswith("$$") and part.endswith("$$"):
-            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, italic=True)
+        link_match = re.fullmatch(r"\[([^\]\n]+)\]\(([^)]+)\)", part)
+        if link_match:
+            label = link_match.group(1).strip()
+            url = link_match.group(2).strip()
+            _add_hyperlink(paragraph, label, url, font_name, font_size, bold, italic)
+        elif part.startswith("`") and part.endswith("`"):
+            inner = part.strip("`")
+            run = paragraph.add_run(inner)
+            set_font_style(run, font_name="Consolas", font_size=max(font_size - 1, 9), bold=bold, italic=italic)
+        elif part.startswith("$$") and part.endswith("$$"):
+            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, bold=bold, italic=True)
         elif part.startswith("$") and part.endswith("$"):
-            parse_math_content(paragraph, part[1:-1], font_name=font_name, font_size=font_size, italic=True)
+            parse_math_content(paragraph, part[1:-1], font_name=font_name, font_size=font_size, bold=bold, italic=True)
         elif part.startswith("\\(") and part.endswith("\\)"):
-            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, italic=True)
+            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, bold=bold, italic=True)
         elif part.startswith("\\[") and part.endswith("\\]"):
-            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, italic=True)
+            parse_math_content(paragraph, part[2:-2], font_name=font_name, font_size=font_size, bold=bold, italic=True)
         elif part.startswith("**") and part.endswith("**"):
             inner = part[2:-2]
-            run = paragraph.add_run(inner)
-            set_font_style(run, font_name=font_name, font_size=font_size, bold=True)
+            add_formatted_text(paragraph, inner, font_name=font_name, font_size=font_size, bold=True, italic=italic)
         elif part.startswith("*") and part.endswith("*"):
             inner = part[1:-1]
-            run = paragraph.add_run(inner)
-            set_font_style(run, font_name=font_name, font_size=font_size, italic=True)
+            add_formatted_text(paragraph, inner, font_name=font_name, font_size=font_size, bold=bold, italic=True)
         else:
             run = paragraph.add_run(part)
-            set_font_style(run, font_name=font_name, font_size=font_size)
+            set_font_style(run, font_name=font_name, font_size=font_size, bold=bold, italic=italic)
 
 
 def _add_markdown_paragraph(
@@ -234,7 +344,7 @@ def _configure_styles(doc: Document, font_name: str, font_size: int, title_font_
         style.font.name = font_name
         style._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
         style.font.bold = True
-        style.font.color.rgb = RGBColor(17, 94, 89)
+        style.font.color.rgb = ACCENT_BLUE
         style.font.size = Pt(max(font_size + 5 - level, font_size))
         style.paragraph_format.space_before = Pt(14 if level == 1 else 10)
         style.paragraph_format.space_after = Pt(6)
@@ -248,7 +358,7 @@ def _configure_styles(doc: Document, font_name: str, font_size: int, title_font_
     title._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
     title.font.size = Pt(title_font_size)
     title.font.bold = True
-    title.font.color.rgb = RGBColor(15, 118, 110)
+    title.font.color.rgb = ACCENT_BLUE_DARK
     title.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title.paragraph_format.space_after = Pt(12)
 
@@ -264,8 +374,8 @@ def create_chart_image(output_path: str):
         x = [1, 2, 3, 4, 5]
         y1 = [10, 15, 25, 40, 55]
         y2 = [8, 12, 18, 28, 38]
-        ax.plot(x, y1, marker="o", color="#0d9488", linewidth=2.5, label="Writer Agent")
-        ax.plot(x, y2, marker="s", color="#0f766e", linewidth=2, linestyle="--", label="Reviewer Agent")
+        ax.plot(x, y1, marker="o", color="#1f4e79", linewidth=2.5, label="Writer Agent")
+        ax.plot(x, y2, marker="s", color="#17365d", linewidth=2, linestyle="--", label="Reviewer Agent")
         ax.set_title("Agent Performance Metrics", fontsize=12, fontweight="bold", color="#1f2937")
         ax.set_xlabel("Iterations / Run ID", fontsize=10, color="#4b5563")
         ax.set_ylabel("Efficiency Index (%)", fontsize=10, color="#4b5563")
@@ -283,45 +393,102 @@ def create_table(doc: Document, headers: List[str], rows: List[List[str]], font_
     if not headers:
         return
 
+    _set_previous_paragraph_keep_with_next(doc)
     table = doc.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    table.autofit = True
+    table.autofit = False
+    column_widths = _table_column_widths(headers)
 
     header_cells = table.rows[0].cells
     for index, header in enumerate(headers):
         cell = header_cells[index]
         cell.text = ""
-        _set_cell_shading(cell, "D9F2EF")
+        if index < len(column_widths):
+            _set_cell_width(cell, column_widths[index])
+        _set_cell_shading(cell, TABLE_HEADER_FILL)
         _set_cell_margins(cell)
         cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         paragraph = cell.paragraphs[0]
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = paragraph.add_run(header.strip())
-        set_font_style(run, font_name=font_name, font_size=font_size, bold=True, color=RGBColor(17, 94, 89))
+        set_font_style(run, font_name=font_name, font_size=font_size, bold=True, color=ACCENT_BLUE_DARK)
     _set_repeat_table_header(table.rows[0])
+    _set_table_row_cant_split(table.rows[0])
 
     for row_data in rows:
-        row_cells = table.add_row().cells
+        row = table.add_row()
+        row_cells = row.cells
         for index in range(len(headers)):
             value = row_data[index] if index < len(row_data) else ""
             cell = row_cells[index]
             cell.text = ""
+            if index < len(column_widths):
+                _set_cell_width(cell, column_widths[index])
             _set_cell_margins(cell)
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             paragraph = cell.paragraphs[0]
             paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
             add_formatted_text(paragraph, value.strip(), font_name=font_name, font_size=font_size)
+        _set_table_row_cant_split(row)
 
     spacer = doc.add_paragraph()
     spacer.paragraph_format.space_after = Pt(6)
     logger.info("Successfully created table with %d rows", len(rows))
 
 
+def _split_markdown_table_row(line: str) -> List[str]:
+    text = line.strip()
+    if text.startswith("|"):
+        text = text[1:]
+    if text.endswith("|"):
+        text = text[:-1]
+
+    cells: List[str] = []
+    current: List[str] = []
+    in_code_span = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "\\" and index + 1 < len(text) and text[index + 1] == "|":
+            current.append("|")
+            index += 2
+            continue
+        if char == "`":
+            in_code_span = not in_code_span
+            current.append(char)
+            index += 1
+            continue
+        if char == "|" and not in_code_span:
+            cells.append("".join(current).strip())
+            current = []
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+
+    cells.append("".join(current).strip())
+    return cells
+
+
+def _normalize_table_rows(headers: List[str], rows: List[List[str]]) -> List[List[str]]:
+    if not headers:
+        return rows
+    width = len(headers)
+    normalized: List[List[str]] = []
+    for row in rows:
+        if len(row) > width:
+            row = row[: width - 1] + [" | ".join(row[width - 1 :])]
+        if len(row) < width:
+            row = row + [""] * (width - len(row))
+        normalized.append(row)
+    return normalized
+
+
 def render_table_block(doc: Document, table_lines: List[str], font_name: str = "Times New Roman"):
     parsed_rows = []
     for line in table_lines:
-        parts = [part.strip() for part in line.strip().strip("|").split("|")]
+        parts = _split_markdown_table_row(line)
         if parts:
             parsed_rows.append(parts)
 
@@ -332,6 +499,7 @@ def render_table_block(doc: Document, table_lines: List[str], font_name: str = "
     data_rows = parsed_rows[1:]
     if data_rows and all(re.fullmatch(r":?-{3,}:?", cell or "") for cell in data_rows[0]):
         data_rows = data_rows[1:]
+    data_rows = _normalize_table_rows(headers, data_rows)
 
     create_table(doc, headers, data_rows, font_name=font_name)
 
@@ -365,17 +533,23 @@ def _render_code_block(doc: Document, lines: List[str], font_size: int) -> None:
     if not lines:
         return
 
-    for line in lines:
-        paragraph = doc.add_paragraph()
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        paragraph.paragraph_format.left_indent = Cm(0.5)
-        paragraph.paragraph_format.right_indent = Cm(0.25)
-        paragraph.paragraph_format.first_line_indent = Cm(0)
-        paragraph.paragraph_format.line_spacing = 1.0
-        paragraph.paragraph_format.space_after = Pt(1)
-        _shade_paragraph(paragraph)
+    paragraph = doc.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    paragraph.paragraph_format.left_indent = Cm(0.5)
+    paragraph.paragraph_format.right_indent = Cm(0.25)
+    paragraph.paragraph_format.first_line_indent = Cm(0)
+    paragraph.paragraph_format.line_spacing = 1.0
+    paragraph.paragraph_format.space_before = Pt(3)
+    paragraph.paragraph_format.space_after = Pt(6)
+    paragraph.paragraph_format.keep_together = len(lines) <= 18
+    paragraph.paragraph_format.keep_with_next = True
+    _shade_paragraph(paragraph)
+
+    for index, line in enumerate(lines):
+        if index > 0:
+            paragraph.add_run().add_break()
         run = paragraph.add_run(line if line else " ")
-        set_font_style(run, font_name="Consolas", font_size=max(font_size - 2, 9))
+        set_font_style(run, font_name="Consolas", font_size=max(font_size - 3, 8))
 
 
 def _render_markdown_block(
@@ -512,6 +686,13 @@ def _render_markdown_block(
             flush_current_block()
             continue
 
+        if re.fullmatch(r"[-*_]{3,}", stripped):
+            flush_current_block()
+            separator = doc.add_paragraph()
+            separator.paragraph_format.space_before = Pt(3)
+            separator.paragraph_format.space_after = Pt(3)
+            continue
+
         heading = _HEADING_RE.match(stripped)
         if heading:
             flush_current_block()
@@ -625,7 +806,7 @@ def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", 
         font_name=font_name,
         font_size=title_font_size,
         bold=True,
-        color=RGBColor(15, 118, 110),
+        color=ACCENT_BLUE_DARK,
     )
     doc.add_page_break()
 
