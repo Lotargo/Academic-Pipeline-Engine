@@ -3,7 +3,7 @@ name = "academic-pipeline-engine"
 version = "0.1.0"
 description = "AI-Powered Academic Documentation Pipeline with State Machine Orchestration"
 authors = ["Lotargo"]
-license = "MIT"
+license = "GPL-3.0-only"
 readme = "README.md"
 packages = [{include = "academic_pe"}]
 

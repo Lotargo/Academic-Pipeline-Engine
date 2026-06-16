@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/FastAPI-Backend-009688" alt="FastAPI"/>
   <img src="https://img.shields.io/badge/Next.js-UI-black" alt="Next.js UI"/>
   <img src="https://img.shields.io/badge/Status-Active%20Prototype-orange" alt="Status"/>
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="License"/>
+  <img src="https://img.shields.io/badge/License-GPLv3-blue" alt="License"/>
 </div>
 
 # Academic Pipeline Engine
@@ -320,4 +320,4 @@ pnpm run dev
 
 ## Лицензия
 
-MIT. См. `LICENSE`.
+GPLv3. См. `LICENSE`.
