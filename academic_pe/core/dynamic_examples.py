@@ -17,6 +17,8 @@ _dynamic_examples_cache: List[Dict[str, str]] = []
 last_generated_at: float = 0.0
 
 _examples_lock = asyncio.Lock()
+_DYNAMIC_EXAMPLES_PATH = "config/dynamic_examples.json"
+_DYNAMIC_EXAMPLES_META_PATH = "config/dynamic_examples_meta.json"
 
 DEFAULT_EXAMPLES_RU = [
     {
@@ -61,7 +63,7 @@ async def load_cached_examples(lang: str = "ru") -> List[Dict[str, str]]:
         if _dynamic_examples_cache:
             return _dynamic_examples_cache
 
-        path = "config/dynamic_examples.json"
+        path = _DYNAMIC_EXAMPLES_PATH
         if os.path.exists(path):
             try:
                 # Get file modification time as generation timestamp fallback
@@ -137,6 +139,9 @@ async def generate_new_examples():
     # Run in executor since BaseAgent calls block synchronously
     loop = asyncio.get_running_loop()
 
+    previous_examples = _load_previous_examples_for_prompt()
+    language_plan = _next_language_plan(config.ui.language)
+
     def run_agent():
         agent = create_agent(
             "example_generator",
@@ -145,8 +150,11 @@ async def generate_new_examples():
             cb_cfg=config.circuit_breaker
         )
 
-        lang = config.ui.language
-        prompt = build_dynamic_examples_prompt(lang)
+        prompt = build_dynamic_examples_prompt(
+            config.ui.language,
+            previous_examples=previous_examples,
+            language_plan=language_plan,
+        )
         return agent.process(prompt)
 
     try:
@@ -169,8 +177,9 @@ async def generate_new_examples():
 
             # Save to file
             os.makedirs("config", exist_ok=True)
-            with open("config/dynamic_examples.json", "w", encoding="utf-8") as f:
+            with open(_DYNAMIC_EXAMPLES_PATH, "w", encoding="utf-8") as f:
                 json.dump(valid_examples, f, ensure_ascii=False, indent=2)
+            _save_dynamic_examples_meta(language_plan)
             logger.info("Successfully updated and saved dynamic examples.")
         else:
             logger.warning("Agent returned empty or invalid example list format.")
@@ -179,21 +188,105 @@ async def generate_new_examples():
         logger.exception("Error generating dynamic examples: %s", e)
 
 
-def build_dynamic_examples_prompt(lang: str) -> str:
-    return (
-        f"Generate exactly 3 creative, diverse, and relevant artifact requests "
-        f"along with clear instructions for each, tailored to the '{lang}' language. "
-        f"Examples are illustrative entry points only, not an exhaustive list of supported artifact types; "
-        f"include diverse forms and avoid implying that unknown or niche requests must be converted into these examples. "
-        f"Write the topics and instructions in the language corresponding to '{lang}' "
-        f"(e.g. if 'ru' write in Russian, if 'en' write in English). "
-        f"Return ONLY a valid JSON array of objects without markdown code block syntax. "
-        f"Format:\n"
-        f"[\n"
-        f'  {{"topic": "...", "instructions": "..."}},\n'
-        f"  ...\n"
-        f"]"
+def build_dynamic_examples_prompt(
+    lang: str,
+    previous_examples: List[Dict[str, str]] | None = None,
+    language_plan: List[str] | None = None,
+) -> str:
+    plan = language_plan or _language_plan_for_primary(_normalize_example_language(lang))
+    plan_lines = "\n".join(
+        f"- Item {idx}: write topic and instructions in {language}."
+        for idx, language in enumerate(plan, 1)
     )
+    previous_block = ""
+    if previous_examples:
+        compact_previous_examples = previous_examples[:3]
+        previous_block = (
+            "\n\n[Previous examples to avoid repeating]\n"
+            + json.dumps(compact_previous_examples, ensure_ascii=False, indent=2)
+            + "\nCreate substantially different examples: vary artifact types, domains, tones, constraints, and wording."
+        )
+
+    return (
+        "Generate exactly 3 creative, diverse, and relevant artifact requests "
+        "along with clear instructions for each.\n"
+        "Examples are illustrative entry points only, not an exhaustive list of supported artifact types; "
+        "include diverse forms and avoid implying that unknown or niche requests must be converted into these examples.\n"
+        "Follow this exact language plan; do not translate all examples into one language:\n"
+        f"{plan_lines}\n"
+        "Use Russian for items marked 'ru' and English for items marked 'en'. "
+        "Each item must be self-contained and useful as a prompt seed.\n"
+        f"{previous_block}\n\n"
+        "Return ONLY a valid JSON array of objects without markdown code block syntax. "
+        "Do not add a language field. Format:\n"
+        "[\n"
+        '  {"topic": "...", "instructions": "..."},\n'
+        "  ...\n"
+        "]"
+    )
+
+
+def _normalize_example_language(lang: str) -> str:
+    return "ru" if str(lang).lower().startswith("ru") else "en"
+
+
+def _language_plan_for_primary(primary_language: str) -> List[str]:
+    primary = _normalize_example_language(primary_language)
+    secondary = "en" if primary == "ru" else "ru"
+    return [primary, primary, secondary]
+
+
+def _next_language_plan(preferred_lang: str) -> List[str]:
+    meta = _load_dynamic_examples_meta()
+    last_primary = meta.get("last_primary_language")
+    if last_primary in {"ru", "en"}:
+        primary = "en" if last_primary == "ru" else "ru"
+    else:
+        primary = _normalize_example_language(preferred_lang)
+    return _language_plan_for_primary(primary)
+
+
+def _load_previous_examples_for_prompt() -> List[Dict[str, str]]:
+    if _dynamic_examples_cache:
+        return list(_dynamic_examples_cache)
+    if not os.path.exists(_DYNAMIC_EXAMPLES_PATH):
+        return []
+    try:
+        with open(_DYNAMIC_EXAMPLES_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return [
+                {"topic": str(item.get("topic", "")), "instructions": str(item.get("instructions", ""))}
+                for item in data
+                if isinstance(item, dict) and item.get("topic") and item.get("instructions")
+            ]
+    except Exception as e:
+        logger.warning("Failed to load previous dynamic examples for prompt: %s", e)
+    return []
+
+
+def _load_dynamic_examples_meta() -> Dict[str, str]:
+    if not os.path.exists(_DYNAMIC_EXAMPLES_META_PATH):
+        return {}
+    try:
+        with open(_DYNAMIC_EXAMPLES_META_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        logger.warning("Failed to load dynamic examples metadata: %s", e)
+        return {}
+
+
+def _save_dynamic_examples_meta(language_plan: List[str]) -> None:
+    os.makedirs("config", exist_ok=True)
+    primary = language_plan[0] if language_plan else "en"
+    meta = {
+        "last_primary_language": primary,
+        "last_language_plan": language_plan,
+        "updated_at": time.time(),
+    }
+    with open(_DYNAMIC_EXAMPLES_META_PATH, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
 
 
 async def dynamic_examples_loop():

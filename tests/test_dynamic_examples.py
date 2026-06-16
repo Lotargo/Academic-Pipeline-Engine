@@ -6,6 +6,8 @@ from academic_pe.core.dynamic_examples import (
     build_dynamic_examples_prompt,
     clean_and_parse_json,
     get_default_examples,
+    _language_plan_for_primary,
+    _next_language_plan,
 )
 
 
@@ -103,3 +105,61 @@ def test_dynamic_examples_prompt_treats_examples_as_illustrative_not_exhaustive(
     assert "illustrative entry points only" in prompt
     assert "not an exhaustive list of supported artifact types" in prompt
     assert "unknown or niche requests" in prompt
+
+
+def test_dynamic_examples_prompt_uses_bilingual_checkerboard_plan():
+    prompt = build_dynamic_examples_prompt(
+        "ru",
+        previous_examples=[
+            {"topic": "Old README", "instructions": "Old API instructions."},
+        ],
+        language_plan=["ru", "ru", "en"],
+    )
+
+    assert "Item 1: write topic and instructions in ru" in prompt
+    assert "Item 2: write topic and instructions in ru" in prompt
+    assert "Item 3: write topic and instructions in en" in prompt
+    assert "Previous examples to avoid repeating" in prompt
+    assert "Old README" in prompt
+    assert "substantially different examples" in prompt
+    assert "Do not add a language field" in prompt
+
+
+def test_dynamic_examples_prompt_limits_previous_examples_to_last_triple():
+    prompt = build_dynamic_examples_prompt(
+        "en",
+        previous_examples=[
+            {"topic": "Old 1", "instructions": "I1"},
+            {"topic": "Old 2", "instructions": "I2"},
+            {"topic": "Old 3", "instructions": "I3"},
+            {"topic": "Old 4", "instructions": "I4"},
+        ],
+        language_plan=["en", "en", "ru"],
+    )
+
+    assert "Old 1" in prompt
+    assert "Old 2" in prompt
+    assert "Old 3" in prompt
+    assert "Old 4" not in prompt
+
+
+def test_language_plan_for_primary_alternates_two_to_one():
+    assert _language_plan_for_primary("ru") == ["ru", "ru", "en"]
+    assert _language_plan_for_primary("en") == ["en", "en", "ru"]
+    assert _language_plan_for_primary("unknown") == ["en", "en", "ru"]
+
+
+def test_next_language_plan_uses_metadata_to_alternate(tmp_path, monkeypatch):
+    meta_path = tmp_path / "dynamic_examples_meta.json"
+    monkeypatch.setattr(
+        "academic_pe.core.dynamic_examples._DYNAMIC_EXAMPLES_META_PATH",
+        str(meta_path),
+    )
+
+    assert _next_language_plan("ru") == ["ru", "ru", "en"]
+
+    meta_path.write_text('{"last_primary_language": "ru"}', encoding="utf-8")
+    assert _next_language_plan("ru") == ["en", "en", "ru"]
+
+    meta_path.write_text('{"last_primary_language": "en"}', encoding="utf-8")
+    assert _next_language_plan("ru") == ["ru", "ru", "en"]
