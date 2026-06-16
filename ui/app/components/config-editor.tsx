@@ -19,7 +19,7 @@ type DocumentTemplateSummary = {
   section_count?: number
 }
 
-export function ConfigEditor() {
+export function ConfigEditor({ language = "en" }: { language?: string }) {
   const [config, setConfig] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -85,6 +85,31 @@ export function ConfigEditor() {
       console.error("Error loading document templates:", e)
     }
   }
+
+  const handleHardReset = async () => {
+    const confirmMessage = language === "ru"
+      ? "ВНИМАНИЕ! Это действие ПОЛНОСТЬЮ удалит всю историю генераций, все загруженные файлы и очистит базу данных. Это действие НЕОБРАТИМО. Вы уверены, что хотите продолжить?"
+      : "WARNING! This action will PERMANENTLY delete all generation history, all uploaded files, and clear the database. This action is IRREVERSIBLE. Are you sure you want to proceed?";
+      
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+    
+    try {
+      const res = await fetch("/api/history/reset", {
+        method: "POST"
+      });
+      if (res.ok) {
+        toast.success(language === "ru" ? "База данных и все файлы успешно очищены!" : "Database and all files cleared successfully!");
+        window.dispatchEvent(new CustomEvent("ape-history-reset"));
+      } else {
+        const err = await res.json();
+        throw new Error(err.detail || "Reset failed");
+      }
+    } catch (e: any) {
+      toast.error(language === "ru" ? `Сброс не удался: ${e.message}` : `Reset failed: ${e.message}`);
+    }
+  };
 
   const fetchModelsForAgent = async (agentKey: string, provider: string, baseUrl?: string) => {
     if (!provider || provider === "mock") {
@@ -1318,6 +1343,37 @@ export function ConfigEditor() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
+
+        {/* Danger Zone */}
+        <div className="rounded-xl border border-destructive/30 p-5 bg-destructive/5 space-y-4 mt-6">
+          <div className="flex items-center gap-2 border-b border-destructive/20 pb-3">
+            <AlertTriangle className="h-5 w-5 text-destructive animate-pulse" />
+            <h3 className="font-bold text-sm text-destructive">
+              {language === "ru" ? "Danger Zone / Опасная зона" : "Danger Zone"}
+            </h3>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-foreground">
+                {language === "ru" ? "Жёсткий сброс всей системы" : "Hard Reset All Data"}
+              </label>
+              <p className="text-[10px] leading-relaxed text-muted-foreground max-w-xl">
+                {language === "ru" 
+                  ? "Полностью очищает SQLite базу данных (runs, sources, artifacts), удаляет все сгенерированные черновики, DOCX/PDF отчеты, а также legacy-файлы метаданных. Это действие необратимо."
+                  : "Permanently clears the SQLite database (runs, sources, artifacts), deletes all generated drafts, DOCX/PDF reports, and legacy metadata files. This action is irreversible."}
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleHardReset}
+              className="shrink-0 font-bold bg-red-600 hover:bg-red-700 text-white px-4 h-9"
+            >
+              {language === "ru" ? "Выполнить сброс" : "Perform Reset"}
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )

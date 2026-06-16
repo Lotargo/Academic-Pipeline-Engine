@@ -1212,6 +1212,13 @@ async def upload_attachment(
         raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
 
     filename = file.filename or "uploaded_file"
+    try:
+        # Starlette/FastAPI decodes multipart filenames as latin-1.
+        # We recover the original UTF-8 bytes.
+        filename = filename.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    
     mime_type = file.content_type or "application/octet-stream"
 
     # 1. Process/parse the file
@@ -1711,6 +1718,61 @@ def delete_history_item(metadata_id: str):
         _delete_run_directory(run_id_for_dir)
     os.remove(metadata_path)
     return {"status": "deleted", "id": metadata_id}
+
+
+@app.post("/api/history/reset")
+def hard_reset():
+    # 1. Clear database tables
+    try:
+        with registry_store._connection() as conn:
+            conn.execute("PRAGMA foreign_keys = OFF;")
+            conn.execute("DELETE FROM runs;")
+            conn.execute("DELETE FROM run_agents;")
+            conn.execute("DELETE FROM artifacts;")
+            conn.execute("DELETE FROM runtime_snapshots;")
+            conn.execute("DELETE FROM sections;")
+            conn.execute("DELETE FROM sources;")
+            conn.execute("DELETE FROM evaluations;")
+            conn.execute("DELETE FROM events;")
+            conn.execute("PRAGMA foreign_keys = ON;")
+    except Exception as e:
+        logging.getLogger(__name__).warning("Failed to clear SQLite tables: %s", e)
+
+    # 2. Delete legacy metadata files (*.metadata.json) in exports/_metadata
+    metadata_dir = _history_metadata_dir()
+    if os.path.exists(metadata_dir):
+        for f in os.listdir(metadata_dir):
+            if f.endswith(".metadata.json"):
+                try:
+                    os.remove(os.path.join(metadata_dir, f))
+                except Exception as e:
+                    logging.getLogger(__name__).warning("Failed to remove metadata file %s: %s", f, e)
+
+    # 3. Delete run directories (exports/run_*)
+    exports_dir = "exports"
+    if os.path.exists(exports_dir):
+        import shutil
+        import re
+        for name in os.listdir(exports_dir):
+            path = os.path.join(exports_dir, name)
+            if os.path.isdir(path) and re.match(r"^run_\d{8}_\d{6}$", name):
+                try:
+                    shutil.rmtree(path)
+                except Exception as e:
+                    logging.getLogger(__name__).warning("Failed to remove run directory %s: %s", path, e)
+
+    # 4. Clean up exported docx or pdf files in output dir
+    output_dir = _pipeline_output_dir()
+    if os.path.exists(output_dir):
+        for name in os.listdir(output_dir):
+            path = os.path.join(output_dir, name)
+            if os.path.isfile(path) and (name.endswith(".docx") or name.endswith(".pdf")):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    logging.getLogger(__name__).warning("Failed to remove export file %s: %s", path, e)
+
+    return {"status": "reset_completed"}
 
 
 @app.get("/api/registry/runs")

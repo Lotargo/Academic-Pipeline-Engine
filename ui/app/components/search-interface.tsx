@@ -226,8 +226,16 @@ export function Search() {
       }
     }
     
+    const handleReset = () => {
+      fetchHistory()
+      setSelectedPaper(null)
+    }
     window.addEventListener("ape-config-saved", fetchLanguage)
-    return () => window.removeEventListener("ape-config-saved", fetchLanguage)
+    window.addEventListener("ape-history-reset", handleReset)
+    return () => {
+      window.removeEventListener("ape-config-saved", fetchLanguage)
+      window.removeEventListener("ape-history-reset", handleReset)
+    }
   }, [])
 
   useEffect(() => {
@@ -808,7 +816,7 @@ export function Search() {
           )}
 
           {/* Config Editor Tab */}
-          {!selectedPaper && activeTab === "config" && <ConfigEditor />}
+          {!selectedPaper && activeTab === "config" && <ConfigEditor language={language} />}
 
           {/* Pipeline Monitor / Log Tab */}
           {!selectedPaper && activeTab === "fsm" && (
@@ -911,7 +919,7 @@ export function Search() {
 
                   <div className="space-y-2">
                     <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                      {language === "ru" ? "РўРёРї Р·Р°РіСЂСѓР·РєРё" : "Upload as"}
+                      {language === "ru" ? "Тип загрузки" : "Upload as"}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -924,9 +932,9 @@ export function Search() {
                             : "bg-muted/40 dark:bg-ape-surface-subtle/30 border-border/50 text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        <span className="block">{language === "ru" ? "РЎРїСЂР°РІРєР°" : "Reference"}</span>
+                        <span className="block">{language === "ru" ? "Справка" : "Reference"}</span>
                         <span className="block text-[10px] font-normal opacity-80">
-                          {language === "ru" ? "Р”Р»СЏ РїР»Р°РЅРёСЂРѕРІС‰РёРєР°" : "Planner background"}
+                          {language === "ru" ? "Для планировщика" : "Planner background"}
                         </span>
                       </button>
                       <button
@@ -939,9 +947,9 @@ export function Search() {
                             : "bg-muted/40 dark:bg-ape-surface-subtle/30 border-border/50 text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        <span className="block">{language === "ru" ? "РџСЂРѕРґРѕР»Р¶РµРЅРёРµ" : "Continuation"}</span>
+                        <span className="block">{language === "ru" ? "Продолжение" : "Continuation"}</span>
                         <span className="block text-[10px] font-normal opacity-80">
-                          {language === "ru" ? "РћСЃРЅРѕРІР° РґР»СЏ РЅРѕРІРѕР№ РІРµСЂСЃРёРё" : "Base for new version"}
+                          {language === "ru" ? "Основа для новой версии" : "Base for new version"}
                         </span>
                       </button>
                     </div>
