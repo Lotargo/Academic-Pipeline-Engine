@@ -97,13 +97,57 @@ def check_markdown_artifacts(context: Dict[str, str], cfg: QualityGateConfig) ->
     issues: List[str] = []
     for name, text in context.items():
         text = text or ""
-        lines = text.splitlines()
-        for idx, line in enumerate(lines, 1):
-            if line.strip().startswith("```"):
-                issues.append(
-                    f"Section '{name}' contains raw code block formatting delimiter '{line.strip()}' at line {idx}."
-                )
+        issues.extend(_markdown_artifact_issues(name, text))
     return GateResult(passed=len(issues) == 0, issues=issues)
+
+
+_WRAPPER_FENCE_LANGS = {"", "markdown", "md", "text", "code", "latex", "html"}
+_ARTIFACT_FENCE_LANGS = {"markdown", "md", "text", "code", "latex", "html"}
+
+
+def _markdown_artifact_issues(name: str, text: str) -> List[str]:
+    issues: List[str] = []
+    wrapper_issue = _section_wrapper_fence_issue(name, text)
+    if wrapper_issue:
+        issues.append(wrapper_issue)
+        return issues
+
+    for idx, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        match = re.fullmatch(r"```([A-Za-z0-9_-]*)", stripped)
+        if match and match.group(1).lower() in _ARTIFACT_FENCE_LANGS:
+            issues.append(
+                f"Section '{name}' contains raw Markdown wrapper delimiter '{stripped}' at line {idx}. "
+                "Remove only the wrapper fence."
+            )
+    return issues
+
+
+def _section_wrapper_fence_issue(name: str, text: str) -> Optional[str]:
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return None
+
+    lines = stripped.splitlines()
+    if len(lines) < 2 or not lines[-1].strip().startswith("```"):
+        return None
+
+    first = lines[0].strip()
+    if not re.fullmatch(r"```[A-Za-z0-9_-]*", first):
+        return None
+
+    lang = first[3:].strip().lower()
+    if lang not in _WRAPPER_FENCE_LANGS:
+        return None
+
+    inner = "\n".join(lines[1:-1]).strip()
+    if "```" in inner:
+        return None
+
+    return (
+        f"Section '{name}' is wrapped in raw Markdown code block delimiter "
+        f"'{first}'. Remove only the outer wrapper fence."
+    )
 
 
 def check_continuation_integrity(

@@ -1534,14 +1534,14 @@ class Orchestrator:
                         self._set_section_content(section.name, revised_content)
 
                     # --- Self-Verification Step ---
-                    if self.first_attempt_reason:
-                        logger.info("Starting writer self-verification against first reviewer feedback...")
+                    if reason:
+                        logger.info("Starting writer self-verification against current reviewer feedback...")
                         verify_reasons_by_section = parse_rejection_reasons(
-                            self.first_attempt_reason, self._config.pipeline.sections
+                            reason, self._config.pipeline.sections
                         )
                         for section in self._config.pipeline.sections:
                             self._check_cancelled()
-                            sec_verify_reason = verify_reasons_by_section.get(section.name, self.first_attempt_reason)
+                            sec_verify_reason = verify_reasons_by_section.get(section.name, reason)
                             verified = False
                             verify_scope_feedback = ""
                             for verify_attempt in range(2):

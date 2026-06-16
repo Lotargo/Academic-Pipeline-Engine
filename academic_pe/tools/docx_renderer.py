@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 _INLINE_TOKEN_RE = re.compile(r"(\$\$.*?\$\$|\$.*?\$|\\\(.*?\\\)|\\\[.*?\\\]|\*\*.*?\*\*|\*[^*\n]+\*)", re.DOTALL)
 _LIST_RE = re.compile(r"^(\s*)([-*]|\d+[.)])\s+(.+)$")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$")
+_CODE_FENCE_RE = re.compile(r"^```([A-Za-z0-9_-]*)\s*$")
 
 _LATEX_SYMBOLS = {
     r"\alpha": "alpha",
@@ -353,6 +354,30 @@ def _render_chart(doc: Document, stripped: str, section: str, font_name: str, fo
     set_font_style(run_caption, font_name=font_name, font_size=max(font_size - 2, 9), italic=True)
 
 
+def _shade_paragraph(paragraph, fill: str = "F2F2F2") -> None:
+    p_pr = paragraph._p.get_or_add_pPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:fill"), fill)
+    p_pr.append(shd)
+
+
+def _render_code_block(doc: Document, lines: List[str], font_size: int) -> None:
+    if not lines:
+        return
+
+    for line in lines:
+        paragraph = doc.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.paragraph_format.left_indent = Cm(0.5)
+        paragraph.paragraph_format.right_indent = Cm(0.25)
+        paragraph.paragraph_format.first_line_indent = Cm(0)
+        paragraph.paragraph_format.line_spacing = 1.0
+        paragraph.paragraph_format.space_after = Pt(1)
+        _shade_paragraph(paragraph)
+        run = paragraph.add_run(line if line else " ")
+        set_font_style(run, font_name="Consolas", font_size=max(font_size - 2, 9))
+
+
 def _render_markdown_block(
     doc: Document,
     section: str,
@@ -367,6 +392,8 @@ def _render_markdown_block(
     
     current_block_type = None  # None, "paragraph", "list", "table", "block_math"
     accumulated_lines: List[str] = []
+    in_code_block = False
+    code_lines: List[str] = []
     
     def flush_current_block() -> None:
         nonlocal current_block_type, accumulated_lines
@@ -436,6 +463,22 @@ def _render_markdown_block(
     
     for line in lines:
         stripped = line.strip()
+
+        fence_match = _CODE_FENCE_RE.match(stripped)
+        if fence_match:
+            if in_code_block:
+                _render_code_block(doc, code_lines, font_size)
+                code_lines = []
+                in_code_block = False
+            else:
+                flush_current_block()
+                in_code_block = True
+                code_lines = []
+            continue
+
+        if in_code_block:
+            code_lines.append(line)
+            continue
         
         if not in_math_block:
             if stripped.startswith("$$"):
@@ -526,6 +569,8 @@ def _render_markdown_block(
         accumulated_lines.append(line)
 
     flush_current_block()
+    if in_code_block:
+        _render_code_block(doc, code_lines, font_size)
 
 
 def render_paper(content: Dict[str, str], output_filename: str = "Output.docx", config: Optional[Any] = None):

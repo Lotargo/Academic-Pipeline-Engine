@@ -287,6 +287,27 @@ class TestNewRendererFeatures:
         assert doc.tables[0].rows[0].cells[0].text == "H1"
         assert doc.tables[0].rows[1].cells[1].text == "V2"
 
+    def test_renders_fenced_code_blocks_without_delimiters(self, tmp_doc):
+        content = {
+            "theory": (
+                "Request example:\n\n"
+                "```bash\n"
+                "curl https://api.example.test/weather\n"
+                "```\n\n"
+                "Response example:\n\n"
+                "```json\n"
+                "{\"ok\": true}\n"
+                "```"
+            )
+        }
+        render_paper(content, tmp_doc)
+        doc = Document(tmp_doc)
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+
+        assert "curl https://api.example.test/weather" in full_text
+        assert "{\"ok\": true}" in full_text
+        assert "```" not in full_text
+
     def test_numbered_lists_do_not_auto_increment_between_blocks(self, tmp_doc):
         content = {
             "theory": (

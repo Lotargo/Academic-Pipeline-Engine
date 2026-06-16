@@ -147,8 +147,30 @@ class TestMarkdownCheck:
         from academic_pe.core.quality_gate import check_markdown_artifacts
         result = check_markdown_artifacts({"theory": "```markdown\n1. Introduction\n```"}, cfg)
         assert not result.passed
-        assert len(result.issues) == 2
-        assert "raw code block formatting delimiter" in result.issues[0]
+        assert len(result.issues) == 1
+        assert "wrapped in raw Markdown code block delimiter" in result.issues[0]
+
+    def test_allows_internal_technical_code_fences(self):
+        cfg = _full_cfg()
+        from academic_pe.core.quality_gate import check_markdown_artifacts
+
+        result = check_markdown_artifacts(
+            {
+                "api": (
+                    "Use the endpoint below.\n\n"
+                    "```bash\n"
+                    "curl https://api.example.test/weather\n"
+                    "```\n\n"
+                    "Response:\n"
+                    "```json\n"
+                    "{\"ok\": true}\n"
+                    "```"
+                )
+            },
+            cfg,
+        )
+
+        assert result.passed
 
 
 class TestContinuationIntegrityCheck:
