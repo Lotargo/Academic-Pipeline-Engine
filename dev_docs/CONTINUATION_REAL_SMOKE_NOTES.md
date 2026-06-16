@@ -190,3 +190,16 @@ Result: PASS
 Elapsed: 117.3s
 Observed imbalance: none
 Follow-up: exports\_smoke\20260616_034316\academic_references\stage_log.jsonl
+
+## Run 2026-06-16T09:20:10 - academic_references
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Config snapshot: writer=zen/deepseek-v4-flash-free, reviewer=zen/mimo-v2.5-free, planner=zen/big-pickle, example_generator=zen/deepseek-v4-flash-free
+Scenario: Academic/RGR continuation with references (academic_references)
+Expected checks: new body appears before references; references remain terminal; bibliography is a single merged section; no editorial 'new sources added' label
+Stage log: see exports/_smoke JSONL log for full flushed checkpoints.
+Result: PASS
+Elapsed: 203.7s
+Observed imbalance: none
+Follow-up: exports\_smoke\20260616_092010\academic_references\stage_log.jsonl

@@ -42,3 +42,27 @@ Observed issue: none
 Follow-up: exports\_smoke_ocr_research\20260616_061346\real_llm_web_research\stage_log.jsonl
 
 Details: real Planner/Writer calls completed with `writer=zen/deepseek-v4-flash-free`, `planner=zen/big-pickle`, and `researcher=mock/deterministic-search`. Search findings were non-empty (`12125` chars), Planner produced a source-aware plan (`3051` chars), and Writer produced a brief (`1163` chars) without leaking the raw reference marker.
+
+## Run 2026-06-16T09:15:00 - mistral_ocr_direct
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Scenario: Direct Mistral OCR smoke with configured key (mistral_ocr_direct)
+Expected checks: mistral secret is configured; generated PDF is OCR'd through Mistral API; unique marker survives OCR
+Stage log: see exports/_smoke_ocr_research JSONL log for flushed checkpoints.
+Result: PASS
+Elapsed: 4.1s
+Observed issue: none
+Follow-up: exports\_smoke_ocr_research\20260616_091500\mistral_ocr_direct\stage_log.jsonl
+
+## Run 2026-06-16T09:15:13 - real_llm_web_research
+
+Date: 2026-06-16
+Commit/branch: local working tree
+Scenario: Real Planner/Writer LLM web research smoke (real_llm_web_research)
+Expected checks: configured real Planner/Writer secrets are available; Researcher returns non-empty search findings; Planner creates a source-aware plan; Writer drafts from planner-curated context without raw reference leakage
+Stage log: see exports/_smoke_ocr_research JSONL log for flushed checkpoints.
+Result: PASS
+Elapsed: 151.4s
+Observed issue: none
+Follow-up: exports\_smoke_ocr_research\20260616_091513\real_llm_web_research\stage_log.jsonl
