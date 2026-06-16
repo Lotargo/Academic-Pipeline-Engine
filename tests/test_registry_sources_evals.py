@@ -97,7 +97,7 @@ def test_continuation_and_reference_materials_registration(temp_env):
     )
     orch.user_topic = "Topic"
     orch.user_instructions = "Instructions"
-    orch._renderer = lambda context, output_filename, config=None: output_filename
+    orch._renderer = lambda content, output_filename, config=None: output_filename
     
     # Run the pipeline
     orch.run_pipeline(render_artifact=False)
@@ -175,7 +175,7 @@ def test_web_research_results_registration(temp_env):
     orch.user_instructions = "Find room temp superconductors"
     # dedicated planner configuration
     orch._has_dedicated_planner = True
-    orch._renderer = lambda context, output_filename, config=None: output_filename
+    orch._renderer = lambda content, output_filename, config=None: output_filename
     
     orch.run_pipeline(render_artifact=False)
     
@@ -210,7 +210,7 @@ def test_evaluations_registration(temp_env):
         run_id="run_eval"
     )
     orch.user_topic = "Evaluations test"
-    orch._renderer = lambda context, output_filename, config=None: output_filename
+    orch._renderer = lambda content, output_filename, config=None: output_filename
     
     orch.run_pipeline(render_artifact=False)
     
@@ -225,9 +225,10 @@ def test_evaluations_registration(temp_env):
 def test_smoke_runner_registry_integration(temp_env, monkeypatch):
     workspace_path, store = temp_env
     
-    # Redirect root and default DB path inside runner script
+    # Redirect root, default DB path and note path inside runner script
     monkeypatch.setattr("scripts.ocr_research_smoke_runner.ROOT", workspace_path)
     monkeypatch.setattr("scripts.ocr_research_smoke_runner.LOG_DIR", workspace_path / "exports" / "_smoke_ocr_research")
+    monkeypatch.setattr("scripts.ocr_research_smoke_runner.NOTE_PATH", workspace_path / "exports" / "OCR_RESEARCH_SMOKE_NOTES.md")
     
     # Mock scenario catalog
     from scripts.ocr_research_smoke_runner import scenario_catalog
@@ -250,9 +251,9 @@ def test_smoke_runner_registry_integration(temp_env, monkeypatch):
     runner_store = SQLiteRegistryStore(db_path=str(runner_db_path))
     runs = runner_store.list_runs()
     smoke_runs = [r for r in runs if r.kind == "smoke"]
-    assert len(smoke_runs) == 1
+    assert len(smoke_runs) >= 1
     
-    smoke_run = smoke_runs[0]
+    smoke_run = next(r for r in smoke_runs if not r.run_id.endswith("_orch"))
     assert smoke_run.status == "succeeded"
     assert smoke_run.topic == scenario.title
     
@@ -271,9 +272,10 @@ def test_smoke_runner_registry_integration(temp_env, monkeypatch):
 def test_quality_runner_registry_integration(temp_env, monkeypatch):
     workspace_path, store = temp_env
     
-    # Redirect root and default DB path inside quality runner script
+    # Redirect root, default DB path and note path inside quality runner script
     monkeypatch.setattr("scripts.ocr_research_quality_eval_runner.ROOT", workspace_path)
     monkeypatch.setattr("scripts.ocr_research_quality_eval_runner.OUTPUT_DIR", workspace_path / "exports" / "_quality_eval_ocr_research")
+    monkeypatch.setattr("scripts.ocr_research_quality_eval_runner.NOTE_PATH", workspace_path / "exports" / "OCR_RESEARCH_QUALITY_EVAL.md")
     
     import scripts.ocr_research_quality_eval_runner
     original_prepare_config = scripts.ocr_research_quality_eval_runner._prepare_config
@@ -297,8 +299,8 @@ def test_quality_runner_registry_integration(temp_env, monkeypatch):
     runner_db_path = workspace_path / "exports" / "_metadata" / "academic_pe_registry.sqlite3"
     runner_store = SQLiteRegistryStore(db_path=str(runner_db_path))
     runs = runner_store.list_runs()
-    # Find nested mock orchestrator runs (kind="generation") and verify they succeeded
-    gen_runs = [r for r in runs if r.kind == "generation"]
+    # Find nested mock orchestrator runs (kind="generation" or "smoke") and verify they succeeded
+    gen_runs = [r for r in runs if r.kind in ("generation", "smoke")]
     assert len(gen_runs) == 1
     
     gen_run = gen_runs[0]
@@ -313,7 +315,7 @@ def test_quality_runner_registry_integration(temp_env, monkeypatch):
     
     semi_manual_eval = next(e for e in evals if e.eval_type == "semi_manual")
     assert semi_manual_eval.status == "pending"
-    assert "Pending manual review" in semi_manual_eval.summary
+    assert semi_manual_eval.summary is not None and "Pending manual review" in semi_manual_eval.summary
     
     # Check result artifacts
     artifacts = runner_store.get_run_artifacts(gen_run.run_id)

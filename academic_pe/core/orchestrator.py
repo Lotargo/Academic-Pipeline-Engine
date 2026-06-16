@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 import json
 import os
+import hashlib
 import re
 import signal
 import threading
@@ -32,7 +33,7 @@ from academic_pe.core.merge_operations import (
     required_content_roles,
     validate_merge_operation_targets,
 )
-from academic_pe.manifests import ArtifactManifestResolver
+from academic_pe.manifests.resolver import ArtifactManifestResolver
 from academic_pe.core.registry import (
     RegistryStore, NoopRegistryStore, Run, RunAgent, RuntimeSnapshot, Section, Source, Artifact, Evaluation
 )
@@ -930,9 +931,10 @@ class Orchestrator:
             "template_id": self._config.pipeline.template_id,
         }
         
+        run_kind = "smoke" if self.run_id and (self.run_id.startswith("smoke_") or self.run_id.startswith("quality_") or self.run_id.startswith("test_")) else "generation"
         run_record = Run(
             run_id=self.run_id,
-            kind="generation",
+            kind=run_kind,
             status="running",
             topic=self.user_topic or "Unknown",
             instructions_preview=self.user_instructions,
@@ -1057,7 +1059,7 @@ class Orchestrator:
                     rel_path = safe_relative_path(path)
                     artifact_record = Artifact(
                         run_id=self.run_id,
-                        artifact_type="ocr_output" if filename.lower().endswith((".pdf", ".docx")) else "markdown",
+                        artifact_type="ocr_output" if (filename or "").lower().endswith((".pdf", ".docx")) else "markdown",
                         path=os.path.abspath(path),
                         relative_path=rel_path,
                         filename=os.path.basename(path),
@@ -1153,7 +1155,10 @@ class Orchestrator:
                 if queries:
                     run_dir = self._config.pipeline.output_dir
                     logger.info("[Researcher] Spawning parallel search agents to retrieve search results...")
-                    self.search_findings = self._researcher.run_research(queries, run_dir)
+                    from typing import cast
+                    from academic_pe.agents.researcher import ResearcherAgent
+                    researcher_agent = cast(ResearcherAgent, self._researcher)
+                    self.search_findings = researcher_agent.run_research(queries, run_dir)
                     self.search_findings = normalize_generated_text(self.search_findings)
                     logger.info("[Researcher] Parallel search completed. Sourcing findings...")
 
@@ -1435,6 +1440,7 @@ class Orchestrator:
                             document_sections=self.context,
                         )
                         self._capture_self_critique_summary(self._writer, stage="patch_revision", section_name=section.name)
+                        revised_content = current_content
                         try:
                             revised_content = apply_line_replace_patch(current_content, patch_text)
                             revised_content = strip_markdown_fences(revised_content)

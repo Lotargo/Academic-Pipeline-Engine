@@ -179,12 +179,18 @@ def scenario_catalog() -> Dict[str, SmokeScenario]:
 class FlushNote:
     def __init__(self, path: Path):
         self.path = path
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
 
     def write(self, line: str = "") -> None:
-        with self.path.open("a", encoding="utf-8") as file:
-            file.write(line + "\n")
-            file.flush()
+        try:
+            with self.path.open("a", encoding="utf-8") as file:
+                file.write(line + "\n")
+                file.flush()
+        except Exception:
+            pass
 
 
 class SmokeLogger:

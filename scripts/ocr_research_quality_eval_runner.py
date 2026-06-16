@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -172,11 +173,14 @@ def _prepare_config(scenario: QualityScenario, output_dir: Path):
 
 
 def _append_note(text: str) -> None:
-    NOTE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with NOTE_PATH.open("a", encoding="utf-8") as f:
-        f.write(text)
-        if not text.endswith("\n"):
-            f.write("\n")
+    try:
+        NOTE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with NOTE_PATH.open("a", encoding="utf-8") as f:
+            f.write(text)
+            if not text.endswith("\n"):
+                f.write("\n")
+    except Exception:
+        pass
 
 
 def _strip_duplicate_heading(content: str, title: str) -> str:

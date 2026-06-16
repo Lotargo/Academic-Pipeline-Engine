@@ -1,6 +1,15 @@
+import pytest
 from argparse import Namespace
 
 from scripts import ocr_research_smoke_runner as runner
+
+
+@pytest.fixture(autouse=True)
+def mock_runner_root(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "ROOT", tmp_path)
+    monkeypatch.setattr(runner, "LOG_DIR", tmp_path / "exports" / "_smoke_ocr_research")
+    monkeypatch.setattr(runner, "NOTE_PATH", tmp_path / "exports" / "OCR_RESEARCH_SMOKE_NOTES.md")
+
 
 
 def _args(tmp_path):
