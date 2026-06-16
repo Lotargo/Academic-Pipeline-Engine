@@ -160,7 +160,7 @@ def _body_after_terminal_issues(
     issues: List[str] = []
     seen_terminal = ""
     for section_name, text in context.items():
-        if not str(text or "").strip():
+        if not (text or "").strip():
             continue
         if section_name in terminal_sections:
             seen_terminal = section_name
@@ -176,7 +176,7 @@ def _body_after_terminal_issues(
 def _internal_planning_label_issues(context: Mapping[str, str]) -> List[str]:
     issues: List[str] = []
     for section_name, text in context.items():
-        for line_no, line in enumerate(str(text or "").splitlines(), 1):
+        for line_no, line in enumerate((text or "").splitlines(), 1):
             if _INTERNAL_LABEL_RE.search(line):
                 issues.append(
                     f"Section '{section_name}' exposes internal planning label at line {line_no}: "
@@ -204,7 +204,7 @@ def _duplicate_terminal_or_boundary_heading_issues(
                 counts[kind].append(str(section.get("name") or title))
 
     for section_name, text in context.items():
-        for heading in _markdown_heading_titles(str(text or "")):
+        for heading in _markdown_heading_titles(text or ""):
             normalized = _normalize_heading(heading)
             for kind, names in aliases.items():
                 if normalized in names:
@@ -231,7 +231,7 @@ def _duplicate_structural_label_issues(context: Mapping[str, str]) -> List[str]:
     ]
     for section_name, text in context.items():
         for label_type, pattern in patterns:
-            for match in re.finditer(pattern, str(text or ""), flags=re.IGNORECASE):
+            for match in re.finditer(pattern, text or "", flags=re.IGNORECASE):
                 key = (label_type, match.group(1))
                 if key in seen and seen[key] != section_name:
                     issues.append(
@@ -251,7 +251,7 @@ def _citation_reference_mismatch_issues(
     if reference_count == 0:
         return []
 
-    text = "\n".join(str(value or "") for value in context.values())
+    text = "\n".join(value or "" for value in context.values())
     cited_numbers = [
         int(value)
         for value in re.findall(r"(?<!\w)\[(\d{1,3})\](?!\w)", text)
@@ -280,7 +280,7 @@ def _style_profile_drift_issues(
     source_language = str(style_profile.get("language_hint") or "unknown")
     source_register = str(style_profile.get("register_hint") or "neutral")
     text = "\n\n".join(
-        str(value or "")
+        value or ""
         for key, value in context.items()
         if key not in set(str(section) for section in document_state.get("terminal_sections", []) or [])
     )

@@ -174,3 +174,19 @@ Elapsed: 12.5s
 Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
 Output: `exports\_quality_eval_ocr_research\20260616_093728\web_research_operational_brief\result.md`
 JSON: `exports\_quality_eval_ocr_research\20260616_093728\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T22:38:19 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 32.8s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_223747\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_223747\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T22:39:17 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 23.8s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_223853\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_223853\web_research_operational_brief\result.json`
