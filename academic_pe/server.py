@@ -1704,19 +1704,55 @@ def bulk_unarchive_history_items(payload: BulkHistoryPayload):
 
 @app.delete("/api/history/{metadata_id}")
 def delete_history_item(metadata_id: str):
-    metadata_path, data = _load_history_metadata(metadata_id)
-    _delete_export_asset(data.get("docx_filename"))
-    _delete_export_asset(data.get("pdf_filename"))
+    if not metadata_id or metadata_id != os.path.basename(metadata_id):
+        raise HTTPException(status_code=400, detail="Invalid history metadata id")
+    if not metadata_id.endswith(".metadata.json"):
+        raise HTTPException(status_code=400, detail="Invalid history metadata id")
+
+    metadata_dir = os.path.abspath(_history_metadata_dir())
+    metadata_path = os.path.abspath(os.path.join(metadata_dir, metadata_id))
+    if not metadata_path.startswith(metadata_dir + os.sep):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    data = {}
+    metadata_exists = os.path.exists(metadata_path)
+    if metadata_exists:
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as file:
+                data = json.load(file)
+        except json.JSONDecodeError:
+            logging.getLogger(__name__).warning("Metadata file %s is invalid JSON", metadata_path)
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to read metadata file %s: %s", metadata_path, e)
+
+    if data.get("docx_filename"):
+        try:
+            _delete_export_asset(data.get("docx_filename"))
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to delete docx asset: %s", e)
+    if data.get("pdf_filename"):
+        try:
+            _delete_export_asset(data.get("pdf_filename"))
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to delete pdf asset: %s", e)
+
     run_id = _resolve_history_run_id(metadata_id, data)
     if run_id:
         try:
             registry_store.delete_run(run_id)
         except Exception as e:
             logging.getLogger(__name__).warning("Failed to delete run from SQLite: %s", e)
+
     if metadata_id.startswith("run_"):
         run_id_for_dir = metadata_id.split(".")[0]
         _delete_run_directory(run_id_for_dir)
-    os.remove(metadata_path)
+
+    if metadata_exists:
+        try:
+            os.remove(metadata_path)
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to delete metadata file %s: %s", metadata_path, e)
+
     return {"status": "deleted", "id": metadata_id}
 
 

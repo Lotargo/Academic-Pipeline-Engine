@@ -4,7 +4,8 @@ import logging
 import asyncio
 import re
 import time
-from typing import List, Dict
+import threading
+from typing import List, Dict, Optional
 
 from academic_pe.core.config import load_config
 from academic_pe.agents.factory import create_agent
@@ -17,8 +18,15 @@ _dynamic_examples_cache: List[Dict[str, str]] = []
 last_generated_at: float = 0.0
 
 _examples_lock = asyncio.Lock()
+_generation_state_lock = threading.Lock()
+_generation_in_progress = False
 _DYNAMIC_EXAMPLES_PATH = "config/dynamic_examples.json"
 _DYNAMIC_EXAMPLES_META_PATH = "config/dynamic_examples_meta.json"
+_PREVIOUS_EXAMPLE_LIMIT = 3
+_PREVIOUS_TOPIC_CHAR_LIMIT = 160
+_PREVIOUS_INSTRUCTIONS_CHAR_LIMIT = 500
+_GENERATED_TOPIC_CHAR_LIMIT = 220
+_GENERATED_INSTRUCTIONS_CHAR_LIMIT = 1400
 
 DEFAULT_EXAMPLES_RU = [
     {
@@ -114,7 +122,7 @@ def clean_and_parse_json(text: str) -> List[Dict[str, str]]:
     raise ValueError(f"Could not parse valid JSON array from agent response: {text[:200]}")
 
 
-async def generate_new_examples():
+async def generate_new_examples(timeout_seconds: Optional[float] = None):
     """
     Invokes the Example Generator agent to formulate 3 new artifact requests.
     """
@@ -129,9 +137,18 @@ async def generate_new_examples():
         logger.info("Dynamic examples generation is disabled in settings. Skipping.")
         return
 
+    global _generation_in_progress
+    with _generation_state_lock:
+        if _generation_in_progress:
+            logger.info("Dynamic examples generation is already in progress. Skipping overlapping refresh.")
+            return
+        _generation_in_progress = True
+
     agent_cfg = config.agents.get("example_generator")
     if not agent_cfg:
         logger.warning("example_generator agent configuration not found in agents.yaml.")
+        with _generation_state_lock:
+            _generation_in_progress = False
         return
 
     logger.info("Generating new dynamic examples via example_generator agent...")
@@ -143,22 +160,31 @@ async def generate_new_examples():
     language_plan = _next_language_plan(config.ui.language)
 
     def run_agent():
-        agent = create_agent(
-            "example_generator",
-            agent_cfg,
-            retry_cfg=config.retry,
-            cb_cfg=config.circuit_breaker
-        )
+        try:
+            agent = create_agent(
+                "example_generator",
+                agent_cfg,
+                retry_cfg=config.retry,
+                cb_cfg=config.circuit_breaker
+            )
 
-        prompt = build_dynamic_examples_prompt(
-            config.ui.language,
-            previous_examples=previous_examples,
-            language_plan=language_plan,
-        )
-        return agent.process(prompt)
+            prompt = build_dynamic_examples_prompt(
+                config.ui.language,
+                previous_examples=previous_examples,
+                language_plan=language_plan,
+            )
+            return agent.process(prompt)
+        finally:
+            global _generation_in_progress
+            with _generation_state_lock:
+                _generation_in_progress = False
 
     try:
-        raw_response = await loop.run_in_executor(None, run_agent)
+        generation_future = loop.run_in_executor(None, run_agent)
+        if timeout_seconds is not None and timeout_seconds > 0:
+            raw_response = await asyncio.wait_for(asyncio.shield(generation_future), timeout=timeout_seconds)
+        else:
+            raw_response = await generation_future
         parsed = clean_and_parse_json(raw_response)
 
         # Validate structure
@@ -166,8 +192,8 @@ async def generate_new_examples():
         for item in parsed:
             if isinstance(item, dict) and "topic" in item and "instructions" in item:
                 valid_examples.append({
-                    "topic": item["topic"].strip(),
-                    "instructions": item["instructions"].strip()
+                    "topic": _truncate_text(item["topic"].strip(), _GENERATED_TOPIC_CHAR_LIMIT),
+                    "instructions": _truncate_text(item["instructions"].strip(), _GENERATED_INSTRUCTIONS_CHAR_LIMIT),
                 })
 
         if len(valid_examples) > 0:
@@ -184,6 +210,8 @@ async def generate_new_examples():
         else:
             logger.warning("Agent returned empty or invalid example list format.")
 
+    except asyncio.TimeoutError:
+        logger.warning("Dynamic examples generation timed out after %.1fs; keeping cached examples.", timeout_seconds)
     except Exception as e:
         logger.exception("Error generating dynamic examples: %s", e)
 
@@ -200,7 +228,7 @@ def build_dynamic_examples_prompt(
     )
     previous_block = ""
     if previous_examples:
-        compact_previous_examples = previous_examples[:3]
+        compact_previous_examples = _compact_previous_examples(previous_examples)
         previous_block = (
             "\n\n[Previous examples to avoid repeating]\n"
             + json.dumps(compact_previous_examples, ensure_ascii=False, indent=2)
@@ -216,6 +244,8 @@ def build_dynamic_examples_prompt(
         f"{plan_lines}\n"
         "Use Russian for items marked 'ru' and English for items marked 'en'. "
         "Each item must be self-contained and useful as a prompt seed.\n"
+        "Keep each topic under 120 characters and each instructions field concise: 2-5 sentences or a short bullet list. "
+        "Do not write full documents, long rubrics, or deeply nested requirements inside examples.\n"
         f"{previous_block}\n\n"
         "Return ONLY a valid JSON array of objects without markdown code block syntax. "
         "Do not add a language field. Format:\n"
@@ -228,6 +258,24 @@ def build_dynamic_examples_prompt(
 
 def _normalize_example_language(lang: str) -> str:
     return "ru" if str(lang).lower().startswith("ru") else "en"
+
+
+def _truncate_text(text: str, max_chars: int) -> str:
+    compact = " ".join(str(text or "").split())
+    if len(compact) <= max_chars:
+        return compact
+    return compact[: max_chars - 3].rstrip() + "..."
+
+
+def _compact_previous_examples(examples: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    return [
+        {
+            "topic": _truncate_text(str(item.get("topic", "")), _PREVIOUS_TOPIC_CHAR_LIMIT),
+            "instructions": _truncate_text(str(item.get("instructions", "")), _PREVIOUS_INSTRUCTIONS_CHAR_LIMIT),
+        }
+        for item in examples[:_PREVIOUS_EXAMPLE_LIMIT]
+        if isinstance(item, dict) and item.get("topic") and item.get("instructions")
+    ]
 
 
 def _language_plan_for_primary(primary_language: str) -> List[str]:

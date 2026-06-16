@@ -112,3 +112,49 @@ def test_bridge_archive_and_delete(test_env):
     # Check run was deleted from SQLite
     run = store.get_run(run_id)
     assert run is None
+
+
+def test_delete_history_item_without_metadata_file(test_env):
+    from academic_pe.core.registry import Run
+    client, store, metadata_dir = test_env
+    
+    # 1. Create a run directly in SQLite to simulate a failed/cancelled run
+    # that did not produce a metadata file on disk.
+    run_id = "run_20260617_002645"
+    run = Run(
+        run_id=run_id,
+        kind="generation",
+        status="failed",
+        topic="Failed Run Test",
+        instructions_preview="Failed instructions",
+        created_at="2026-06-17T02:06:03",
+        metadata_json=json.dumps({"status": "FAILED"})
+    )
+    store.create_run(run)
+    
+    # Verify it exists in database
+    fetched_run = store.get_run(run_id)
+    assert fetched_run is not None
+    assert fetched_run.status == "failed"
+    
+    # Verify GET /api/history returns this run despite no metadata file existing
+    response = client.get("/api/history")
+    assert response.status_code == 200
+    history = response.json()
+    assert len(history) == 1
+    assert history[0]["run_id"] == run_id
+    assert history[0]["status"] == "FAILED"
+    
+    # Verify metadata file does not exist on disk
+    metadata_id = f"{run_id}.metadata.json"
+    metadata_path = os.path.join(metadata_dir, metadata_id)
+    assert not os.path.exists(metadata_path)
+    
+    # 2. Try to delete the run via DELETE /api/history/{metadata_id}
+    delete_response = client.delete(f"/api/history/{metadata_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["status"] == "deleted"
+    
+    # 3. Verify that the run has been successfully deleted from the database
+    fetched_run_after = store.get_run(run_id)
+    assert fetched_run_after is None

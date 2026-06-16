@@ -8,6 +8,7 @@ from academic_pe.core.dynamic_examples import (
     get_default_examples,
     _language_plan_for_primary,
     _next_language_plan,
+    _compact_previous_examples,
 )
 
 
@@ -141,6 +142,22 @@ def test_dynamic_examples_prompt_limits_previous_examples_to_last_triple():
     assert "Old 2" in prompt
     assert "Old 3" in prompt
     assert "Old 4" not in prompt
+
+
+def test_dynamic_examples_prompt_compacts_previous_examples():
+    compact = _compact_previous_examples([
+        {"topic": "T" * 300, "instructions": "I" * 1000},
+        {"topic": "Short", "instructions": "Brief"},
+        {"topic": "Third", "instructions": "Ok"},
+        {"topic": "Fourth", "instructions": "Should not appear"},
+    ])
+
+    assert len(compact) == 3
+    assert len(compact[0]["topic"]) <= 160
+    assert len(compact[0]["instructions"]) <= 500
+    assert compact[0]["topic"].endswith("...")
+    assert compact[0]["instructions"].endswith("...")
+    assert all(item["topic"] != "Fourth" for item in compact)
 
 
 def test_language_plan_for_primary_alternates_two_to_one():
