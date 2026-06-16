@@ -471,9 +471,14 @@ class Orchestrator:
     def _generate_search_queries(self) -> List[str]:
         from academic_pe.core.llm import _call_provider_generate
         system_prompt = (
-            "You are a professional academic research director. Based on the user topic and instructions, "
-            "generate exactly 3 distinct search queries to find the most relevant current academic papers, data, and context on the internet. "
-            "Return them as a simple numbered list, one query per line (e.g. '1. query one'). Do not include any other text, no markdown, no quotes."
+            "You are a professional research strategist for a document-planning pipeline. "
+            "Based on the user topic and instructions, generate exactly 3 distinct web search queries. "
+            "Each query must have a different intent: (1) authoritative/primary sources or official documentation, "
+            "(2) recent evidence, data, standards, or reputable reporting, and (3) critical context, limitations, or competing viewpoints. "
+            "Use precise domain terms, named entities, dates, locations, standards, or methods from the user request. "
+            "Avoid vague beginner queries such as 'what is ...' unless the user explicitly needs definitions. "
+            "Do not fabricate source names. Do not use site filters unless a likely authoritative domain is implied by the request. "
+            "Return a simple numbered list, one query per line (e.g. '1. query one'). No markdown, no quotes, no commentary."
         )
         user_prompt = f"Topic: {self.user_topic}\nInstructions: {self.user_instructions}"
         try:

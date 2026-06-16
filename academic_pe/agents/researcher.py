@@ -30,9 +30,14 @@ class ResearcherAgent(BaseAgent):
 
         task = (
             "Curate the raw web research findings for a planning agent.\n"
-            "Return compact, source-grounded notes only. Preserve source titles and URLs. "
-            "Group findings by query when useful, include relevant snippets or facts, and flag uncertainty. "
-            "Do not draft the final document and do not invent sources.\n\n"
+            "Return compact, source-grounded notes only. Preserve source titles and URLs exactly. "
+            "Group findings by query when useful. Extract concrete facts, dates, definitions, statistics, "
+            "names, and competing viewpoints that directly help the requested artifact. "
+            "Prefer primary, official, standards, documentation, peer-reviewed, institutional, or reputable news sources. "
+            "Flag weak evidence, paywalled/blocked pages, stale dates, conflicting claims, and thin snippets. "
+            "Ignore boilerplate, cookie banners, navigation text, ads, SEO filler, and duplicated source text. "
+            "If a source was fetched through a reader fallback, treat it as useful but still verify relevance from the URL/title/snippet. "
+            "Do not draft the final document, do not invent sources, and do not turn raw crawler text into unsupported claims.\n\n"
             "[Queries]\n"
             + "\n".join(f"- {query}" for query in queries)
             + "\n\n[Raw Findings]\n"

@@ -6,10 +6,56 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+_BLOCKED_STATUS_CODES = {401, 403, 406, 409, 418, 429, 451}
+_MAX_CRAWLED_CHARS = 5000
+_MIN_USEFUL_TEXT_CHARS = 180
+
+_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+    "Accept-Encoding": "gzip, deflate",
+    "DNT": "1",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Connection": "keep-alive",
+}
+
+_JUNK_SELECTORS = [
+    "script", "style", "noscript", "template", "svg", "canvas", "iframe",
+    "nav", "footer", "header", "aside", "form", "button", "input", "select",
+    "[role='navigation']", "[role='banner']", "[role='contentinfo']",
+    "[aria-hidden='true']", ".cookie", ".cookies", ".cookie-banner", ".cookiebar",
+    ".newsletter", ".subscribe", ".subscription", ".advertisement", ".ad", ".ads",
+    ".social", ".share", ".sharing", ".breadcrumb", ".breadcrumbs", ".related",
+    ".comments", ".comment", ".promo", ".modal", ".overlay", ".popup",
+]
+
+_JUNK_LINE_PATTERNS = [
+    r"^(accept|agree|reject|manage|allow|decline)( all)?( cookies)?$",
+    r"^(sign in|log in|subscribe|newsletter|advertisement|skip to content)$",
+    r"^(share|tweet|copy link|print|read more|learn more)$",
+    r"^(privacy policy|terms of use|cookie policy|all rights reserved)$",
+    r"^\s*(menu|close|open|search)\s*$",
+]
+
+_BLOCKED_TEXT_PATTERNS = [
+    r"captcha",
+    r"cloudflare",
+    r"access denied",
+    r"enable javascript",
+    r"verify you are human",
+    r"checking your browser",
+    r"too many requests",
+    r"unusual traffic",
+]
 
 
 def _resolve_duckduckgo_url(href: str) -> str:
@@ -32,6 +78,100 @@ def _compact_text(text: str, limit: int = 700) -> str:
     if len(compacted) <= limit:
         return compacted
     return compacted[: limit - 1].rstrip() + "..."
+
+
+def _browser_headers(referer: str = "https://duckduckgo.com/") -> dict:
+    headers = dict(_BROWSER_HEADERS)
+    headers["Referer"] = referer
+    return headers
+
+
+def _reader_url(url: str) -> str:
+    return "https://r.jina.ai/" + url
+
+
+def _is_probably_blocked_response(response) -> bool:
+    status_code = int(getattr(response, "status_code", 0) or 0)
+    if status_code in _BLOCKED_STATUS_CODES:
+        return True
+    text = str(getattr(response, "text", "") or "")[:5000].lower()
+    return any(re.search(pattern, text) for pattern in _BLOCKED_TEXT_PATTERNS)
+
+
+def _is_junk_line(line: str) -> bool:
+    normalized = re.sub(r"\s+", " ", str(line or "")).strip()
+    if len(normalized) < 3:
+        return True
+    if len(normalized) <= 80 and any(re.search(pattern, normalized, re.IGNORECASE) for pattern in _JUNK_LINE_PATTERNS):
+        return True
+    if normalized.count("|") >= 8 or normalized.count("•") >= 8:
+        return True
+    return False
+
+
+def _clean_lines(text: str, *, limit: int = _MAX_CRAWLED_CHARS) -> str:
+    lines = []
+    seen = set()
+    for raw_line in str(text or "").splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if _is_junk_line(line):
+            continue
+        fingerprint = line.casefold()
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        lines.append(line)
+        if sum(len(item) + 1 for item in lines) >= limit:
+            break
+    return "\n".join(lines)[:limit].strip()
+
+
+def _extract_clean_text(html: str, *, limit: int = _MAX_CRAWLED_CHARS) -> str:
+    soup = BeautifulSoup(html or "", "html.parser")
+    for tag in soup.select(",".join(_JUNK_SELECTORS)):
+        tag.decompose()
+
+    candidates = []
+    for selector in ["article", "main", "[role='main']", ".article", ".post", ".content", "#content"]:
+        for node in soup.select(selector):
+            text = _clean_lines(node.get_text(separator="\n"), limit=limit)
+            if len(text) >= _MIN_USEFUL_TEXT_CHARS:
+                candidates.append(text)
+
+    if candidates:
+        return max(candidates, key=len)[:limit].strip()
+    return _clean_lines(soup.get_text(separator="\n"), limit=limit)
+
+
+def _fetch_reader_text(url: str, *, headers: dict) -> str:
+    reader_headers = {
+        **headers,
+        "Accept": "text/plain, text/markdown;q=0.9, */*;q=0.5",
+        "X-Return-Format": "markdown",
+    }
+    response = _get_with_retries(_reader_url(url), headers=reader_headers, timeout=25, attempts=2)
+    if response.ok and not _is_probably_blocked_response(response):
+        return _clean_lines(response.text, limit=_MAX_CRAWLED_CHARS)
+    return ""
+
+
+def _fetch_url_text(url: str, *, headers: dict) -> tuple[str, str]:
+    response = _get_with_retries(url, headers=headers, timeout=15, attempts=3)
+    content_type = str(getattr(response, "headers", {}).get("content-type", "")).lower()
+    if response.ok and not _is_probably_blocked_response(response):
+        if "text/plain" in content_type or "markdown" in content_type:
+            content = _clean_lines(response.text, limit=_MAX_CRAWLED_CHARS)
+        else:
+            content = _extract_clean_text(response.text, limit=_MAX_CRAWLED_CHARS)
+        if content:
+            return content, "direct"
+
+    reader_text = _fetch_reader_text(url, headers=headers)
+    if reader_text:
+        return reader_text, "reader"
+    if response.ok:
+        return _extract_clean_text(response.text, limit=_MAX_CRAWLED_CHARS), "direct_low_confidence"
+    return f"Error: Failed to fetch (Status {response.status_code})", "error"
 
 
 def _get_with_retries(
@@ -72,14 +212,7 @@ class Researcher:
         """
         logger.info("Researcher searching for query: '%s'", query)
 
-        # Simulate browser request headers to avoid bot detection blockages
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://duckduckgo.com/",
-            "Connection": "keep-alive"
-        }
+        headers = _browser_headers()
 
         # Add a polite delay to respect the site's rate limits
         time.sleep(1.0)
@@ -87,8 +220,8 @@ class Researcher:
         results = []
         try:
             url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
-            res = _get_with_retries(url, headers=headers, timeout=15)
-            if res.ok:
+            res = _get_with_retries(url, headers=headers, timeout=15, attempts=3)
+            if res.ok and not _is_probably_blocked_response(res):
                 soup = BeautifulSoup(res.text, "html.parser")
                 for result_div in soup.find_all("div", class_=lambda x: x and "result" in x):
                     if "results_links" not in result_div.get("class", []):
@@ -115,35 +248,26 @@ class Researcher:
         except Exception as e:
             logger.error("DuckDuckGo search failed for '%s': %s", query, e)
 
-        # Crawl top matches in this query
+        # Crawl top matches in this query.
         findings = []
         for r in results:
             logger.info("Crawling URL: %s", r["url"])
             time.sleep(1.0)  # Rate limit/polite scraping delay
             content = ""
+            extraction_method = "direct"
             try:
-                c_res = _get_with_retries(r["url"], headers=headers, timeout=12)
-                if c_res.ok:
-                    c_soup = BeautifulSoup(c_res.text, "html.parser")
-                    # Clean up junk elements
-                    for tag in c_soup(["script", "style", "nav", "footer", "header", "aside"]):
-                        tag.decompose()
-                    raw_text = c_soup.get_text(separator="\n")
-                    lines = (line.strip() for line in raw_text.splitlines())
-                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                    # Clamp crawled content to 5,000 characters to prevent excessive context size
-                    content = "\n".join(chunk for chunk in chunks if chunk)[:5000]
-                else:
-                    content = f"Error: Failed to fetch (Status {c_res.status_code})"
+                content, extraction_method = _fetch_url_text(r["url"], headers=_browser_headers(r["url"]))
             except Exception as e:
                 logger.warning("Error crawling webpage %s: %s", r["url"], e)
                 content = f"Error crawling webpage: {e}"
+                extraction_method = "error"
 
             findings.append({
                 "title": r["title"],
                 "url": r["url"],
                 "snippet": r["snippet"],
-                "content": content
+                "content": content,
+                "extraction_method": extraction_method,
             })
 
         # Save findings as a local JSON file in the run/research directory
@@ -215,8 +339,11 @@ def load_research_findings(run_dir: str) -> str:
                     url = str(r.get("url", "")).strip()
                     snippet = _compact_text(r.get("snippet", ""), limit=350)
                     excerpt = _compact_text(r.get("content", ""), limit=700)
+                    extraction_method = str(r.get("extraction_method", "")).strip()
                     part += f"Source {idx+1}: {title}\n"
                     part += f"URL: {url}\n"
+                    if extraction_method:
+                        part += f"Extraction: {extraction_method}\n"
                     if snippet:
                         part += f"Snippet: {snippet}\n"
                     if excerpt and not excerpt.lower().startswith("error"):

@@ -11,6 +11,8 @@ from academic_pe.core.researcher import (
     Researcher,
     run_researcher_pool,
     load_research_findings,
+    _extract_clean_text,
+    _fetch_url_text,
 )
 
 TEMP_RUN_DIR = "tests_run_dir"
@@ -178,6 +180,54 @@ def test_search_and_crawl_connection_errors(mock_get):
     assert "Error crawling webpage" in data["results"][0]["content"]
 
 
+def test_extract_clean_text_removes_boilerplate_and_prefers_article():
+    html = """
+    <html>
+      <body>
+        <nav>Menu Search Subscribe</nav>
+        <div class="cookie-banner">Accept all cookies</div>
+        <article>
+          <h1>Important Research Result</h1>
+          <p>The source reports a concrete finding with a date, method, and limitation.</p>
+          <p>The finding is relevant to the planning agent and should survive extraction.</p>
+        </article>
+        <footer>Privacy Policy All rights reserved</footer>
+      </body>
+    </html>
+    """
+
+    text = _extract_clean_text(html)
+
+    assert "Important Research Result" in text
+    assert "concrete finding" in text
+    assert "Accept all cookies" not in text
+    assert "Privacy Policy" not in text
+    assert "Menu Search Subscribe" not in text
+
+
+@patch("academic_pe.core.researcher._get_with_retries")
+def test_fetch_url_text_uses_reader_fallback_for_blocked_page(mock_get):
+    blocked_res = MagicMock()
+    blocked_res.ok = False
+    blocked_res.status_code = 403
+    blocked_res.text = "Access denied"
+    blocked_res.headers = {"content-type": "text/html"}
+
+    reader_res = MagicMock()
+    reader_res.ok = True
+    reader_res.status_code = 200
+    reader_res.text = "# Reader title\n\nClean markdown text from the page."
+    reader_res.headers = {"content-type": "text/plain"}
+
+    mock_get.side_effect = [blocked_res, reader_res]
+
+    text, method = _fetch_url_text("https://example.com/blocked", headers={})
+
+    assert method == "reader"
+    assert "Clean markdown text" in text
+    assert mock_get.call_args_list[1].args[0] == "https://r.jina.ai/https://example.com/blocked"
+
+
 @patch("requests.get")
 def test_run_researcher_pool(mock_get):
     ddg_html = """<html><body></body></html>"""
@@ -264,7 +314,8 @@ def test_load_research_findings():
                 "title": "Title A",
                 "url": "http://a.com",
                 "snippet": "Snippet A",
-                "content": "Content A text detail"
+                "content": "Content A text detail",
+                "extraction_method": "reader",
             }
         ]
     }
@@ -289,6 +340,7 @@ def test_load_research_findings():
     assert "Research query: 'Topic A'" in findings
     assert "Title A" in findings
     assert "http://a.com" in findings
+    assert "Extraction: reader" in findings
     assert "Snippet A" in findings
     assert "Relevant excerpt: Content A text detail" in findings
     
