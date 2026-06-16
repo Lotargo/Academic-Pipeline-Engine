@@ -118,6 +118,7 @@ class PlannerAgent:
             user_prompt=user_prompt,
             model=self.config.model,
             temperature=self.config.temperature,
+            reasoning_effort=getattr(self.config.reasoning_effort, "value", self.config.reasoning_effort),
         )
         critique = run_self_critique(
             agent_name="planner",

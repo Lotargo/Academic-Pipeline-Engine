@@ -6,17 +6,21 @@
 # ---------------------------------------------------------------------------
 # Agent Definitions
 # ---------------------------------------------------------------------------
-# Each agent has a role, provider, model, temperature, and system prompt.
+# Each agent has a role, provider, model, temperature, optional reasoning_effort,
+# and system prompt.
 # Supported providers: mock, openai, custom_openai, anthropic, google, lm_studio, zen
 # base_url is used by custom_openai and lm_studio.
 # agent_type is an optional override for the agent class.
 # Built-in agent types include: default, writer, reviewer, prompt_enhancer, researcher.
+# reasoning_effort may be omitted for provider default, or set to low, medium, high.
+# deepseek-v4 models also support max.
 
 agents:
   writer:
     role: "Writer"
     provider: mock # mock | openai | custom_openai | anthropic | google | lm_studio | zen
     model: "gpt-4o"
+    reasoning_effort: medium # optional: low | medium | high | max for deepseek-v4
     temperature: 0.7 # 0.0 – 2.0
     self_critique:
       enabled: true

@@ -9,6 +9,9 @@ from academic_pe.core.llm import (
     create_provider,
     register_provider,
     LLMProvider,
+    _call_provider_generate,
+    _REASONING_UNSUPPORTED_CACHE,
+    normalize_reasoning_effort,
 )
 from academic_pe.core.llm import AnthropicProvider as AnthropicProviderCls
 
@@ -24,6 +27,66 @@ class TestMockProvider:
         provider = MockProvider()
         result = provider.generate("sys", "custom prompt text", "m", 0.5)
         assert "custom prompt text" in result
+
+
+class TestReasoningEffort:
+    def test_normalizes_reasoning_effort_max_only_for_deepseek_v4(self):
+        assert normalize_reasoning_effort("deepseek-v4-flash-free", "max") == "max"
+        assert normalize_reasoning_effort("big-pickle", "max") == "high"
+        assert normalize_reasoning_effort("big-pickle", "medium") == "medium"
+        assert normalize_reasoning_effort("big-pickle", None) is None
+
+    def test_call_provider_generate_falls_back_for_old_provider_signature(self):
+        class OldProvider:
+            def generate(self, system_prompt, user_prompt, model, temperature):
+                return f"{model}:{temperature}:{user_prompt}"
+
+        result = _call_provider_generate(
+            OldProvider(),
+            system_prompt="sys",
+            user_prompt="task",
+            model="m",
+            temperature=0.1,
+            reasoning_effort="low",
+        )
+
+        assert result == "m:0.1:task"
+
+    def test_openai_reasoning_unsupported_is_cached_with_ttl(self, monkeypatch):
+        import time
+
+        from academic_pe.core.llm import _openai_chat_generate
+
+        _REASONING_UNSUPPORTED_CACHE.clear()
+        attempts = []
+
+        class FakeChoice:
+            def __init__(self):
+                self.message = type("Message", (), {"content": "ok"})()
+
+        class FakeResponse:
+            choices = [FakeChoice()]
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                attempts.append(dict(kwargs))
+                if "reasoning_effort" in kwargs:
+                    raise RuntimeError("unsupported parameter: reasoning_effort")
+                return FakeResponse()
+
+        class FakeClient:
+            base_url = "https://example.test/v1"
+            chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+        assert _openai_chat_generate(FakeClient(), "sys", "task", "big-pickle", 0.1, reasoning_effort="low") == "ok"
+        assert _openai_chat_generate(FakeClient(), "sys", "task", "big-pickle", 0.1, reasoning_effort="low") == "ok"
+        assert [("reasoning_effort" in call) for call in attempts] == [True, False, False]
+
+        key = ("https://example.test/v1", "big-pickle")
+        _REASONING_UNSUPPORTED_CACHE[key] = time.monotonic() - 1
+
+        assert _openai_chat_generate(FakeClient(), "sys", "task", "big-pickle", 0.1, reasoning_effort="low") == "ok"
+        assert [("reasoning_effort" in call) for call in attempts] == [True, False, False, True, False]
 
 
 class TestCreateProvider:

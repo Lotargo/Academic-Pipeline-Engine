@@ -48,6 +48,7 @@ class PromptEnhancerAgent(BaseAgent):
             model=self.config.model,
             temperature=self.config.temperature,
             on_delta=on_delta,
+            reasoning_effort=getattr(self.config.reasoning_effort, "value", self.config.reasoning_effort),
         )
 
         result = run_self_critique(

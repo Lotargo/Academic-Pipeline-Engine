@@ -28,6 +28,13 @@ class ProviderEnum(str, Enum):
     mock = "mock"
 
 
+class ReasoningEffort(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+    max = "max"
+
+
 class LanguagePolicy(str, Enum):
     auto = "auto"
     en = "en"
@@ -50,6 +57,7 @@ class AgentConfig(BaseModel):
     role: str
     model: str = Field(..., min_length=1)
     temperature: float = Field(ge=0.0, le=2.0)
+    reasoning_effort: Optional[ReasoningEffort] = None
     system_prompt: str
     provider: ProviderEnum = ProviderEnum.mock
     base_url: Optional[str] = None

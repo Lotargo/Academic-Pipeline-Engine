@@ -77,6 +77,7 @@ class WriterAgent(BaseAgent):
                 model=self.config.model,
                 temperature=self.config.temperature,
                 on_delta=on_delta if turn == max_grep_turns - 1 else None,
+                reasoning_effort=getattr(self.config.reasoning_effort, "value", self.config.reasoning_effort),
             )
 
             # Check if response is a grep tool call
@@ -133,11 +134,13 @@ class ReviewerAgent(BaseAgent):
         if context:
             system_prompt += f"\n\n[Text to Review]\n{context}"
 
-        raw = self.llm.generate(
+        raw = _call_provider_generate(
+            self.llm,
             system_prompt=system_prompt,
             user_prompt=task_description,
             model=self.config.model,
             temperature=self.config.temperature,
+            reasoning_effort=getattr(self.config.reasoning_effort, "value", self.config.reasoning_effort),
         )
         return raw.strip()
 

@@ -34,7 +34,7 @@ const STATIC_PROVIDER_MODELS: Record<string, string[]> = {
   openai: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"],
   google: ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview"],
   anthropic: ["Claude Opus 4.8", "Claude Sonnet 4.6", "Claude Haiku 4.5"],
-  zen: ["deepseek-v4-flash-free", "mimo-v2.5-free", "big-pickle"],
+  zen: ["deepseek-v4-flash-free", "mimo-v2.5-free", "big-pickle", "nemotron-3-ultra-free", "north-mini-code-free"],
 }
 
 export function ConfigEditor({ language = "en" }: { language?: string }) {
@@ -56,6 +56,11 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
 
   const toggleShowApiKey = (provider: string) => {
     setShowApiKeys(prev => ({ ...prev, [provider]: !prev[provider] }))
+  }
+
+  const reasoningLevelsForModel = (model: string | undefined) => {
+    const base = ["low", "medium", "high"]
+    return model?.toLowerCase().includes("deepseek-v4") ? [...base, "max"] : base
   }
 
   // Fetch config and secrets status on mount
@@ -444,6 +449,26 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange(agentKey, "temperature", parseFloat(e.target.value) ?? defaultTemp)}
                 className="h-9 text-xs"
               />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">{language === "ru" ? "Режим мышления" : "Reasoning Effort"}</label>
+              <Select
+                value={agent.reasoning_effort || "__default__"}
+                onValueChange={(value) => handleAgentChange(agentKey, "reasoning_effort", value === "__default__" ? null : value)}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">{language === "ru" ? "По умолчанию провайдера" : "Provider default"}</SelectItem>
+                  {reasoningLevelsForModel(agent.model).map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {provider && provider !== "mock" && (

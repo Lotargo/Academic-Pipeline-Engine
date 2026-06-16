@@ -17,6 +17,17 @@
           "title": "Temperature",
           "type": "number"
         },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningEffort"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "system_prompt": {
           "title": "System Prompt",
           "type": "string"
@@ -48,6 +59,9 @@
           ],
           "default": null,
           "title": "Agent Type"
+        },
+        "self_critique": {
+          "$ref": "#/$defs/SelfCritiqueConfig"
         }
       },
       "required": [
@@ -231,6 +245,16 @@
       "title": "QualityGateConfig",
       "type": "object"
     },
+    "ReasoningEffort": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "title": "ReasoningEffort",
+      "type": "string"
+    },
     "RetryConfig": {
       "properties": {
         "max_retries": {
@@ -265,6 +289,16 @@
         "instruction": {
           "title": "Instruction",
           "type": "string"
+        },
+        "semantic_role": {
+          "default": "body",
+          "title": "Semantic Role",
+          "type": "string"
+        },
+        "heading_policy": {
+          "default": "render_required",
+          "title": "Heading Policy",
+          "type": "string"
         }
       },
       "required": [
@@ -273,6 +307,29 @@
         "instruction"
       ],
       "title": "SectionPrompt",
+      "type": "object"
+    },
+    "SelfCritiqueConfig": {
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temperature"
+        }
+      },
+      "title": "SelfCritiqueConfig",
       "type": "object"
     },
     "StyleConfig": {
@@ -487,18 +544,24 @@
       "default": {
         "sections": [
           {
+            "heading_policy": "render_required",
             "instruction": "Structure it with H2 and H3 headers.",
             "name": "theory",
+            "semantic_role": "body",
             "topic": "State Machines"
           },
           {
+            "heading_policy": "render_required",
             "instruction": "Include LaTeX formulas (e.g. $O(n)$).",
             "name": "calculation",
+            "semantic_role": "body",
             "topic": "Algorithmic Complexity"
           },
           {
+            "heading_policy": "render_required",
             "instruction": "Summarize key findings and implications.",
             "name": "conclusion",
+            "semantic_role": "body",
             "topic": "Efficiency of State Machines"
           }
         ],
@@ -519,6 +582,11 @@
     "dynamic_examples_interval_mins": {
       "default": 15,
       "title": "Dynamic Examples Interval Mins",
+      "type": "integer"
+    },
+    "ocr_token_limit": {
+      "default": 20000,
+      "title": "Ocr Token Limit",
       "type": "integer"
     }
   },

@@ -50,6 +50,7 @@ def run_self_critique(
         user_prompt=prompt,
         model=config.model,
         temperature=temperature,
+        reasoning_effort=getattr(config.reasoning_effort, "value", config.reasoning_effort),
     )
 
     parsed = _parse_self_critique_response(raw)

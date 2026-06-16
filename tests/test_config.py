@@ -11,6 +11,7 @@ def test_load_config():
     writer = config.agents["writer"]
     assert writer.role == "Writer"
     assert writer.temperature == 0.7
+    assert writer.reasoning_effort == "medium"
     assert "expert artifact-aware writer" in writer.system_prompt
     assert "formal, impersonal academic style" not in writer.system_prompt
 
@@ -63,6 +64,7 @@ def test_config_defaults():
     assert cfg.ui.language == "ru"
     assert cfg.agents["test"].self_critique.enabled is False
     assert cfg.agents["test"].self_critique.temperature is None
+    assert cfg.agents["test"].reasoning_effort is None
 
 
 def test_config_has_template_selection_fields():

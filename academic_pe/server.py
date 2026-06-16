@@ -1883,7 +1883,13 @@ def get_provider_models(provider: str, base_url: Optional[str] = None):
             logging.getLogger(__name__).warning("Custom OpenAI/LM Studio models list failed: %s", e)
             return []
     elif provider == "zen":
-        return ["deepseek-v4-flash-free", "mimo-v2.5-free", "big-pickle"]
+        return [
+            "deepseek-v4-flash-free",
+            "mimo-v2.5-free",
+            "big-pickle",
+            "nemotron-3-ultra-free",
+            "north-mini-code-free",
+        ]
             
     return []
 

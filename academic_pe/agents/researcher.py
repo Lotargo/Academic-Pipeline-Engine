@@ -45,6 +45,7 @@ class ResearcherAgent(BaseAgent):
                 user_prompt=task,
                 model=self.config.model,
                 temperature=self.config.temperature,
+                reasoning_effort=getattr(self.config.reasoning_effort, "value", self.config.reasoning_effort),
             )
         except Exception as exc:
             logger.warning("Researcher LLM curation failed; using raw findings. Error: %s", exc)

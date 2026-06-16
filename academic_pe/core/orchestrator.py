@@ -483,6 +483,7 @@ class Orchestrator:
                 user_prompt=user_prompt,
                 model=self._planner.config.model,
                 temperature=0.3,
+                reasoning_effort=getattr(self._planner.config.reasoning_effort, "value", self._planner.config.reasoning_effort),
             )
             queries = []
             for line in raw_queries.splitlines():
