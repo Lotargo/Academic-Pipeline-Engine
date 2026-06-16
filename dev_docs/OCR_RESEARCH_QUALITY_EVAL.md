@@ -158,3 +158,11 @@ Elapsed: 23.3s
 Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
 Output: `exports\_quality_eval_ocr_research\20260616_090324\web_research_operational_brief\result.md`
 JSON: `exports\_quality_eval_ocr_research\20260616_090324\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T09:12:20 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 26.6s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_091154\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_091154\web_research_operational_brief\result.json`

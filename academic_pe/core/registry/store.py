@@ -57,6 +57,10 @@ class RegistryStore:
         self,
         kind: Optional[str] = None,
         status: Optional[str] = None,
+        pipeline_mode: Optional[str] = None,
+        template_id: Optional[str] = None,
+        artifact_type: Optional[str] = None,
+        created_date: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Run]:

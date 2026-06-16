@@ -270,6 +270,10 @@ class SQLiteRegistryStore(RegistryStore):
         self,
         kind: Optional[str] = None,
         status: Optional[str] = None,
+        pipeline_mode: Optional[str] = None,
+        template_id: Optional[str] = None,
+        artifact_type: Optional[str] = None,
+        created_date: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Run]:
@@ -281,6 +285,22 @@ class SQLiteRegistryStore(RegistryStore):
         if status is not None:
             conditions.append("status = ?")
             params.append(status)
+        if pipeline_mode is not None:
+            conditions.append("pipeline_mode = ?")
+            params.append(pipeline_mode)
+        if template_id is not None:
+            conditions.append("json_extract(metadata_json, '$.template_id') = ?")
+            params.append(template_id)
+        if artifact_type is not None:
+            conditions.append("run_id IN (SELECT DISTINCT run_id FROM artifacts WHERE artifact_type = ?)")
+            params.append(artifact_type)
+        if created_date is not None:
+            if len(created_date) < 10:
+                conditions.append("created_at LIKE ?")
+                params.append(f"{created_date}%")
+            else:
+                conditions.append("date(created_at) = ?")
+                params.append(created_date)
             
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         sql = f"SELECT * FROM runs {where} ORDER BY created_at DESC LIMIT ? OFFSET ?"
@@ -565,6 +585,10 @@ class NoopRegistryStore(RegistryStore):
         self,
         kind: Optional[str] = None,
         status: Optional[str] = None,
+        pipeline_mode: Optional[str] = None,
+        template_id: Optional[str] = None,
+        artifact_type: Optional[str] = None,
+        created_date: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Run]:

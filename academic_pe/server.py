@@ -1520,6 +1520,123 @@ def download_file(filename: str):
 
 @app.get("/api/history")
 def get_history(archived: Optional[bool] = None, include_archived: bool = False):
+    from academic_pe.core.registry import NoopRegistryStore
+    
+    # Try reading from registry if available
+    if not isinstance(registry_store, NoopRegistryStore):
+        try:
+            # Load all generation runs
+            runs = registry_store.list_runs(kind="generation", limit=1000)
+            history = []
+            output_dir = _pipeline_output_dir()
+            
+            for run in runs:
+                # Load metadata_json
+                meta = {}
+                if run.metadata_json:
+                    try:
+                        meta = json.loads(run.metadata_json)
+                    except Exception:
+                        pass
+                
+                is_archived = bool(meta.get("archived", False))
+                if archived is not None and is_archived != archived:
+                    continue
+                if archived is None and is_archived and not include_archived:
+                    continue
+                
+                # Fetch artifacts for this run
+                artifacts = registry_store.get_run_artifacts(run.run_id)
+                docx_artifact = next((a for a in artifacts if a.artifact_type == "docx"), None)
+                pdf_artifact = next((a for a in artifacts if a.artifact_type == "pdf"), None)
+                
+                docx_name = docx_artifact.filename if docx_artifact else None
+                pdf_name = pdf_artifact.filename if pdf_artifact else None
+                
+                # Filter out DOCX files that no longer exist on disk (matching legacy logic)
+                if docx_name and not os.path.exists(os.path.join(output_dir, docx_name)):
+                    if not os.path.exists(os.path.join(output_dir, run.run_id, docx_name)):
+                        continue
+                
+                # Reconstruct legacy history item
+                # Snapshot configs
+                snapshots = registry_store.get_run_snapshots(run.run_id)
+                runtime_template = None
+                runtime_prompt_manifest = None
+                
+                for s in snapshots:
+                    if s.snapshot_type == "runtime_template":
+                        try:
+                            runtime_template = json.loads(s.metadata_json)
+                        except Exception:
+                            pass
+                    elif s.snapshot_type == "runtime_prompt_manifest":
+                        try:
+                            runtime_prompt_manifest = json.loads(s.metadata_json)
+                        except Exception:
+                            pass
+                
+                # Sources
+                sources = registry_store.get_run_sources(run.run_id)
+                continuation_source = None
+                for src in sources:
+                    if src.source_type == "continuation" and src.metadata_json:
+                        try:
+                            continuation_source = json.loads(src.metadata_json)
+                        except Exception:
+                            pass
+                
+                # Construct history metadata compatible payload
+                legacy_file = meta.get("legacy_metadata_file")
+                metadata_id = legacy_file if legacy_file else f"{run.run_id}.metadata.json"
+                
+                template_mode = meta.get("template_mode")
+                template_id = meta.get("template_id")
+                
+                item = {
+                    "id": metadata_id,
+                    "run_id": run.run_id,
+                    "filename": docx_name,
+                    "pdf_filename": pdf_name,
+                    "topic": run.topic or "Unknown",
+                    "instructions": run.instructions_preview,
+                    "previous_prompt": meta.get("previous_prompt"),
+                    "timestamp": run.created_at,
+                    "author": meta.get("author"),
+                    "status": run.status.upper(),
+                    "archived": is_archived,
+                    "archived_at": meta.get("archived_at"),
+                    "context": meta.get("context", {}),
+                    "document_plan": meta.get("document_plan"),
+                    "original_context": meta.get("original_context", {}),
+                    "academic_mode": bool(meta.get("academic_mode", False)),
+                    "logs": meta.get("logs", []),
+                    "reviewer_feedback": meta.get("reviewer_feedback", []),
+                    "export_report": meta.get("export_report"),
+                    "template_mode": template_mode,
+                    "template_id": template_id,
+                    "runtime_template": runtime_template,
+                    "runtime_prompt_manifest": runtime_prompt_manifest,
+                    "resolved_manifest": meta.get("resolved_manifest"),
+                    "resolved_contract": meta.get("resolved_contract"),
+                    "contract_sexpr": meta.get("contract_sexpr"),
+                    "manifest_selection": meta.get("manifest_selection"),
+                    "decision_summary": meta.get("decision_summary"),
+                    "continuation_source": continuation_source,
+                    "artifact_override": meta.get("artifact_override"),
+                    "continuation_intent": meta.get("continuation_intent"),
+                    "document_state": meta.get("document_state"),
+                    "edit_plan": meta.get("edit_plan"),
+                    "merge_patch": meta.get("merge_patch"),
+                }
+                history.append(item)
+                
+            history.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            return history
+            
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to load history from SQLite Registry, falling back to legacy JSON: %s", e)
+
     output_dir = _pipeline_output_dir()
     metadata_dir = _history_metadata_dir()
         
@@ -1538,14 +1655,12 @@ def get_history(archived: Optional[bool] = None, include_archived: bool = False)
                     continue
                 if archived is None and is_archived and not include_archived:
                     continue
-                # Include draft records and exported DOCX records.
                 docx_name = data.get("docx_filename")
                 if not docx_name or os.path.exists(os.path.join(output_dir, docx_name)):
                     history.append(_history_item_from_metadata(f, data))
             except Exception as e:
                 logging.getLogger(__name__).warning("Failed to load metadata file %s: %s", f, e)
                 
-    # Sort by timestamp desc
     history.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     return history
 
@@ -1596,6 +1711,65 @@ def delete_history_item(metadata_id: str):
         _delete_run_directory(run_id_for_dir)
     os.remove(metadata_path)
     return {"status": "deleted", "id": metadata_id}
+
+
+@app.get("/api/registry/runs")
+def list_registry_runs(
+    kind: Optional[str] = None,
+    status: Optional[str] = None,
+    pipeline_mode: Optional[str] = None,
+    template_id: Optional[str] = None,
+    artifact_type: Optional[str] = None,
+    created_date: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+):
+    try:
+        runs = registry_store.list_runs(
+            kind=kind,
+            status=status,
+            pipeline_mode=pipeline_mode,
+            template_id=template_id,
+            artifact_type=artifact_type,
+            created_date=created_date,
+            limit=limit,
+            offset=offset,
+        )
+        return [run.model_dump(mode="json") for run in runs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query registry: {str(e)}")
+
+
+@app.get("/api/registry/runs/{run_id}")
+def inspect_registry_run(run_id: str):
+    try:
+        run = registry_store.get_run(run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found in registry")
+            
+        agents = registry_store.get_run_agents(run_id)
+        artifacts = registry_store.get_run_artifacts(run_id)
+        snapshots = registry_store.get_run_snapshots(run_id)
+        sections = registry_store.get_run_sections(run_id)
+        sources = registry_store.get_run_sources(run_id)
+        evaluations = registry_store.get_run_evaluations(run_id)
+        events = registry_store.get_run_events(run_id)
+        
+        return {
+            "run": run.model_dump(mode="json"),
+            "agents": [x.model_dump(mode="json") for x in agents],
+            "artifacts": [x.model_dump(mode="json") for x in artifacts],
+            "snapshots": [x.model_dump(mode="json") for x in snapshots],
+            "sections": [x.model_dump(mode="json") for x in sections],
+            "sources": [x.model_dump(mode="json") for x in sources],
+            "evaluations": [x.model_dump(mode="json") for x in evaluations],
+            "events": [x.model_dump(mode="json") for x in events],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to inspect run {run_id}: {str(e)}")
+
 
 # New Routes for Secrets and Models Manager
 from academic_pe.core.secrets import is_secret_configured, save_secret, get_secret
