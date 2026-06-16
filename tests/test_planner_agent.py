@@ -225,6 +225,46 @@ def test_planner_agent_handles_latex_escapes():
     assert "formula for \\theta and \\sigma and standard newline" in runtime_template.sections[0].instruction
 
 
+def test_planner_agent_promotes_all_internal_body_sections_to_draftable():
+    planner = _planner("{}")
+    runtime_template, _ = planner.parse_plan(
+        """
+{
+  "document_type": "sample_based_report",
+  "name": "Sample Based Report",
+  "description": "Report following a source sample.",
+  "category": "general",
+  "language_policy": "auto",
+  "sections": [
+    {
+      "name": "location",
+      "title": "Location",
+      "instruction": "Describe the location.",
+      "semantic_role": "body",
+      "heading_policy": "internal_only"
+    },
+    {
+      "name": "technology",
+      "title": "Technology",
+      "instruction": "Describe the technology.",
+      "semantic_role": "body",
+      "heading_policy": "internal_only"
+    }
+  ],
+  "prompt_manifest": {
+    "writer_role": "Writer",
+    "reviewer_role": "Reviewer"
+  }
+}
+"""
+    )
+
+    assert [section.heading_policy.value for section in runtime_template.sections] == [
+        "render_allowed",
+        "render_allowed",
+    ]
+
+
 def test_planner_agent_self_critique_repairs_raw_plan_before_parse():
     raw_plan = """
 {

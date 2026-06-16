@@ -17,6 +17,7 @@ from academic_pe.core.templates import (
     TemplateLanguagePolicy,
     TemplateSection,
 )
+from academic_pe.core.document_structure import HeadingPolicy, SemanticRole, is_renderable_section
 
 
 PLANNER_SYSTEM_PROMPT = """You are a document template planner.
@@ -79,6 +80,7 @@ Return JSON with this exact shape:
 
 Rules:
 - sections must contain at least one item;
+- at least one section must be renderable in the final draft; do not mark every writing section as heading_policy="internal_only";
 - every section needs name, title, and instruction;
 - every section should include semantic_role and heading_policy;
 - prompt_manifest must define writer_role and reviewer_role;
@@ -146,6 +148,7 @@ class PlannerAgent:
                 TemplateSection(**section)
                 for section in data["sections"]
             ]
+            sections = _ensure_renderable_planned_sections(sections)
             prompt_manifest = PromptManifest(**data["prompt_manifest"])
             runtime_template = RuntimeTemplate(
                 source=RuntimeTemplateSource.auto,
@@ -241,3 +244,29 @@ def _extract_json_object(raw: str) -> str:
     if start == -1 or end == -1 or end < start:
         return text
     return text[start:end + 1]
+
+
+def _ensure_renderable_planned_sections(sections: list[TemplateSection]) -> list[TemplateSection]:
+    if any(is_renderable_section(section) for section in sections):
+        return sections
+
+    promoted_sections: list[TemplateSection] = []
+    promoted = False
+    for section in sections:
+        if section.semantic_role in {
+            SemanticRole.body.value,
+            SemanticRole.chapter.value,
+            SemanticRole.academic_section.value,
+            SemanticRole.narrative_beat.value,
+        }:
+            promoted_sections.append(
+                section.model_copy(update={"heading_policy": HeadingPolicy.render_allowed})
+            )
+            promoted = True
+        else:
+            promoted_sections.append(section)
+
+    if promoted:
+        return promoted_sections
+
+    raise PlannerAgentError("Planner output has no renderable draft sections.")

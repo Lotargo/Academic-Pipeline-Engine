@@ -97,6 +97,17 @@ def test_full_pipeline_mock():
     assert "conclusion" in orch.context
 
 
+def test_pipeline_rejects_plan_only_success_without_draft_sections():
+    config = _make_config()
+    config.pipeline.sections = []
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, config=config)
+
+    with pytest.raises(PipelineError, match="internal document plan"):
+        orch.run_pipeline(render_artifact=False)
+
+
 def test_pipeline_renderer_uses_title_for_default_filename(tmp_path):
     config = _make_config()
     config.pipeline.output_dir = str(tmp_path)

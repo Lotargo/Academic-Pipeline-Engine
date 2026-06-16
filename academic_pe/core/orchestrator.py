@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol
 
 from academic_pe.core.config import AppConfig, TemplateMode, load_config, SectionPrompt
 from academic_pe.core.continuation import detect_terminal_sections, infer_continuation_intent
-from academic_pe.core.document_structure import renderable_sections
+from academic_pe.core.document_structure import HeadingPolicy, SemanticRole, is_renderable_section, renderable_sections
 from academic_pe.core.document_state import extract_document_state
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import language_instruction, resolve_output_language
@@ -918,6 +918,22 @@ class Orchestrator:
                 update={"sections": [*resolved_template_sections, *preserved_internal]}
             )
 
+    def _ensure_drafted_content_exists(self) -> None:
+        exportable_sections = {
+            name: content
+            for name, content in self.context.items()
+            if name != "document_plan" and isinstance(content, str) and content.strip()
+        }
+        if exportable_sections:
+            return
+
+        configured_sections = [section.name for section in self._config.pipeline.sections]
+        raise PipelineError(
+            "Drafting produced no exportable document sections. "
+            f"Configured draft sections: {configured_sections or 'none'}. "
+            "The pipeline cannot treat the internal document plan as the final artifact."
+        )
+
     def run_pipeline(self, render_artifact: bool = True) -> str:
         logger.info("Pipeline started.")
         
@@ -1336,6 +1352,8 @@ class Orchestrator:
                         draft_content = translate_markdown_to_ru(draft_content)
                     self._set_section_content(section.name, draft_content)
 
+            self._ensure_drafted_content_exists()
+
             # --- REVIEWING ---
             self.transition_to(PipelineState.REVIEWING)
 
@@ -1736,11 +1754,42 @@ def _apply_runtime_template(
     runtime_template: RuntimeTemplate,
 ) -> AppConfig:
     resolved_config = config.model_copy(deep=True)
+    runtime_template = _ensure_runtime_template_has_draft_sections(runtime_template)
     resolved_config.pipeline.sections = [
         template_section_to_section_prompt(section)
         for section in renderable_sections(runtime_template.sections)
     ]
     return resolved_config
+
+
+def _ensure_runtime_template_has_draft_sections(runtime_template: RuntimeTemplate) -> RuntimeTemplate:
+    if any(is_renderable_section(section) for section in runtime_template.sections):
+        return runtime_template
+
+    promoted_sections: List[TemplateSection] = []
+    promoted = False
+    for section in runtime_template.sections:
+        if section.semantic_role in {
+            SemanticRole.body.value,
+            SemanticRole.chapter.value,
+            SemanticRole.academic_section.value,
+            SemanticRole.narrative_beat.value,
+        }:
+            promoted_sections.append(
+                section.model_copy(update={"heading_policy": HeadingPolicy.render_allowed})
+            )
+            promoted = True
+        else:
+            promoted_sections.append(section)
+
+    if not promoted:
+        raise PipelineError("Runtime template has no renderable draft sections.")
+
+    logger.warning(
+        "Runtime template had no renderable sections; promoted %d writing section(s) to render_allowed.",
+        len([section for section in promoted_sections if is_renderable_section(section)]),
+    )
+    return runtime_template.model_copy(update={"sections": promoted_sections})
 
 
 def should_preserve_topic(instructions: str) -> bool:
@@ -1850,6 +1899,7 @@ def create_orchestrator_from_config(
         instructions=user_instructions,
         continuation_source=continuation_source,
     )
+    runtime_template = _ensure_runtime_template_has_draft_sections(runtime_template)
     resolved_config = _apply_runtime_template(config, runtime_template)
     
     # Set resolved config pipeline title to refined topic
