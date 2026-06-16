@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, ChangeEvent } from "react"
+import { useState, useEffect, ChangeEvent, CSSProperties } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,6 +27,10 @@ type DocumentTemplateSummary = {
   description?: string
   category?: string
   section_count?: number
+}
+
+type WebkitTextSecurityStyle = CSSProperties & {
+  WebkitTextSecurity?: "disc" | "none"
 }
 
 const STATIC_PROVIDER_MODELS: Record<string, string[]> = {
@@ -356,6 +360,9 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
     const provider = agent.provider || "mock"
     const showKey = showApiKeys[provider] || false
     const currentKey = apiKeys[provider] || ""
+    const apiKeyInputStyle: WebkitTextSecurityStyle = {
+      WebkitTextSecurity: showKey ? "none" : "disc",
+    }
 
     return (
       <div className="space-y-4 rounded-xl border border-border/60 p-5 bg-muted/10">
@@ -477,7 +484,7 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Input
-                      type={showKey ? "text" : "password"}
+                      type="text"
                       value={currentKey}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => {
                         const val = e.target.value;
@@ -485,13 +492,17 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                       }}
                       placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
                       className="h-9 text-xs pr-10 w-full"
-                      autoComplete="new-password"
+                      autoComplete="off"
                       autoCorrect="off"
                       autoCapitalize="none"
                       spellCheck={false}
-                      name={`${provider}-provider-secret`}
+                      name={`${provider}-llm-credential-value`}
+                      id={`${agentKey}-${provider}-llm-credential-value`}
+                      inputMode="text"
+                      style={apiKeyInputStyle}
                       data-lpignore="true"
                       data-1p-ignore="true"
+                      data-form-type="other"
                     />
                     <button
                       type="button"
