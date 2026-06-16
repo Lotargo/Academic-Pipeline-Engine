@@ -38,11 +38,13 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
   const [writerModels, setWriterModels] = useState<string[]>([])
   const [reviewerModels, setReviewerModels] = useState<string[]>([])
   const [plannerModels, setPlannerModels] = useState<string[]>([])
+  const [researcherModels, setResearcherModels] = useState<string[]>([])
   const [exampleGeneratorModels, setExampleGeneratorModels] = useState<string[]>([])
   const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({})
   const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplateSummary[]>([])
   const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({})
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [activeAgentTab, setActiveAgentTab] = useState<string>("writer")
 
   const toggleShowApiKey = (provider: string) => {
     setShowApiKeys(prev => ({ ...prev, [provider]: !prev[provider] }))
@@ -66,6 +68,9 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
       }
       if (config.agents.planner) {
         fetchModelsForAgent("planner", config.agents.planner.provider, config.agents.planner.base_url)
+      }
+      if (config.agents.researcher) {
+        fetchModelsForAgent("researcher", config.agents.researcher.provider, config.agents.researcher.base_url)
       }
       if (config.agents.example_generator) {
         fetchModelsForAgent("example_generator", config.agents.example_generator.provider, config.agents.example_generator.base_url)
@@ -132,6 +137,7 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
       if (agentKey === "writer") setWriterModels(defaultModels)
       else if (agentKey === "reviewer") setReviewerModels(defaultModels)
       else if (agentKey === "planner") setPlannerModels(defaultModels)
+      else if (agentKey === "researcher") setResearcherModels(defaultModels)
       else if (agentKey === "example_generator") setExampleGeneratorModels(defaultModels)
       return
     }
@@ -147,6 +153,7 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
         if (agentKey === "writer") setWriterModels(data)
         else if (agentKey === "reviewer") setReviewerModels(data)
         else if (agentKey === "planner") setPlannerModels(data)
+        else if (agentKey === "researcher") setResearcherModels(data)
         else if (agentKey === "example_generator") setExampleGeneratorModels(data)
       }
     } catch (e) {
@@ -186,6 +193,9 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
       }
       if (config?.agents?.planner?.provider === provider) {
         fetchModelsForAgent("planner", provider, config?.agents?.planner?.base_url)
+      }
+      if (config?.agents?.researcher?.provider === provider) {
+        fetchModelsForAgent("researcher", provider, config?.agents?.researcher?.base_url)
       }
       if (config?.agents?.example_generator?.provider === provider) {
         fetchModelsForAgent("example_generator", provider, config?.agents?.example_generator?.base_url)
@@ -290,6 +300,188 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
         },
       }
     })
+  }
+
+  const renderAgentConfig = (agentKey: string) => {
+    const agent = config?.agents?.[agentKey]
+    if (!agent) return null
+
+    let tag = "Agent"
+    let defaultTemp = 0.5
+    if (agentKey === "writer") {
+      tag = language === "ru" ? "Активный" : "Active"
+      defaultTemp = 0.7
+    } else if (agentKey === "reviewer") {
+      tag = language === "ru" ? "Строгий" : "Strict"
+      defaultTemp = 0.3
+    } else if (agentKey === "planner") {
+      tag = language === "ru" ? "Планировщик" : "Planner"
+      defaultTemp = 0.2
+    } else if (agentKey === "researcher") {
+      tag = language === "ru" ? "Поиск" : "Research"
+      defaultTemp = 0.1
+    } else if (agentKey === "example_generator") {
+      tag = language === "ru" ? "Динамический" : "Dynamic"
+      defaultTemp = 0.8
+    }
+
+    const agentModels = 
+      agentKey === "writer" ? writerModels :
+      agentKey === "reviewer" ? reviewerModels :
+      agentKey === "planner" ? plannerModels :
+      agentKey === "researcher" ? researcherModels :
+      exampleGeneratorModels;
+
+    const agentTitle = 
+      agentKey === "writer" ? (language === "ru" ? "Writer Agent (Писатель)" : "Writer Agent") :
+      agentKey === "reviewer" ? (language === "ru" ? "Reviewer Agent (Рецензент)" : "Reviewer Agent") :
+      agentKey === "planner" ? (language === "ru" ? "Planner Agent (Планировщик)" : "Planner Agent") :
+      agentKey === "researcher" ? (language === "ru" ? "Researcher Agent (Исследователь)" : "Researcher Agent") :
+      (language === "ru" ? "Example Generator Agent (Генератор примеров)" : "Example Generator Agent");
+
+    const provider = agent.provider || "mock"
+    const showKey = showApiKeys[provider] || false
+    const currentKey = apiKeys[provider] || ""
+
+    return (
+      <div className="space-y-4 rounded-xl border border-border/60 p-5 bg-muted/10">
+        <div className="flex items-center justify-between border-b border-border/40 pb-3">
+          <div>
+            <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+              {agentTitle}
+            </h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {agentKey === "writer" && (language === "ru" ? "Пишет разделы документа на основе плана и контекста." : "Writes document sections based on the plan and context.")}
+              {agentKey === "reviewer" && (language === "ru" ? "Проверяет разделы на логику, стиль и корректность LaTeX." : "Checks sections for logic, style, and LaTeX correctness.")}
+              {agentKey === "planner" && (language === "ru" ? "Создает структуру документа и инструкции для писателя." : "Creates the document structure and instructions for the writer.")}
+              {agentKey === "researcher" && (language === "ru" ? "Ищет информацию в веб-поиске и готовит выдержки." : "Searches for information on the web and prepares summaries.")}
+              {agentKey === "example_generator" && (language === "ru" ? "Генерирует примеры тем для начального заполнения." : "Generates topic examples for initial seeding.")}
+            </p>
+          </div>
+          <span className="rounded bg-ape-primary-soft px-2.5 py-1 text-[10px] font-semibold text-ape-primary-text border border-ape-primary-text/10">
+            {tag}
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">{language === "ru" ? "Провайдер модели" : "Model Provider"}</label>
+              <Select
+                value={provider}
+                onValueChange={(val: string) => handleAgentChange(agentKey, "provider", val)}
+              >
+                <SelectTrigger className="h-9 text-xs w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mock">{language === "ru" ? "Тестовый движок (Mock)" : "Mock Engine"}</SelectItem>
+                  <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+                  <SelectItem value="google">Google (Gemini)</SelectItem>
+                  <SelectItem value="custom_openai">{language === "ru" ? "OpenAI совместимый (Свой)" : "OpenAI Compatible (Custom)"}</SelectItem>
+                  <SelectItem value="lm_studio">LM Studio</SelectItem>
+                  <SelectItem value="zen">OpenCode Zen</SelectItem>
+                  <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-medium text-muted-foreground">{language === "ru" ? "Название модели" : "Model Name"}</label>
+                {loadingModels[agentKey] && (
+                  <span className="text-[9px] text-ape-primary-text animate-pulse font-medium">{language === "ru" ? "Загрузка..." : "Fetching..."}</span>
+                )}
+              </div>
+              <Input
+                list={`${agentKey}-models-list`}
+                value={agent.model || ""}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange(agentKey, "model", e.target.value)}
+                placeholder={language === "ru" ? "Выберите или введите название модели" : "Select or type model name"}
+                className="h-9 text-xs"
+              />
+              <datalist id={`${agentKey}-models-list`}>
+                {agentModels.map((m: string) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">{language === "ru" ? "Температура" : "Temperature"}</label>
+              <Input
+                type="number"
+                step="0.05"
+                min="0"
+                max="2"
+                value={agent.temperature ?? defaultTemp}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange(agentKey, "temperature", parseFloat(e.target.value) ?? defaultTemp)}
+                className="h-9 text-xs"
+              />
+            </div>
+
+            {provider && provider !== "mock" && (
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">{language === "ru" ? "API Ключ" : "API Key"}</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type={showKey ? "text" : "password"}
+                      value={currentKey}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                        const val = e.target.value;
+                        setApiKeys((prev: any) => ({ ...prev, [provider]: val }))
+                      }}
+                      placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
+                      className="h-9 text-xs pr-10 w-full"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleShowApiKey(provider)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
+                    >
+                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSaveApiKey(provider)}
+                    className="h-9 text-xs px-3 font-semibold"
+                  >
+                    {language === "ru" ? "Сохранить" : "Save Key"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {(provider === "custom_openai" || provider === "lm_studio") && (
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">{language === "ru" ? "Адрес сервера (Base URL)" : "Base URL"}</label>
+                <Input
+                  value={agent.base_url || ""}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange(agentKey, "base_url", e.target.value)}
+                  placeholder={provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
+                  className="h-9 text-xs"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-muted-foreground">{language === "ru" ? "Системный промпт" : "System Prompt"}</label>
+          <Textarea
+            value={agent.system_prompt || ""}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleAgentChange(agentKey, "system_prompt", e.target.value)}
+            rows={8}
+            className="text-xs leading-relaxed font-mono"
+          />
+        </div>
+      </div>
+    )
   }
 
   const handleStyleChange = (field: string, value: any) => {
@@ -816,503 +1008,33 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pt-2">
-                {/* Writer Agent Config */}
-                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-semibold text-sm text-foreground">Writer Agent</h3>
-                    <span className="rounded bg-ape-primary-soft px-2 py-0.5 text-[10px] font-semibold text-ape-primary-text">
-                      Active
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Model Provider</label>
-                      <Select
-                        value={config?.agents?.writer?.provider}
-                        onValueChange={(val: string) => handleAgentChange("writer", "provider", val)}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mock">Mock Engine</SelectItem>
-                          <SelectItem value="openai">OpenAI (GPT)</SelectItem>
-                          <SelectItem value="google">Google (Gemini)</SelectItem>
-                          <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
-                          <SelectItem value="lm_studio">LM Studio</SelectItem>
-                          <SelectItem value="zen">OpenCode Zen</SelectItem>
-                          <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+              {/* Agent Tabs */}
+              <div className="flex flex-wrap gap-1 border-b border-border/40 pb-px">
+                {[
+                  { id: "writer", label: language === "ru" ? "Writer (Писатель)" : "Writer Agent" },
+                  { id: "reviewer", label: language === "ru" ? "Reviewer (Рецензент)" : "Reviewer Agent" },
+                  { id: "planner", label: language === "ru" ? "Planner (Планировщик)" : "Planner Agent" },
+                  { id: "researcher", label: language === "ru" ? "Researcher (Исследователь)" : "Researcher Agent" },
+                  { id: "example_generator", label: language === "ru" ? "Example Gen (Генератор)" : "Example Generator" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveAgentTab(tab.id)}
+                    className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all duration-200 border-b-2 -mb-[2px] ${
+                      activeAgentTab === tab.id
+                        ? "border-ape-primary-text text-ape-primary-text bg-ape-primary-soft/30"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/10"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Temperature</label>
-                      <Input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="2"
-                        value={config?.agents?.writer?.temperature}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("writer", "temperature", parseFloat(e.target.value) || 0.7)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {config?.agents?.writer?.provider && config.agents.writer.provider !== "mock" && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
-                      <div className="flex gap-1.5">
-                        <div className="relative flex-1">
-                          <Input
-                            type={showApiKeys[config.agents.writer.provider] ? "text" : "password"}
-                            value={apiKeys[config.agents.writer.provider] || ""}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                              const val = e.target.value;
-                              setApiKeys((prev: any) => ({ ...prev, [config.agents.writer.provider]: val }))
-                            }}
-                            placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
-                            className="h-8 text-xs pr-10 w-full"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowApiKey(config.agents.writer.provider)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
-                          >
-                            {showApiKeys[config.agents.writer.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSaveApiKey(config.agents.writer.provider)}
-                          className="h-8 text-[10px] px-2"
-                        >
-                          Save Key
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {(config?.agents?.writer?.provider === "custom_openai" || config?.agents?.writer?.provider === "lm_studio") && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Base URL</label>
-                      <Input
-                        value={config?.agents?.writer?.base_url || ""}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("writer", "base_url", e.target.value)}
-                        placeholder={config?.agents?.writer?.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
-                      {loadingModels["writer"] && (
-                        <span className="text-[9px] text-ape-primary-text animate-pulse">Fetching...</span>
-                      )}
-                    </div>
-                    <Input
-                      list="writer-models-list"
-                      value={config?.agents?.writer?.model || ""}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("writer", "model", e.target.value)}
-                      placeholder="Select or type model name"
-                      className="h-8 text-xs"
-                    />
-                    <datalist id="writer-models-list">
-                      {writerModels.map((m: string) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-muted-foreground">System Prompt</label>
-                    <Textarea
-                      value={config?.agents?.writer?.system_prompt}
-                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleAgentChange("writer", "system_prompt", e.target.value)}
-                      rows={6}
-                      className="text-xs leading-normal"
-                    />
-                  </div>
-                </div>
-
-                {/* Reviewer Agent Config */}
-                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-semibold text-sm text-foreground">Reviewer Agent</h3>
-                    <span className="rounded bg-ape-primary-soft px-2 py-0.5 text-[10px] font-semibold text-ape-primary-text">
-                      Strict
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Model Provider</label>
-                      <Select
-                        value={config?.agents?.reviewer?.provider}
-                        onValueChange={(val: string) => handleAgentChange("reviewer", "provider", val)}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mock">Mock Engine</SelectItem>
-                          <SelectItem value="openai">OpenAI (GPT)</SelectItem>
-                          <SelectItem value="google">Google (Gemini)</SelectItem>
-                          <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
-                          <SelectItem value="lm_studio">LM Studio</SelectItem>
-                          <SelectItem value="zen">OpenCode Zen</SelectItem>
-                          <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Temperature</label>
-                      <Input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="2"
-                        value={config?.agents?.reviewer?.temperature}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("reviewer", "temperature", parseFloat(e.target.value) || 0.3)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {config?.agents?.reviewer?.provider && config.agents.reviewer.provider !== "mock" && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
-                      <div className="flex gap-1.5">
-                        <div className="relative flex-1">
-                          <Input
-                            type={showApiKeys[config.agents.reviewer.provider] ? "text" : "password"}
-                            value={apiKeys[config.agents.reviewer.provider] || ""}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                              const val = e.target.value;
-                              setApiKeys((prev: any) => ({ ...prev, [config.agents.reviewer.provider]: val }))
-                            }}
-                            placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
-                            className="h-8 text-xs pr-10 w-full"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowApiKey(config.agents.reviewer.provider)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
-                          >
-                            {showApiKeys[config.agents.reviewer.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSaveApiKey(config.agents.reviewer.provider)}
-                          className="h-8 text-[10px] px-2"
-                        >
-                          Save Key
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {(config?.agents?.reviewer?.provider === "custom_openai" || config?.agents?.reviewer?.provider === "lm_studio") && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Base URL</label>
-                      <Input
-                        value={config?.agents?.reviewer?.base_url || ""}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("reviewer", "base_url", e.target.value)}
-                        placeholder={config?.agents?.reviewer?.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
-                      {loadingModels["reviewer"] && (
-                        <span className="text-[9px] text-ape-primary-text animate-pulse">Fetching...</span>
-                      )}
-                    </div>
-                    <Input
-                      list="reviewer-models-list"
-                      value={config?.agents?.reviewer?.model || ""}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("reviewer", "model", e.target.value)}
-                      placeholder="Select or type model name"
-                      className="h-8 text-xs"
-                    />
-                    <datalist id="reviewer-models-list">
-                      {reviewerModels.map((m: string) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-muted-foreground">System Prompt</label>
-                    <Textarea
-                      value={config?.agents?.reviewer?.system_prompt}
-                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleAgentChange("reviewer", "system_prompt", e.target.value)}
-                      rows={6}
-                      className="text-xs leading-normal"
-                    />
-                  </div>
-                </div>
-
-                {/* Planner Agent Config */}
-                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-semibold text-sm text-foreground">Planner Agent</h3>
-                    <span className="rounded bg-ape-primary-soft px-2 py-0.5 text-[10px] font-semibold text-ape-primary-text">
-                      Planner
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Model Provider</label>
-                      <Select
-                        value={config?.agents?.planner?.provider}
-                        onValueChange={(val: string) => handleAgentChange("planner", "provider", val)}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mock">Mock Engine</SelectItem>
-                          <SelectItem value="openai">OpenAI (GPT)</SelectItem>
-                          <SelectItem value="google">Google (Gemini)</SelectItem>
-                          <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
-                          <SelectItem value="lm_studio">LM Studio</SelectItem>
-                          <SelectItem value="zen">OpenCode Zen</SelectItem>
-                          <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Temperature</label>
-                      <Input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="2"
-                        value={config?.agents?.planner?.temperature ?? 0.2}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("planner", "temperature", parseFloat(e.target.value) || 0.2)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {config?.agents?.planner?.provider && config.agents.planner.provider !== "mock" && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
-                      <div className="flex gap-1.5">
-                        <div className="relative flex-1">
-                          <Input
-                            type={showApiKeys[config.agents.planner.provider] ? "text" : "password"}
-                            value={apiKeys[config.agents.planner.provider] || ""}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                              const val = e.target.value;
-                              setApiKeys((prev: any) => ({ ...prev, [config.agents.planner.provider]: val }))
-                            }}
-                            placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
-                            className="h-8 text-xs pr-10 w-full"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowApiKey(config.agents.planner.provider)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
-                          >
-                            {showApiKeys[config.agents.planner.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSaveApiKey(config.agents.planner.provider)}
-                          className="h-8 text-[10px] px-2"
-                        >
-                          Save Key
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {(config?.agents?.planner?.provider === "custom_openai" || config?.agents?.planner?.provider === "lm_studio") && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Base URL</label>
-                      <Input
-                        value={config?.agents?.planner?.base_url || ""}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("planner", "base_url", e.target.value)}
-                        placeholder={config?.agents?.planner?.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
-                      {loadingModels["planner"] && (
-                        <span className="text-[9px] text-ape-primary-text animate-pulse">Fetching...</span>
-                      )}
-                    </div>
-                    <Input
-                      list="planner-models-list"
-                      value={config?.agents?.planner?.model || ""}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("planner", "model", e.target.value)}
-                      placeholder="Select or type model name"
-                      className="h-8 text-xs"
-                    />
-                    <datalist id="planner-models-list">
-                      {plannerModels.map((m: string) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-muted-foreground">System Prompt</label>
-                    <Textarea
-                      value={config?.agents?.planner?.system_prompt}
-                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleAgentChange("planner", "system_prompt", e.target.value)}
-                      rows={6}
-                      className="text-xs leading-normal"
-                    />
-                  </div>
-                </div>
-
-                {/* Example Generator Agent Config */}
-                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-semibold text-sm text-foreground">Example Generator Agent</h3>
-                    <span className="rounded bg-ape-primary-soft px-2 py-0.5 text-[10px] font-semibold text-ape-primary-text">
-                      Dynamic
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Model Provider</label>
-                      <Select
-                        value={config?.agents?.example_generator?.provider}
-                        onValueChange={(val: string) => handleAgentChange("example_generator", "provider", val)}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mock">Mock Engine</SelectItem>
-                          <SelectItem value="openai">OpenAI (GPT)</SelectItem>
-                          <SelectItem value="google">Google (Gemini)</SelectItem>
-                          <SelectItem value="custom_openai">OpenAI Compatible (Custom)</SelectItem>
-                          <SelectItem value="lm_studio">LM Studio</SelectItem>
-                          <SelectItem value="zen">OpenCode Zen</SelectItem>
-                          <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Temperature</label>
-                      <Input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="2"
-                        value={config?.agents?.example_generator?.temperature ?? 0.8}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("example_generator", "temperature", parseFloat(e.target.value) || 0.8)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {config?.agents?.example_generator?.provider && config.agents.example_generator.provider !== "mock" && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">API Key</label>
-                      <div className="flex gap-1.5">
-                        <div className="relative flex-1">
-                          <Input
-                            type={showApiKeys[config.agents.example_generator.provider] ? "text" : "password"}
-                            value={apiKeys[config.agents.example_generator.provider] || ""}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                              const val = e.target.value;
-                              setApiKeys((prev: any) => ({ ...prev, [config.agents.example_generator.provider]: val }))
-                            }}
-                            placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
-                            className="h-8 text-xs pr-10 w-full"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowApiKey(config.agents.example_generator.provider)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
-                          >
-                            {showApiKeys[config.agents.example_generator.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSaveApiKey(config.agents.example_generator.provider)}
-                          className="h-8 text-[10px] px-2"
-                        >
-                          Save Key
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {(config?.agents?.example_generator?.provider === "custom_openai" || config?.agents?.example_generator?.provider === "lm_studio") && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Base URL</label>
-                      <Input
-                        value={config?.agents?.example_generator?.base_url || ""}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("example_generator", "base_url", e.target.value)}
-                        placeholder={config?.agents?.example_generator?.provider === "lm_studio" ? "http://localhost:1234/v1" : "http://localhost:11434/v1"}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-medium text-muted-foreground">Model Name</label>
-                      {loadingModels["example_generator"] && (
-                        <span className="text-[9px] text-ape-primary-text animate-pulse">Fetching...</span>
-                      )}
-                    </div>
-                    <Input
-                      list="example_generator-models-list"
-                      value={config?.agents?.example_generator?.model || ""}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange("example_generator", "model", e.target.value)}
-                      placeholder="Select or type model name"
-                      className="h-8 text-xs"
-                    />
-                    <datalist id="example_generator-models-list">
-                      {exampleGeneratorModels.map((m: string) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-muted-foreground">System Prompt</label>
-                    <Textarea
-                      value={config?.agents?.example_generator?.system_prompt}
-                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleAgentChange("example_generator", "system_prompt", e.target.value)}
-                      rows={6}
-                      className="text-xs leading-normal"
-                    />
-                  </div>
-                </div>
-
+              {/* Active Agent Configuration Panel */}
+              <div className="pt-2">
+                {renderAgentConfig(activeAgentTab)}
               </div>
 
               {/* Quality Gates Config */}
