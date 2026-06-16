@@ -33,6 +33,9 @@ pytest = "^8.0"
 
 [tool.pytest.ini_options]
 pythonpath = "."
+filterwarnings = [
+    "ignore::PendingDeprecationWarning"
+]
 
 [build-system]
 requires = ["poetry-core"]

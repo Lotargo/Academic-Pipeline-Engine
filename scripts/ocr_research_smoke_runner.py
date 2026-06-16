@@ -206,6 +206,17 @@ def _run_orchestrator(
     research_findings: str = "",
     reference_materials: Optional[list[dict[str, str]]] = None,
 ) -> tuple[Orchestrator, RecordingAgent, RecordingAgent, RecordingResearcher]:
+    from academic_pe.core.registry import SQLiteRegistryStore
+    import os
+    
+    timestamp = output_dir.parent.name
+    scenario_id = output_dir.name
+    run_id = f"smoke_{scenario_id}_{timestamp}_orch"
+    
+    db_path = str(ROOT / "exports" / "_metadata" / "academic_pe_registry.sqlite3")
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    registry_store = SQLiteRegistryStore(db_path=db_path)
+
     config = _smoke_config(output_dir)
     writer = RecordingAgent(config.agents["writer"], writer_response)
     planner = RecordingAgent(config.agents["planner"], planner_response)
@@ -217,6 +228,8 @@ def _run_orchestrator(
         config=config,
         reference_materials=reference_materials,
         web_search_enabled=web_search_enabled,
+        registry_store=registry_store,
+        run_id=run_id,
     )
     orchestrator.user_topic = "Smoke topic"
     orchestrator.user_instructions = "Smoke instructions"
@@ -497,6 +510,7 @@ def run_scenario(scenario: SmokeScenario, args: argparse.Namespace) -> int:
     log = SmokeLog(scenario.scenario_id, log_path)
     log.event("scenario_start", "Scenario started")
 
+    started_dt = datetime.now()
     started = time.monotonic()
     try:
         result = SCENARIO_RUNNERS[scenario.scenario_id](output_dir, log)
@@ -504,6 +518,7 @@ def run_scenario(scenario: SmokeScenario, args: argparse.Namespace) -> int:
         result = SmokeResult(False, [f"{exc.__class__.__name__}: {exc}"], {}, blocked=False)
         log.event("scenario_error", "Scenario failed before rubric checks", error=exc.__class__.__name__)
     elapsed = time.monotonic() - started
+    finished_dt = datetime.now()
 
     log.event(
         "scenario_result",
@@ -514,6 +529,76 @@ def run_scenario(scenario: SmokeScenario, args: argparse.Namespace) -> int:
         elapsed_seconds=round(elapsed, 1),
     )
     append_result(note, result, elapsed, log_path)
+
+    # Register run and evaluation in SQLite database
+    try:
+        from academic_pe.core.registry import SQLiteRegistryStore, Run, Evaluation, Artifact
+        from academic_pe.core.registry.importers import safe_relative_path
+        import os
+        
+        db_path = str(ROOT / "exports" / "_metadata" / "academic_pe_registry.sqlite3")
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        store = SQLiteRegistryStore(db_path=db_path)
+        
+        timestamp = output_dir.parent.name
+        run_id = f"smoke_{scenario.scenario_id}_{timestamp}"
+        
+        status = "succeeded" if result.passed else "failed"
+        
+        smoke_run = Run(
+            run_id=run_id,
+            kind="smoke",
+            status=status,
+            topic=scenario.title,
+            instructions_preview="; ".join(scenario.required_checks),
+            pipeline_mode="ocr" if "ocr" in scenario.scenario_id else "standard",
+            web_search_enabled="web_search" in scenario.scenario_id,
+            created_at=started_dt.isoformat(),
+            started_at=started_dt.isoformat(),
+            finished_at=finished_dt.isoformat(),
+            output_dir=str(output_dir),
+            metadata_json=json.dumps({
+                "required_checks": list(scenario.required_checks),
+                "elapsed_seconds": elapsed,
+                "orchestrator_run_id": f"smoke_{scenario.scenario_id}_{timestamp}_orch"
+            }, ensure_ascii=False)
+        )
+        store.create_run(smoke_run)
+        
+        eval_record = Evaluation(
+            run_id=run_id,
+            eval_type="smoke",
+            status="passed" if result.passed else "failed",
+            summary="; ".join(result.issues) if result.issues else "smoke check passed",
+            result_path=str(log_path),
+            metadata_json=json.dumps(result.details, ensure_ascii=False),
+            created_at=finished_dt.isoformat()
+        )
+        store.add_evaluation(eval_record)
+        
+        if log_path.exists():
+            import hashlib
+            with open(log_path, "rb") as f:
+                log_bytes = f.read()
+            sha256 = hashlib.sha256(log_bytes).hexdigest()
+            size_bytes = len(log_bytes)
+            
+            artifact_record = Artifact(
+                run_id=run_id,
+                artifact_type="smoke_log",
+                path=os.path.abspath(log_path),
+                relative_path=safe_relative_path(str(log_path)),
+                filename=log_path.name,
+                mime_type="application/x-jsonlines",
+                size_bytes=size_bytes,
+                sha256=sha256,
+                created_at=finished_dt.isoformat(),
+                is_diagnostic=True
+            )
+            store.add_artifact(artifact_record)
+    except Exception as e:
+        print(f"Registry Warning: Failed to log smoke scenario in registry: {e}")
+
     if result.blocked:
         return 2
     return 0 if result.passed else 1

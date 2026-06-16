@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 import json
 import os
 import re
@@ -33,7 +34,7 @@ from academic_pe.core.merge_operations import (
 )
 from academic_pe.manifests import ArtifactManifestResolver
 from academic_pe.core.registry import (
-    RegistryStore, NoopRegistryStore, Run, RunAgent, RuntimeSnapshot, Section
+    RegistryStore, NoopRegistryStore, Run, RunAgent, RuntimeSnapshot, Section, Source, Artifact, Evaluation
 )
 
 logger = logging.getLogger(__name__)
@@ -555,6 +556,41 @@ class Orchestrator:
 
         return result.issues
 
+    def _log_quality_evaluations(self, qg_result, drift_issues: List[str]) -> None:
+        try:
+            qg_eval = Evaluation(
+                run_id=self.run_id,
+                eval_type="quality_gate",
+                status="passed" if qg_result.passed else "failed",
+                summary="; ".join(qg_result.issues) if qg_result.issues else "all checks passed",
+                result_path=None,
+                metadata_json=json.dumps({
+                    "enabled_gates": {
+                        "volume": self._config.quality_gate.volume.enabled,
+                        "latex": self._config.quality_gate.latex.enabled,
+                        "markdown": self._config.quality_gate.markdown.enabled,
+                    }
+                }, ensure_ascii=False),
+                created_at=datetime.now().isoformat()
+            )
+            self._registry_store.add_evaluation(qg_eval)
+        except Exception as e:
+            logger.warning("Failed to register quality gate evaluation: %s", e)
+
+        try:
+            drift_eval = Evaluation(
+                run_id=self.run_id,
+                eval_type="contract_drift",
+                status="failed" if drift_issues else "passed",
+                summary="; ".join(drift_issues) if drift_issues else "no drift issues detected",
+                result_path=None,
+                metadata_json=None,
+                created_at=datetime.now().isoformat()
+            )
+            self._registry_store.add_evaluation(drift_eval)
+        except Exception as e:
+            logger.warning("Failed to register contract drift evaluation: %s", e)
+
     @property
     def state(self) -> PipelineState:
         return self._state
@@ -959,6 +995,138 @@ class Orchestrator:
             except Exception as e:
                 logger.warning("Failed to register runtime_prompt_manifest snapshot: %s", e)
 
+        # Register continuation source and reference materials
+        try:
+            attachments_dir = os.path.join(self._config.pipeline.output_dir, "attachments")
+            
+            import hashlib
+            def get_content_info(text: str):
+                content_bytes = text.encode("utf-8", errors="replace")
+                size_bytes = len(content_bytes)
+                sha256 = hashlib.sha256(content_bytes).hexdigest()
+                return size_bytes, sha256
+
+            def save_attachment_file(filename: str, content: str) -> str:
+                os.makedirs(attachments_dir, exist_ok=True)
+                safe_filename = os.path.basename(filename)
+                original_ext = os.path.splitext(safe_filename)[1].lower()
+                dest_filename = safe_filename
+                if original_ext in {".pdf", ".docx"}:
+                    dest_filename = safe_filename + ".txt"
+                
+                dest_path = os.path.join(attachments_dir, dest_filename)
+                with open(dest_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return dest_path
+
+            if self.continuation_source:
+                content = self.continuation_source.get("content")
+                filename = self.continuation_source.get("filename")
+                
+                size_bytes, sha256 = None, None
+                path = None
+                if content and filename:
+                    try:
+                        path = save_attachment_file(filename, content)
+                        size_bytes, sha256 = get_content_info(content)
+                    except Exception as e:
+                        logger.warning("Failed to save continuation source file: %s", e)
+                
+                metadata_id = self.continuation_source.get("metadata_id") or self.continuation_source.get("run_id")
+                
+                source_record = Source(
+                    run_id=self.run_id,
+                    source_type="continuation",
+                    title=self.continuation_source.get("topic") or filename or "Continuation Source",
+                    url=None,
+                    path=path or metadata_id,
+                    sha256=sha256,
+                    used_by="planner,writer",
+                    metadata_json=json.dumps({
+                        "intent_override": self.continuation_source.get("intent_override"),
+                        "token_count": self.continuation_source.get("token_count"),
+                    }, ensure_ascii=False)
+                )
+                try:
+                    self._registry_store.add_source(source_record)
+                except Exception as e:
+                    logger.warning("Failed to register continuation source: %s", e)
+                    
+                if path:
+                    from academic_pe.core.registry.importers import safe_relative_path
+                    rel_path = safe_relative_path(path)
+                    artifact_record = Artifact(
+                        run_id=self.run_id,
+                        artifact_type="ocr_output" if filename.lower().endswith((".pdf", ".docx")) else "markdown",
+                        path=os.path.abspath(path),
+                        relative_path=rel_path,
+                        filename=os.path.basename(path),
+                        mime_type="text/plain",
+                        size_bytes=size_bytes,
+                        sha256=sha256,
+                        created_at=datetime.now().isoformat(),
+                        is_diagnostic=False
+                    )
+                    try:
+                        self._registry_store.add_artifact(artifact_record)
+                    except Exception as e:
+                        logger.warning("Failed to register continuation source artifact: %s", e)
+
+            for item in self.reference_materials:
+                filename = item.get("filename")
+                content = item.get("content")
+                if not filename or not content:
+                    continue
+                    
+                size_bytes, sha256 = get_content_info(content)
+                path = None
+                try:
+                    path = save_attachment_file(filename, content)
+                except Exception as e:
+                    logger.warning("Failed to save reference material file: %s", e)
+                    
+                orig_ext = os.path.splitext(filename)[1].lower()
+                source_type = "ocr" if orig_ext in {".pdf", ".docx"} else "manual_reference"
+                
+                source_record = Source(
+                    run_id=self.run_id,
+                    source_type=source_type,
+                    title=filename,
+                    url=None,
+                    path=path,
+                    sha256=sha256,
+                    used_by="planner,writer",
+                    metadata_json=json.dumps({
+                        "token_count": item.get("token_count")
+                    }, ensure_ascii=False)
+                )
+                try:
+                    self._registry_store.add_source(source_record)
+                except Exception as e:
+                    logger.warning("Failed to register reference source: %s", e)
+                    
+                if path:
+                    from academic_pe.core.registry.importers import safe_relative_path
+                    rel_path = safe_relative_path(path)
+                    artifact_record = Artifact(
+                        run_id=self.run_id,
+                        artifact_type="ocr_output" if orig_ext in {".pdf", ".docx"} else "markdown",
+                        path=os.path.abspath(path),
+                        relative_path=rel_path,
+                        filename=os.path.basename(path),
+                        mime_type="text/plain",
+                        size_bytes=size_bytes,
+                        sha256=sha256,
+                        created_at=datetime.now().isoformat(),
+                        is_diagnostic=False
+                    )
+                    try:
+                        self._registry_store.add_artifact(artifact_record)
+                    except Exception as e:
+                        logger.warning("Failed to register reference artifact: %s", e)
+        except Exception as e:
+            logger.warning("Best-effort attachment registration failed: %s", e)
+
         output_path = "(no output)"
         raw_language_policy = getattr(self._config.pipeline, "language", "auto")
         language_policy = getattr(raw_language_policy, "value", raw_language_policy)
@@ -988,6 +1156,77 @@ class Orchestrator:
                     self.search_findings = self._researcher.run_research(queries, run_dir)
                     self.search_findings = normalize_generated_text(self.search_findings)
                     logger.info("[Researcher] Parallel search completed. Sourcing findings...")
+
+                    # Scan and register web research logs and crawled sources
+                    try:
+                        research_dir = os.path.join(run_dir, "research")
+                        if os.path.exists(research_dir):
+                            for filename in os.listdir(research_dir):
+                                if filename.startswith("query_") and filename.endswith(".json"):
+                                    filepath = os.path.join(research_dir, filename)
+                                    # 1. Read research query JSON
+                                    with open(filepath, "r", encoding="utf-8") as f:
+                                        data = json.load(f)
+                                    
+                                    query_text = data.get("query", "")
+                                    results = data.get("results", [])
+                                    
+                                    # Compute file checksum & size
+                                    with open(filepath, "rb") as f:
+                                        file_bytes = f.read()
+                                    file_sha256 = hashlib.sha256(file_bytes).hexdigest()
+                                    file_size = len(file_bytes)
+                                    
+                                    # 2. Register file as diagnostic Artifact
+                                    from academic_pe.core.registry.importers import safe_relative_path
+                                    rel_path = safe_relative_path(filepath)
+                                    
+                                    artifact_record = Artifact(
+                                        run_id=self.run_id,
+                                        artifact_type="research_log",
+                                        path=os.path.abspath(filepath),
+                                        relative_path=rel_path,
+                                        filename=filename,
+                                        mime_type="application/json",
+                                        size_bytes=file_size,
+                                        sha256=file_sha256,
+                                        created_at=datetime.now().isoformat(),
+                                        is_diagnostic=True
+                                    )
+                                    try:
+                                        self._registry_store.add_artifact(artifact_record)
+                                    except Exception as e:
+                                        logger.warning("Failed to register research log artifact: %s", e)
+                                        
+                                    # 3. Register each webpage crawled in results as a Source
+                                    for res in results:
+                                        title = res.get("title", "")
+                                        url = res.get("url", "")
+                                        snippet = res.get("snippet", "")
+                                        content = res.get("content", "")
+                                        
+                                        content_bytes = content.encode("utf-8", errors="replace")
+                                        content_sha256 = hashlib.sha256(content_bytes).hexdigest()
+                                        
+                                        source_record = Source(
+                                            run_id=self.run_id,
+                                            source_type="web",
+                                            title=title,
+                                            url=url,
+                                            path=None,
+                                            sha256=content_sha256,
+                                            used_by="researcher",
+                                            metadata_json=json.dumps({
+                                                "query": query_text,
+                                                "snippet": snippet
+                                            }, ensure_ascii=False)
+                                        )
+                                        try:
+                                            self._registry_store.add_source(source_record)
+                                        except Exception as e:
+                                            logger.warning("Failed to register web research source: %s", e)
+                    except Exception as e:
+                        logger.warning("Best-effort research log registration failed: %s", e)
 
             plan_task = render_template(
                 DEFAULT_PLAN_TEMPLATE,
@@ -1114,6 +1353,9 @@ class Orchestrator:
                     self._config.quality_gate,
                     document_state=self._runtime_metadata().get("document_state"),
                 )
+                drift_issues = self._contract_drift_issues()
+                self._log_quality_evaluations(qg_result, drift_issues)
+
                 if not qg_result.passed:
                     # Quality gate failed, bypass LLM reviewer and auto-generate rejection
                     logger.warning("Quality Gate failed during review loop: %s", qg_result.issues)
@@ -1121,7 +1363,7 @@ class Orchestrator:
                         _quality_gate_review_issue(issue)
                         for issue in qg_result.issues
                     )
-                elif drift_issues := self._contract_drift_issues():
+                elif drift_issues:
                     logger.warning("Contract drift checks failed during review loop: %s", drift_issues)
                     critique = "REJECTED\n" + "\n".join(f"- [general]: Contract Drift issue: {issue}" for issue in drift_issues)
                 else:
@@ -1370,6 +1612,9 @@ class Orchestrator:
                 self._config.quality_gate,
                 document_state=self._runtime_metadata().get("document_state"),
             )
+            drift_issues = self._contract_drift_issues()
+            self._log_quality_evaluations(qg_result, drift_issues)
+
             if not qg_result.passed:
                 for issue in qg_result.issues:
                     logger.warning("Quality Gate: %s", issue)
@@ -1377,7 +1622,6 @@ class Orchestrator:
                     f"Quality Gate failed with {len(qg_result.issues)} issue(s). "
                     + "; ".join(qg_result.issues)
                 )
-            drift_issues = self._contract_drift_issues()
             if drift_issues:
                 for issue in drift_issues:
                     logger.warning("Contract Drift: %s", issue)

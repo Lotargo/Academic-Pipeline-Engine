@@ -201,6 +201,11 @@ def run_scenario(scenario: QualityScenario) -> int:
         if name in {"writer", "planner", "researcher"}
     )
 
+    from academic_pe.core.registry import SQLiteRegistryStore, Evaluation, Artifact
+    db_path = OUTPUT_DIR.parent / "_metadata" / "academic_pe_registry.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    store = SQLiteRegistryStore(db_path=str(db_path))
+
     orchestrator = create_orchestrator_from_config(
         config,
         user_topic=scenario.topic,
@@ -208,7 +213,10 @@ def run_scenario(scenario: QualityScenario) -> int:
         continuation_source=scenario.continuation_source,
         reference_materials=list(scenario.reference_materials),
         web_search_enabled=scenario.web_search_enabled,
+        registry_store=store,
     )
+    orchestrator.run_id = f"quality_{scenario.scenario_id}_{stamp}"
+
     error = ""
     exit_code = 0
     try:
@@ -271,6 +279,66 @@ def run_scenario(scenario: QualityScenario) -> int:
         ),
         encoding="utf-8",
     )
+
+    # Register Evaluation and Artifacts in SQLite registry
+    try:
+        from academic_pe.core.registry.importers import safe_relative_path
+        import hashlib
+        
+        eval_record = Evaluation(
+            run_id=orchestrator.run_id,
+            eval_type="semi_manual",
+            status="pending",
+            summary="Pending manual review of generated document against rubric.",
+            result_path=str(md_path),
+            metadata_json=json.dumps({
+                "rubric": list(scenario.rubric),
+                "elapsed_seconds": elapsed,
+                "error": error
+            }, ensure_ascii=False),
+            created_at=datetime.now().isoformat()
+        )
+        store.add_evaluation(eval_record)
+        
+        if json_path.exists():
+            with open(json_path, "rb") as f:
+                json_bytes = f.read()
+            json_sha = hashlib.sha256(json_bytes).hexdigest()
+            json_size = len(json_bytes)
+            
+            store.add_artifact(Artifact(
+                run_id=orchestrator.run_id,
+                artifact_type="quality_result",
+                path=str(json_path.resolve()),
+                relative_path=safe_relative_path(str(json_path)),
+                filename=json_path.name,
+                mime_type="application/json",
+                size_bytes=json_size,
+                sha256=json_sha,
+                created_at=datetime.now().isoformat(),
+                is_diagnostic=True
+            ))
+            
+        if md_path.exists():
+            with open(md_path, "rb") as f:
+                md_bytes = f.read()
+            md_sha = hashlib.sha256(md_bytes).hexdigest()
+            md_size = len(md_bytes)
+            
+            store.add_artifact(Artifact(
+                run_id=orchestrator.run_id,
+                artifact_type="preview",
+                path=str(md_path.resolve()),
+                relative_path=safe_relative_path(str(md_path)),
+                filename=md_path.name,
+                mime_type="text/markdown",
+                size_bytes=md_size,
+                sha256=md_sha,
+                created_at=datetime.now().isoformat(),
+                is_diagnostic=True
+            ))
+    except Exception as e:
+        print(f"Registry Warning: Failed to log quality scenario in registry: {e}")
 
     _append_note(
         "\n".join(

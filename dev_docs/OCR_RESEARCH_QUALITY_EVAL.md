@@ -102,3 +102,59 @@ Manual review:
 - Pass: recommendations are inserted before terminal references.
 - Pass: user-facing headings are `Overview`, `Findings`, `Practical Recommendations`, and `References`; internal `continuation` is not exposed.
 - Pass: document plan, output, and assembled output are normalized; no mojibake or smart-punctuation encoding artifacts remain.
+
+## Run 2026-06-16T08:58:34 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 11.5s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_085823\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_085823\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T08:59:14 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 22.4s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_085852\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_085852\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T08:59:20 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 165.1s
+Config snapshot: writer=zen/deepseek-v4-flash-free, planner=zen/big-pickle, researcher=zen/big-pickle
+Output: `exports\_quality_eval_ocr_research\20260616_085635\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_085635\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T09:01:34 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 11.4s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_090123\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_090123\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T09:02:10 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 11.5s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_090158\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_090158\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T09:02:49 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 11.2s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_090238\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_090238\web_research_operational_brief\result.json`
+
+## Run 2026-06-16T09:03:47 - web_research_operational_brief
+
+Result: PENDING MANUAL REVIEW
+Elapsed: 23.3s
+Config snapshot: writer=mock/mock, planner=mock/mock, researcher=mock/mock
+Output: `exports\_quality_eval_ocr_research\20260616_090324\web_research_operational_brief\result.md`
+JSON: `exports\_quality_eval_ocr_research\20260616_090324\web_research_operational_brief\result.json`

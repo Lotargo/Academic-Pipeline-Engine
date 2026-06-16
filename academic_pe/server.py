@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
+
 import os
 import json
 import yaml
@@ -869,14 +872,23 @@ def run_pipeline_thread(
                     "instructions": instructions or "",
                     "context": context_data,
                     "runtime_template": runtime_tpl,
-                    "template_mode": "custom"
+                    "template_mode": "custom",
+                    "filename": filename,
+                    "content": content,
+                    "attachment_type": "continuation_source",
+                    "token_count": continuation_attachment.get("token_count"),
                 }
 
         # Sift reference materials
         reference_materials = []
         if attachments:
             reference_materials = [
-                {"filename": a["filename"], "content": a["content"]}
+                {
+                    "filename": a["filename"],
+                    "content": a["content"],
+                    "attachment_type": a.get("attachment_type"),
+                    "token_count": a.get("token_count"),
+                }
                 for a in attachments
                 if a.get("attachment_type") == "passive_reference"
             ]
