@@ -6,11 +6,11 @@
 
 Реестр построен на базе **SQLite** и располагается по локальному пути `exports/_metadata/academic_pe_registry.sqlite3`. Файловая система используется как хранилище больших блобов (сгенерированных DOCX, PDF, логов поиска и вложений), в то время как база данных SQLite управляет структурированными отношениями, статусами и индексами.
 
-Компонент доступа к БД — [sqlite_store.py](file:///f:/projects/Academic-Pipeline-Engine/academic_pe/core/registry/sqlite_store.py) — использует контекстное управление соединениями (`connection context manager`), чтобы открывать соединение на короткий промежуток времени и сразу же закрывать его. Это предотвращает блокировки файлов (`database is locked`), типичные для Windows при многопоточном доступе.
+Компонент доступа к БД — [`sqlite_store.py`](../academic_pe/core/registry/sqlite_store.py) — использует контекстное управление соединениями (`connection context manager`), чтобы открывать соединение на короткий промежуток времени и сразу же закрывать его. Это предотвращает блокировки файлов (`database is locked`), типичные для Windows при многопоточном доступе.
 
 ## Схема Базы Данных
 
-Реестр состоит из 8 взаимосвязанных таблиц, миграциями которых управляет модуль [migrations.py](file:///f:/projects/Academic-Pipeline-Engine/academic_pe/core/registry/migrations.py):
+Реестр состоит из 8 взаимосвязанных таблиц, миграциями которых управляет модуль [`migrations.py`](../academic_pe/core/registry/migrations.py):
 
 ```mermaid
 erDiagram
@@ -137,7 +137,7 @@ erDiagram
 
 ## Импорт старых данных (Legacy JSON Importer)
 
-На старте API-сервера запускается импортер [importers.py](file:///f:/projects/Academic-Pipeline-Engine/academic_pe/core/registry/importers.py). Он сканирует папку `exports/_metadata` на наличие старых файлов `.metadata.json`, парсит их и импортирует в SQLite, создавая связанные записи для запусков, агентов, артефактов и снэпшотов.
+На старте API-сервера запускается импортер [`importers.py`](../academic_pe/core/registry/importers.py). Он сканирует папку `exports/_metadata` на наличие старых файлов `.metadata.json`, парсит их и импортирует в SQLite, создавая связанные записи для запусков, агентов, артефактов и снэпшотов.
 
 ## API Чтения (Read Model)
 

@@ -28,6 +28,7 @@
         </a>
         <nav class="nav-links" aria-label="Project navigation">
           <a href="#features">Возможности</a>
+          <a href="#how-it-works">Как работает</a>
           <a href="#pipeline">Pipeline</a>
           <a href="#start">Запуск</a>
           <a href="#docs">Документация</a>
@@ -130,7 +131,79 @@
           </div>
         </section>
 
-        <section class="section alt" id="pipeline">
+        <section class="section alt" id="how-it-works">
+          <div class="section-header">
+            <h2>Мини-учебник для быстрого понимания проекта.</h2>
+            <p>
+              Читателю не нужно открывать код, чтобы увидеть главное: APE умеет работать
+              в разных режимах, подключать вычисления и источники, проверять качество и
+              создавать не только статьи, но и практические документы.
+            </p>
+          </div>
+
+          <div class="mode-grid">
+            <article class="mode-card">
+              <small>standard mode</small>
+              <h3>Сохраняет жанр и естественный формат</h3>
+              <p>
+                Подходит для README, планов, школьных эссе, отчетов, creative artifacts и
+                продолжения существующих работ. Система не добавляет академический аппарат,
+                если пользователь этого не просил.
+              </p>
+              <ul>
+                <li>жанр, голос и аудитория остаются приоритетом;</li>
+                <li>нет лишних citations, rubric, title page и charts;</li>
+                <li>review loop все равно проверяет структуру и drift.</li>
+              </ul>
+            </article>
+            <article class="mode-card academic">
+              <small>academic mode</small>
+              <h3>Добавляет строгость и critical analysis</h3>
+              <p>
+                Подходит для academic papers, RGR/coursework, аналитических отчетов,
+                расчетов, таблиц, формул и source-aware документов.
+              </p>
+              <ul>
+                <li>проверка допущений, аргументации и ограничений;</li>
+                <li>расчеты, таблицы и визуализации через sandbox;</li>
+                <li>источники и research включаются только когда уместны.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="lesson-grid">
+            <article class="lesson-card">
+              <span>01</span>
+              <h3>Не только статьи</h3>
+              <p>Artifact manifests позволяют писать stories, poems, school essays, README, plans, reports и continuation без принудительной академизации.</p>
+            </article>
+            <article class="lesson-card">
+              <span>02</span>
+              <h3>Sandbox для вычислений</h3>
+              <p>`python-run` блоки выполняются с pandas, sympy, scipy и matplotlib, а ошибки возвращаются Writer'у для исправления.</p>
+            </article>
+            <article class="lesson-card">
+              <span>03</span>
+              <h3>Таблицы и визуализации</h3>
+              <p>Аналитические документы могут включать вычисленные значения, таблицы, формулы и графики, а export layer переносит результат в DOCX/PDF.</p>
+            </article>
+            <article class="lesson-card">
+              <span>04</span>
+              <h3>Критический контроль</h3>
+              <p>Self-critique, Reviewer, quality gate и contract drift checks ловят слабые места, genre drift, AI markers и нарушенные constraints.</p>
+            </article>
+          </div>
+
+          <div class="guide-strip">
+            <div>
+              <strong>Нужен подробный walkthrough?</strong>
+              <span>Отдельный guide объясняет режимы, OCR/research, sandbox, continuation и export без чтения кода.</span>
+            </div>
+            <a class="button secondary" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/USAGE_GUIDE.md">Открыть гайд</a>
+          </div>
+        </section>
+
+        <section class="section" id="pipeline">
           <div class="section-header">
             <h2>FSM-оркестратор держит процесс читаемым.</h2>
             <p>
@@ -141,14 +214,15 @@
           <div class="pipeline">
             <div class="step"><b>01</b><strong>INIT</strong><span>runtime config, agents, run metadata</span></div>
             <div class="step"><b>02</b><strong>PLANNING</strong><span>template, manifest, document plan</span></div>
-            <div class="step"><b>03</b><strong>DRAFTING</strong><span>section writing and streaming deltas</span></div>
-            <div class="step"><b>04</b><strong>REVIEWING</strong><span>quality gates, reviewer, revisions</span></div>
-            <div class="step"><b>05</b><strong>RENDERING</strong><span>draft is finalized for export</span></div>
-            <div class="step"><b>06</b><strong>DONE</strong><span>history, registry, download actions</span></div>
+            <div class="step optional"><b>03</b><strong>RESEARCH</strong><span>optional OCR, web sources, planner-curated notes</span></div>
+            <div class="step"><b>04</b><strong>DRAFTING</strong><span>section writing and streaming deltas</span></div>
+            <div class="step"><b>05</b><strong>REVIEWING</strong><span>quality gates, reviewer, revisions</span></div>
+            <div class="step"><b>06</b><strong>RENDERING</strong><span>draft is finalized for export</span></div>
+            <div class="step"><b>07</b><strong>DONE</strong><span>history, registry, download actions</span></div>
           </div>
         </section>
 
-        <section class="section" id="start">
+        <section class="section alt" id="start">
           <div class="split">
             <div>
               <p class="eyebrow">local-first</p>
@@ -172,7 +246,7 @@ http://localhost:3000</code></pre>
           </div>
         </section>
 
-        <section class="section alt" id="docs">
+        <section class="section" id="docs">
           <div class="section-header">
             <h2>Документация по слоям проекта.</h2>
             <p>Технические документы остаются обычными Markdown-файлами в репозитории. GitHub отрендерит их напрямую.</p>
@@ -180,6 +254,8 @@ http://localhost:3000</code></pre>
           <div class="doc-list">
             <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/ARCHITECTURE.md"><strong>Architecture</strong><span>слои backend, UI, template, manifest, contract и registry</span></a>
             <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/ORCHESTRATION.md"><strong>Orchestration</strong><span>FSM, sequence flow, review loop и explicit export</span></a>
+            <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/PROJECT_CAPABILITIES.md"><strong>Project capabilities</strong><span>свод реализованных решений из публичных docs и dev notes</span></a>
+            <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/USAGE_GUIDE.md"><strong>Usage guide</strong><span>мини-учебник: режимы, sandbox, research, continuation и export</span></a>
             <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/AGENTS_AND_TOOLS.md"><strong>Agents and tools</strong><span>агенты, providers, sandbox, renderer и export QA</span></a>
             <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/MANIFEST_CONTRACT_ARCHITECTURE.md"><strong>Manifest contract architecture</strong><span>границы manifest/contract DSL</span></a>
             <a class="doc-link" href="https://github.com/Lotargo/Academic-Pipeline-Engine/blob/main/docs/OCR_AND_RESEARCH.md"><strong>OCR and research</strong><span>web crawling, OCR и leakage barrier</span></a>

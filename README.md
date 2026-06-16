@@ -253,6 +253,8 @@ pnpm run build
 - [Architecture](./docs/ARCHITECTURE.md)
 - [Orchestration](./docs/ORCHESTRATION.md)
 - [Configuration Guide](./docs/CONFIGURATION_GUIDE.md)
+- [Project Capabilities](./docs/PROJECT_CAPABILITIES.md)
+- [Usage Guide](./docs/USAGE_GUIDE.md)
 - [Agents and Tools](./docs/AGENTS_AND_TOOLS.md)
 - [Manifest Contract Architecture](./docs/MANIFEST_CONTRACT_ARCHITECTURE.md)
 - [Registry System](./docs/REGISTRY_SYSTEM.md)

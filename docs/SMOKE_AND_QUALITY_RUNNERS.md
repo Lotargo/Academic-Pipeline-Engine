@@ -8,7 +8,7 @@
 
 ## 1. Смоук-раннер OCR и исследований (`ocr_research_smoke_runner.py`)
 
-Расположен в [ocr_research_smoke_runner.py](file:///f:/projects/Academic-Pipeline-Engine/scripts/ocr_research_smoke_runner.py). Этот скрипт предназначен для быстрой проверки доменных границ пайплайна.
+Расположен в [`ocr_research_smoke_runner.py`](../scripts/ocr_research_smoke_runner.py). Этот скрипт предназначен для быстрой проверки доменных границ пайплайна.
 
 ### Каталог сценариев:
 - **`web_search_off_standard_pipeline`**: Проверяет, что пайплайн успешно выполняется в стандартном режиме, когда веб-поиск выключен, и исследовательский агент не делает запросов.
@@ -31,7 +31,7 @@ poetry run python scripts/ocr_research_smoke_runner.py <scenario_id>
 
 ## 2. Раннер качественной оценки OCR (`ocr_research_quality_eval_runner.py`)
 
-Расположен в [ocr_research_quality_eval_runner.py](file:///f:/projects/Academic-Pipeline-Engine/scripts/ocr_research_quality_eval_runner.py). Оценивает точность распознавания сложных элементов (формул LaTeX, табличной структуры, ссылок) после обработки через OCR.
+Расположен в [`ocr_research_quality_eval_runner.py`](../scripts/ocr_research_quality_eval_runner.py). Оценивает точность распознавания сложных элементов (формул LaTeX, табличной структуры, ссылок) после обработки через OCR.
 
 ### Каталог сценариев:
 - **`simple_latex_paper`**: Компилирует тестовую статью с простыми формулами LaTeX, прогоняет через Mistral OCR и проверяет полноту сохранения формул.
@@ -48,7 +48,7 @@ poetry run python scripts/ocr_research_quality_eval_runner.py <scenario_id>
 
 ## 3. Смоук-раннер продолжения документов (`continuation_smoke_runner.py`)
 
-Расположен в [continuation_smoke_runner.py](file:///f:/projects/Academic-Pipeline-Engine/scripts/continuation_smoke_runner.py). Тестирует различные режимы продолжения и слияния документов.
+Расположен в [`continuation_smoke_runner.py`](../scripts/continuation_smoke_runner.py). Тестирует различные режимы продолжения и слияния документов.
 
 ### Каталог сценариев:
 - **`creative_continuation`**: Продолжение художественного рассказа. Проверяет бесшовное слияние без дублирования экспозиций или ввода служебных заголовков.
