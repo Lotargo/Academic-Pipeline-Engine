@@ -848,8 +848,8 @@ export function Search() {
 
           {/* Standard Input Workspace Tab */}
           {!selectedPaper && activeTab === "workspace" && (
-            <div className="h-full w-full overflow-y-auto flex items-center justify-center px-4 py-8">
-              <div className="w-full max-w-3xl space-y-8">
+            <div className="h-full w-full overflow-y-auto flex justify-center px-4 pb-10 pt-12 md:pt-16">
+              <div className="w-full max-w-3xl space-y-7">
                 
                 {/* Visual Intro */}
                 <div className="text-center space-y-3">
