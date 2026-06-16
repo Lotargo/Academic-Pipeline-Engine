@@ -10,6 +10,16 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ArrowUp, ArrowDown, Trash2, Plus, Save, RotateCcw, Sliders, Settings2, AlertTriangle, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type DocumentTemplateSummary = {
   id: string
@@ -32,6 +42,7 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
   const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({})
   const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplateSummary[]>([])
   const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({})
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
   const toggleShowApiKey = (provider: string) => {
     setShowApiKeys(prev => ({ ...prev, [provider]: !prev[provider] }))
@@ -86,15 +97,12 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
     }
   }
 
-  const handleHardReset = async () => {
-    const confirmMessage = language === "ru"
-      ? "ВНИМАНИЕ! Это действие ПОЛНОСТЬЮ удалит всю историю генераций, все загруженные файлы и очистит базу данных. Это действие НЕОБРАТИМО. Вы уверены, что хотите продолжить?"
-      : "WARNING! This action will PERMANENTLY delete all generation history, all uploaded files, and clear the database. This action is IRREVERSIBLE. Are you sure you want to proceed?";
-      
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
-    
+  const handleHardReset = () => {
+    setResetDialogOpen(true);
+  };
+
+  const executeHardReset = async () => {
+    setResetDialogOpen(false);
     try {
       const res = await fetch("/api/history/reset", {
         method: "POST"
@@ -1374,6 +1382,33 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
             </Button>
           </div>
         </div>
+
+        <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+          <AlertDialogContent className="border border-destructive/20 bg-background">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 animate-pulse" />
+                {language === "ru" ? "Подтвердите жесткий сброс" : "Confirm Hard Reset"}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-foreground/80 leading-relaxed text-xs">
+                {language === "ru"
+                  ? "ВНИМАНИЕ! Это действие ПОЛНОСТЬЮ удалит всю историю генераций, все загруженные файлы и очистит базу данных. Это действие НЕОБРАТИМО. Вы уверены, что хотите продолжить?"
+                  : "WARNING! This action will PERMANENTLY delete all generation history, all uploaded files, and clear the database. This action is IRREVERSIBLE. Are you sure you want to proceed?"}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="mt-4 gap-2">
+              <AlertDialogCancel className="text-xs">
+                {language === "ru" ? "Отмена" : "Cancel"}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={executeHardReset}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs"
+              >
+                {language === "ru" ? "Да, удалить всё" : "Yes, delete everything"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )
