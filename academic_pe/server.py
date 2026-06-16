@@ -1835,7 +1835,6 @@ def inspect_registry_run(run_id: str):
 
 # New Routes for Secrets and Models Manager
 from academic_pe.core.secrets import is_secret_configured, save_secret, get_secret
-import requests  # type: ignore
 from openai import OpenAI
 
 @app.get("/api/secrets")
@@ -1860,57 +1859,19 @@ def get_provider_models(provider: str, base_url: Optional[str] = None):
         return ["mock-model-1", "mock-model-2"]
         
     elif provider == "openai":
-        if not api_key:
-            return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
-        try:
-            client = OpenAI(api_key=api_key)
-            resp = client.models.list()
-            chat_models = [m.id for m in resp.data if any(x in m.id for x in ["gpt-4", "gpt-3.5", "o1", "o3", "chatgpt"])]
-            return chat_models if chat_models else [m.id for m in resp.data]
-        except Exception as e:
-            logging.getLogger(__name__).warning("OpenAI models list failed: %s", e)
-            return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
+        return ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]
             
     elif provider == "google":
-        if not api_key:
-            return ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-            r = requests.get(url, timeout=5)
-            if r.status_code == 200:
-                data = r.json()
-                models = []
-                for m in data.get("models", []):
-                    name = m.get("name", "")
-                    if name.startswith("models/"):
-                        name = name[7:]
-                    if "gemini" in name:
-                        models.append(name)
-                return models if models else ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
-        except Exception as e:
-            logging.getLogger(__name__).warning("Google models list failed: %s", e)
-        return ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+        return ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview"]
         
     elif provider == "anthropic":
-        if not api_key:
-            return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"]
-        try:
-            headers = {
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-            }
-            r = requests.get("https://api.anthropic.com/v1/models", headers=headers, timeout=5)
-            if r.status_code == 200:
-                data = r.json()
-                return [m["id"] for m in data.get("data", [])]
-        except Exception as e:
-            logging.getLogger(__name__).warning("Anthropic models list failed: %s", e)
-        return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"]
+        return ["Claude Opus 4.8", "Claude Sonnet 4.6", "Claude Haiku 4.5"]
         
-    elif provider in ["custom_openai", "lm_studio"]:
+    elif provider == "lm_studio":
+        return []
+
+    elif provider == "custom_openai":
         url = base_url
-        if not url:
-            url = "http://localhost:1234/v1" if provider == "lm_studio" else None
         if not url:
             return []
         try:
@@ -1922,15 +1883,7 @@ def get_provider_models(provider: str, base_url: Optional[str] = None):
             logging.getLogger(__name__).warning("Custom OpenAI/LM Studio models list failed: %s", e)
             return []
     elif provider == "zen":
-        if not api_key:
-            return ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro", "deepseek-coder"]
-        try:
-            client = OpenAI(api_key=api_key, base_url="https://opencode.ai/zen/v1")
-            resp = client.models.list()
-            return [m.id for m in resp.data]
-        except Exception as e:
-            logging.getLogger(__name__).warning("OpenCode Zen models list failed: %s", e)
-            return ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro", "deepseek-coder"]
+        return ["deepseek-v4-flash-free", "mimo-v2.5-free", "big-pickle"]
             
     return []
 

@@ -29,6 +29,14 @@ type DocumentTemplateSummary = {
   section_count?: number
 }
 
+const STATIC_PROVIDER_MODELS: Record<string, string[]> = {
+  mock: ["mock-model-1", "mock-model-2"],
+  openai: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"],
+  google: ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview"],
+  anthropic: ["Claude Opus 4.8", "Claude Sonnet 4.6", "Claude Haiku 4.5"],
+  zen: ["deepseek-v4-flash-free", "mimo-v2.5-free", "big-pickle"],
+}
+
 export function ConfigEditor({ language = "en" }: { language?: string }) {
   const [config, setConfig] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -131,14 +139,18 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
     }
   };
 
+  const setModelsForAgent = (agentKey: string, models: string[]) => {
+    if (agentKey === "writer") setWriterModels(models)
+    else if (agentKey === "reviewer") setReviewerModels(models)
+    else if (agentKey === "planner") setPlannerModels(models)
+    else if (agentKey === "researcher") setResearcherModels(models)
+    else if (agentKey === "example_generator") setExampleGeneratorModels(models)
+  }
+
   const fetchModelsForAgent = async (agentKey: string, provider: string, baseUrl?: string) => {
-    if (!provider || provider === "mock") {
-      const defaultModels = ["mock-model-1", "mock-model-2"]
-      if (agentKey === "writer") setWriterModels(defaultModels)
-      else if (agentKey === "reviewer") setReviewerModels(defaultModels)
-      else if (agentKey === "planner") setPlannerModels(defaultModels)
-      else if (agentKey === "researcher") setResearcherModels(defaultModels)
-      else if (agentKey === "example_generator") setExampleGeneratorModels(defaultModels)
+    const staticModels = STATIC_PROVIDER_MODELS[provider] || []
+    if (!provider || STATIC_PROVIDER_MODELS[provider] || provider === "lm_studio") {
+      setModelsForAgent(agentKey, staticModels)
       return
     }
     setLoadingModels(prev => ({ ...prev, [agentKey]: true }))
@@ -150,14 +162,11 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
       const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
-        if (agentKey === "writer") setWriterModels(data)
-        else if (agentKey === "reviewer") setReviewerModels(data)
-        else if (agentKey === "planner") setPlannerModels(data)
-        else if (agentKey === "researcher") setResearcherModels(data)
-        else if (agentKey === "example_generator") setExampleGeneratorModels(data)
+        setModelsForAgent(agentKey, Array.isArray(data) && data.length ? data : staticModels)
       }
     } catch (e) {
       console.error(`Error fetching models for ${agentKey}:`, e)
+      setModelsForAgent(agentKey, staticModels)
     } finally {
       setLoadingModels(prev => ({ ...prev, [agentKey]: false }))
     }
@@ -394,17 +403,32 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                 )}
               </div>
               <Input
-                list={`${agentKey}-models-list`}
                 value={agent.model || ""}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleAgentChange(agentKey, "model", e.target.value)}
                 placeholder={language === "ru" ? "Выберите или введите название модели" : "Select or type model name"}
                 className="h-9 text-xs"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                name={`${agentKey}-llm-model`}
               />
-              <datalist id={`${agentKey}-models-list`}>
-                {agentModels.map((m: string) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
+              {agentModels.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {agentModels.map((m: string) => (
+                    <Button
+                      key={m}
+                      type="button"
+                      variant={agent.model === m ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleAgentChange(agentKey, "model", m)}
+                      className="h-7 max-w-full px-2 text-[11px] font-medium"
+                    >
+                      <span className="max-w-[13rem] truncate">{m}</span>
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -436,6 +460,13 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                       }}
                       placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
                       className="h-9 text-xs pr-10 w-full"
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      name={`${provider}-provider-secret`}
+                      data-lpignore="true"
+                      data-1p-ignore="true"
                     />
                     <button
                       type="button"
