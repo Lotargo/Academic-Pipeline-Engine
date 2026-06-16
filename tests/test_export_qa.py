@@ -1,5 +1,5 @@
 from academic_pe.core.config import AgentConfig, AppConfig, PipelineConfig, SectionPrompt
-from academic_pe.tools.export_qa import export_docx_with_qa, export_pdf_with_qa, render_docx_pages, resolve_export_filename, sanitize_filename
+from academic_pe.tools.export_qa import export_docx_with_qa, export_pdf_with_qa, inspect_docx_artifacts, render_docx_pages, resolve_export_filename, sanitize_filename
 from academic_pe.tools.libreoffice import discover_soffice
 
 
@@ -68,6 +68,90 @@ def test_export_docx_with_qa_creates_docx_when_visual_qa_skipped(monkeypatch, tm
     assert result.status == "passed"
     assert result.render.status == "skipped"
     assert any(issue.severity == "warning" for issue in result.issues)
+
+
+def test_export_qa_ignores_markdown_markers_inside_code_blocks(monkeypatch, tmp_path):
+    monkeypatch.setattr("academic_pe.tools.export_qa.discover_soffice", lambda: type(
+        "Discovery",
+        (),
+        {
+            "available": False,
+            "executable": None,
+            "install_hint": "Install LibreOffice",
+        },
+    )())
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(role="Writer", model="mock", temperature=0, system_prompt="test"),
+        },
+        pipeline=PipelineConfig(
+            sections=[SectionPrompt(name="theory", topic="Theory", instruction="")],
+            output_dir=str(tmp_path),
+            output_filename="paper.docx",
+        ),
+    )
+
+    result = export_docx_with_qa(
+        {
+            "theory": (
+                "```python\n"
+                "def run():\n"
+                "    # This is a valid Python comment, not a Markdown heading.\n"
+                "    return '$HOME'\n"
+                "```"
+            )
+        },
+        config,
+    )
+
+    assert result.status == "passed"
+    assert not any("Markdown or LaTeX delimiter" in issue.message for issue in result.issues)
+    assert not any("raw dollar signs" in issue.message for issue in result.issues)
+
+
+def test_inspect_docx_artifacts_flags_raw_markdown_outside_code(tmp_path):
+    from docx import Document
+
+    docx_path = tmp_path / "raw.docx"
+    doc = Document()
+    doc.add_paragraph("# Raw Markdown Heading")
+    doc.save(docx_path)
+
+    issues = inspect_docx_artifacts(str(docx_path), required_sections=[])
+
+    assert any("Markdown or LaTeX delimiter" in issue.message for issue in issues)
+
+
+def test_export_docx_can_disable_export_qa(monkeypatch, tmp_path):
+    monkeypatch.setattr("academic_pe.tools.export_qa.discover_soffice", lambda: type(
+        "Discovery",
+        (),
+        {
+            "available": False,
+            "executable": None,
+            "install_hint": "Install LibreOffice",
+        },
+    )())
+
+    config = AppConfig(
+        agents={
+            "writer": AgentConfig(role="Writer", model="mock", temperature=0, system_prompt="test"),
+        },
+        pipeline=PipelineConfig(
+            sections=[SectionPrompt(name="theory", topic="Theory", instruction="")],
+            output_dir=str(tmp_path),
+            output_filename="paper.docx",
+        ),
+    )
+    config.export_qa.enabled = False
+
+    result = export_docx_with_qa({"theory": "## Heading\n\nBody text."}, config)
+
+    assert result.status == "passed"
+    assert result.issues == []
+    assert result.render.status == "skipped"
+    assert result.render.message == "Export QA disabled in settings."
 
 
 def test_export_docx_with_qa_uses_title_for_default_filename(monkeypatch, tmp_path):

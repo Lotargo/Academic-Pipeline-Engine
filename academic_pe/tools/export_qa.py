@@ -51,7 +51,8 @@ class ExportResult:
         }
 
 
-_RAW_MARKDOWN_RE = re.compile(r"(^|\s)(#{1,6}\s|\*\*[^*]+\*\*|\$[^$]+\$|\$\$[^$]+\$\$)")
+_RAW_MARKDOWN_RE = re.compile(r"(^|\s)(\*\*[^*]+\*\*|\$[^$]+\$|\$\$[^$]+\$\$)")
+_RAW_MARKDOWN_HEADING_RE = re.compile(r"^\s*#{1,6}\s+\S+")
 DEFAULT_EXPORT_FILENAME = "Final_Academic_Paper.docx"
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 _UNSAFE_FILENAME_CHARS_RE = re.compile(r'[*?"<>|]')
@@ -145,14 +146,23 @@ def inspect_docx_artifacts(docx_path: str, required_sections: List[str]) -> List
     issues: List[ExportIssue] = []
     document = Document(docx_path)
     full_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    qa_text = "\n".join(
+        paragraph.text
+        for paragraph in document.paragraphs
+        if not _paragraph_is_code_block(paragraph)
+    )
 
     if not full_text.strip():
         issues.append(ExportIssue("error", "DOCX contains no paragraph text."))
 
-    if _RAW_MARKDOWN_RE.search(full_text):
+    if _RAW_MARKDOWN_RE.search(qa_text) or any(
+        _RAW_MARKDOWN_HEADING_RE.search(paragraph.text or "")
+        for paragraph in document.paragraphs
+        if not _paragraph_is_code_block(paragraph)
+    ):
         issues.append(ExportIssue("error", "DOCX contains visible Markdown or LaTeX delimiter artifacts."))
 
-    if "$" in full_text:
+    if "$" in qa_text:
         issues.append(ExportIssue("error", "DOCX contains raw dollar signs from LaTeX formulas."))
 
     for section in required_sections:
@@ -164,6 +174,13 @@ def inspect_docx_artifacts(docx_path: str, required_sections: List[str]) -> List
             issues.append(ExportIssue("warning", "DOCX contains an empty table."))
 
     return issues
+
+
+def _paragraph_is_code_block(paragraph) -> bool:
+    text_runs = [run for run in paragraph.runs if (run.text or "").strip()]
+    if not text_runs:
+        return False
+    return all((run.font.name or "") == "Consolas" for run in text_runs)
 
 
 def render_docx_pages(docx_path: str, qa_dir: str) -> RenderResult:
@@ -213,6 +230,16 @@ def export_docx_with_qa(content: Dict[str, str], config: AppConfig, output_filen
     docx_path = os.path.join(output_dir, filename)
     render_paper(content, output_filename=docx_path, config=config)
 
+    export_qa_cfg = getattr(config, "export_qa", None)
+    if export_qa_cfg is not None and not getattr(export_qa_cfg, "enabled", True):
+        return ExportResult(
+            status="passed",
+            filename=filename,
+            path=docx_path,
+            issues=[],
+            render=RenderResult(status="skipped", message="Export QA disabled in settings."),
+        )
+
     issues = inspect_docx_artifacts(
         docx_path,
         required_sections=[section.name for section in renderable_sections(config.pipeline.sections)],
@@ -238,19 +265,35 @@ def export_pdf_with_qa(content: Dict[str, str], config: AppConfig, output_filena
     pdf_path = os.path.join(output_dir, filename)
 
     issues: List[ExportIssue] = []
+    export_qa_cfg = getattr(config, "export_qa", None)
     with tempfile.TemporaryDirectory() as tmp_dir:
         docx_filename = resolve_export_filename(config.pipeline.title, requested_filename, extension=".docx")
         docx_path = os.path.join(tmp_dir, docx_filename)
         render_paper(content, output_filename=docx_path, config=config)
 
-        issues.extend(
-            inspect_docx_artifacts(
-                docx_path,
-                required_sections=[section.name for section in renderable_sections(config.pipeline.sections)],
+        if export_qa_cfg is None or getattr(export_qa_cfg, "enabled", True):
+            issues.extend(
+                inspect_docx_artifacts(
+                    docx_path,
+                    required_sections=[section.name for section in renderable_sections(config.pipeline.sections)],
+                )
             )
-        )
 
         render_result = convert_docx_to_pdf(docx_path, output_dir, output_filename=filename)
+
+    if export_qa_cfg is not None and not getattr(export_qa_cfg, "enabled", True):
+        disabled_issues: List[ExportIssue] = []
+        if render_result.status == "failed":
+            disabled_issues.append(ExportIssue("error", f"PDF conversion failed: {render_result.message}"))
+        elif render_result.status == "skipped":
+            disabled_issues.append(ExportIssue("error", render_result.message))
+        return ExportResult(
+            status="failed" if any(issue.severity == "error" for issue in disabled_issues) else "passed",
+            filename=filename,
+            path=pdf_path,
+            issues=disabled_issues,
+            render=render_result,
+        )
 
     if render_result.status == "failed":
         issues.append(ExportIssue("error", f"PDF conversion failed: {render_result.message}"))

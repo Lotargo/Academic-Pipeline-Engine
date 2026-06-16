@@ -249,6 +249,13 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
       if (data.dynamic_examples_interval_mins === undefined) {
         data.dynamic_examples_interval_mins = 15
       }
+      if (!data.export_qa) {
+        data.export_qa = {
+          enabled: true,
+          auto_repair_enabled: false,
+          warnings_log_enabled: true,
+        }
+      }
       if (!data.pipeline.template_mode) {
         data.pipeline.template_mode = "custom"
       }
@@ -580,6 +587,16 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
           ...prev.quality_gate[gateKey],
           [field]: value,
         },
+      },
+    }))
+  }
+
+  const handleExportQAChange = (field: string, value: any) => {
+    setConfig((prev: any) => ({
+      ...prev,
+      export_qa: {
+        ...(prev.export_qa || {}),
+        [field]: value,
       },
     }))
   }
@@ -1102,6 +1119,45 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
               {/* Active Agent Configuration Panel */}
               <div className="pt-2">
                 {renderAgentConfig(activeAgentTab)}
+              </div>
+
+              <div className="rounded-lg border p-4 bg-muted/20 space-y-4">
+                <h3 className="font-semibold text-sm text-foreground border-b pb-2">Export QA</h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <label className="text-xs font-semibold">Export QA Checks</label>
+                      <p className="text-[10px] text-muted-foreground">Inspect generated DOCX/PDF artifacts after export.</p>
+                    </div>
+                    <Switch
+                      checked={config?.export_qa?.enabled ?? true}
+                      onCheckedChange={(val: boolean) => handleExportQAChange("enabled", val)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <label className="text-xs font-semibold">Auto Repair</label>
+                      <p className="text-[10px] text-muted-foreground">Allow export QA to run safe repair passes for renderer issues.</p>
+                    </div>
+                    <Switch
+                      checked={config?.export_qa?.auto_repair_enabled ?? false}
+                      onCheckedChange={(val: boolean) => handleExportQAChange("auto_repair_enabled", val)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <label className="text-xs font-semibold">Warnings Log</label>
+                      <p className="text-[10px] text-muted-foreground">Keep timestamped QA warnings for later batch fixes.</p>
+                    </div>
+                    <Switch
+                      checked={config?.export_qa?.warnings_log_enabled ?? true}
+                      onCheckedChange={(val: boolean) => handleExportQAChange("warnings_log_enabled", val)}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Quality Gates Config */}

@@ -104,6 +104,15 @@ class QualityGateConfig(BaseModel):
     markdown: MarkdownGateConfig = MarkdownGateConfig()
 
 
+class ExportQAConfig(BaseModel):
+    enabled: bool = True
+    auto_repair_enabled: bool = False
+    warnings_log_enabled: bool = True
+    provider: ProviderEnum = ProviderEnum.zen
+    model: str = "mimo-v2.5-free"
+    temperature: float = Field(default=0.1, ge=0.0, le=2.0)
+
+
 class TransitionConfig(BaseModel):
     from_state: str
     to_states: List[str]
@@ -154,6 +163,7 @@ class AppConfig(BaseModel):
     retry: RetryConfig = RetryConfig()
     circuit_breaker: CircuitBreakerConfig = CircuitBreakerConfig()
     quality_gate: QualityGateConfig = QualityGateConfig()
+    export_qa: ExportQAConfig = ExportQAConfig()
     fsm: FSMConfig = FSMConfig()
     style: StyleConfig = StyleConfig()
     ui: UIConfig = UIConfig()
@@ -188,6 +198,9 @@ def load_config(path: str = "config/agents.yaml") -> AppConfig:
 
     if "dynamic_examples_interval_mins" not in data:
         data["dynamic_examples_interval_mins"] = 15
+
+    if "export_qa" not in data:
+        data["export_qa"] = {}
 
     if "agents" not in data:
         data["agents"] = {}

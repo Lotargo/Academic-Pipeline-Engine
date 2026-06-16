@@ -205,6 +205,21 @@ quality_gate:
     enabled: true # rejects raw fenced-code delimiters in final section text
 
 # ---------------------------------------------------------------------------
+# Export QA
+# ---------------------------------------------------------------------------
+# Checks explicit DOCX/PDF exports after rendering.
+# auto_repair_enabled is intentionally separate: when disabled, export QA still
+# records warnings/reports but must not try to repair artifacts automatically.
+
+export_qa:
+  enabled: true
+  auto_repair_enabled: false
+  warnings_log_enabled: true
+  provider: zen
+  model: mimo-v2.5-free
+  temperature: 0.1
+
+# ---------------------------------------------------------------------------
 # State Machine Surface
 # ---------------------------------------------------------------------------
 # This documents the validated state vocabulary. The current orchestrator uses

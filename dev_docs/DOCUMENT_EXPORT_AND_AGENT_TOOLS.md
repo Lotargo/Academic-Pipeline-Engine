@@ -85,10 +85,40 @@ agents:
 
 Later, provider metadata can be used to auto-detect capabilities, but explicit config is the safer initial implementation.
 
+2026-06-17 update: the safer near-term design is a separate export vision QA
+layer, not the main reviewer loop. The reviewer remains responsible for content,
+contract, and consistency checks before export. Export vision QA inspects rendered
+DOCX/PDF pages after export and reports renderer/conversion defects. This avoids
+sending renderer bugs back to the writer/reviewer loop, where text agents would
+try to fix problems they did not cause.
+
+The current validated shape is:
+
+```yaml
+export_qa:
+  enabled: true
+  auto_repair_enabled: false
+  warnings_log_enabled: true
+  provider: zen
+  model: mimo-v2.5-free
+  temperature: 0.1
+```
+
+`auto_repair_enabled=false` means export QA still runs and records reports, but
+must not mutate the artifact or trigger repair passes. This is the default until
+the repair protocol, UI notifications, warning log viewer, and documentation are
+implemented end to end.
+
 If vision is unavailable, the system should still run structural QA and log:
 
 ```text
 Visual QA skipped: reviewer vision capability is disabled.
+```
+
+For the separate export QA layer, the equivalent log should be:
+
+```text
+Export vision QA skipped: provider/model or rendered page images are unavailable.
 ```
 
 ### 4. Agent Edits Must Use Document Tools
@@ -195,6 +225,7 @@ Visual checks should run when possible:
 - Page count is non-zero.
 - No conversion failure occurred.
 - Multimodal reviewer inspects pages for visible layout defects:
+- Export vision QA inspects pages for visible layout defects:
   - clipped text;
   - overlapping content;
   - broken tables;
@@ -202,6 +233,22 @@ Visual checks should run when possible:
   - awkward spacing;
   - unreadable contrast;
   - visible Markdown artifacts.
+
+Validated smoke behavior:
+
+- `scripts/export_vision_qa_smoke_runner.py --provider zen --model mimo-v2.5-free`
+  detected a synthetic broken export page with raw Markdown link, table, and code
+  fence syntax and classified it as `conversion_issue`.
+- `scripts/export_vision_qa_smoke_runner.py --provider zen --model mimo-v2.5-free --clean`
+  passed a clean synthetic page with no findings.
+- Smoke notes are recorded in `dev_docs/EXPORT_VISION_QA_SMOKE_NOTES.md`; raw
+  JSONL/image artifacts are under ignored `exports/_smoke_export_vision_qa/`.
+
+Integration is intentionally deferred. Wiring this into the live export endpoint
+would require coordinated updates to pipeline behavior, UI warning surfaces,
+QA warning persistence, documentation, and landing/public docs. The current code
+keeps the runner and tests as proof that the approach works without changing the
+main export path.
 
 ## Suggested Implementation Order
 
@@ -211,16 +258,20 @@ Visual checks should run when possible:
 4. Add `POST /api/export/docx`.
 5. Add structural export QA.
 6. Add PNG render step using discovered `soffice`.
-7. Add capability-gated visual QA.
+7. Add capability-gated visual QA in report-only mode.
 8. Add document tool protocol for safe edits.
 9. Add UI action: regenerate with clarification.
 10. Add selected-text refine workflow.
+11. Add export QA warning log modal and JSONL persistence.
+12. Add optional export QA auto-repair behind `export_qa.auto_repair_enabled`.
 
 ## Non-Goals For The First Pass
 
 - Do not bundle LibreOffice installers in the repository.
 - Do not require a vision model for export.
 - Do not let agents directly overwrite full documents for selected-text edits.
+- Do not let export vision QA rewrite document content.
+- Do not trigger writer/reviewer loops for renderer-only export defects.
 - Do not add PostgreSQL/MongoDB until the document/session/history model is clearer.
 
 ## Open Questions

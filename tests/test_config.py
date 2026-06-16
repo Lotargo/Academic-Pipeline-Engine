@@ -1,8 +1,11 @@
 from academic_pe.core.config import load_config
 
 
+EXAMPLE_CONFIG = "config/agents.example.yaml"
+
+
 def test_load_config():
-    config = load_config("config/agents.yaml")
+    config = load_config(EXAMPLE_CONFIG)
 
     assert config is not None
     assert "writer" in config.agents
@@ -26,20 +29,20 @@ def test_load_config():
 
 
 def test_config_has_circuit_breaker():
-    config = load_config("config/agents.yaml")
+    config = load_config(EXAMPLE_CONFIG)
     assert config.circuit_breaker.enabled is False
     assert config.circuit_breaker.failure_threshold == 5
     assert config.circuit_breaker.recovery_timeout == 30.0
 
 
 def test_config_has_output_fields():
-    config = load_config("config/agents.yaml")
+    config = load_config(EXAMPLE_CONFIG)
     assert config.pipeline.output_filename == "Final_Academic_Paper.docx"
     assert config.pipeline.output_dir == "exports"
 
 
 def test_config_agent_type_optional():
-    config = load_config("config/agents.yaml")
+    config = load_config(EXAMPLE_CONFIG)
     assert config.agents["writer"].agent_type is None
 
 
@@ -62,6 +65,12 @@ def test_config_defaults():
     assert cfg.pipeline.template_mode == "custom"
     assert cfg.pipeline.template_id is None
     assert cfg.ui.language == "ru"
+    assert cfg.export_qa.enabled is True
+    assert cfg.export_qa.auto_repair_enabled is False
+    assert cfg.export_qa.warnings_log_enabled is True
+    assert cfg.export_qa.provider == "zen"
+    assert cfg.export_qa.model == "mimo-v2.5-free"
+    assert cfg.export_qa.temperature == 0.1
     assert cfg.agents["test"].self_critique.enabled is False
     assert cfg.agents["test"].self_critique.temperature is None
     assert cfg.agents["test"].reasoning_effort is None
@@ -69,14 +78,14 @@ def test_config_defaults():
 
 def test_config_has_template_selection_fields():
     from academic_pe.core.config import TemplateMode
-    config = load_config("config/agents.yaml")
+    config = load_config(EXAMPLE_CONFIG)
 
     assert isinstance(config.pipeline.template_mode, TemplateMode)
     assert config.pipeline.template_id is None or isinstance(config.pipeline.template_id, str)
 
 
 def test_config_prompts_are_artifact_aware():
-    config = load_config("config/agents.yaml")
+    config = load_config(EXAMPLE_CONFIG)
 
     planner_prompt = config.agents["planner"].system_prompt
     example_prompt = config.agents["example_generator"].system_prompt
