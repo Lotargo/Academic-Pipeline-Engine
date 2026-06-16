@@ -127,7 +127,7 @@ npm install
 npm run dev
 ```
 
-Интерактивные launchers:
+Скрипты автоматического запуска (локальный запуск backend и frontend в один клик):
 
 ```powershell
 .\run.bat
