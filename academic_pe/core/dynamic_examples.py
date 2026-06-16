@@ -18,8 +18,7 @@ _dynamic_examples_cache: List[Dict[str, str]] = []
 last_generated_at: float = 0.0
 
 _examples_lock = asyncio.Lock()
-_generation_state_lock = threading.Lock()
-_generation_in_progress = False
+_examples_generation_lock = asyncio.Lock()
 _DYNAMIC_EXAMPLES_PATH = "config/dynamic_examples.json"
 _DYNAMIC_EXAMPLES_META_PATH = "config/dynamic_examples_meta.json"
 _PREVIOUS_EXAMPLE_LIMIT = 3
@@ -125,42 +124,36 @@ def clean_and_parse_json(text: str) -> List[Dict[str, str]]:
 async def generate_new_examples(timeout_seconds: Optional[float] = None):
     """
     Invokes the Example Generator agent to formulate 3 new artifact requests.
+    Serializes requests using an asyncio.Lock to prevent overlapping runs,
+    skips execution if examples were generated recently, and propagates exceptions.
     """
     global _dynamic_examples_cache, last_generated_at
-    try:
-        config = load_config("config/agents.yaml")
-    except Exception as e:
-        logger.error("Failed to load config for dynamic examples generation: %s", e)
-        return
 
-    if not getattr(config, "dynamic_examples_enabled", True):
-        logger.info("Dynamic examples generation is disabled in settings. Skipping.")
-        return
-
-    global _generation_in_progress
-    with _generation_state_lock:
-        if _generation_in_progress:
-            logger.info("Dynamic examples generation is already in progress. Skipping overlapping refresh.")
+    async with _examples_generation_lock:
+        # Avoid running a new generation if one just finished in the last 10 seconds
+        if time.time() - last_generated_at < 10.0:
+            logger.info("Dynamic examples were generated very recently. Skipping generation.")
             return
-        _generation_in_progress = True
 
-    agent_cfg = config.agents.get("example_generator")
-    if not agent_cfg:
-        logger.warning("example_generator agent configuration not found in agents.yaml.")
-        with _generation_state_lock:
-            _generation_in_progress = False
-        return
+        config = load_config("config/agents.yaml")
+        if not getattr(config, "dynamic_examples_enabled", True):
+            logger.info("Dynamic examples generation is disabled in settings. Skipping.")
+            return
 
-    logger.info("Generating new dynamic examples via example_generator agent...")
+        agent_cfg = config.agents.get("example_generator")
+        if not agent_cfg:
+            logger.warning("example_generator agent configuration not found in agents.yaml.")
+            return
 
-    # Run in executor since BaseAgent calls block synchronously
-    loop = asyncio.get_running_loop()
+        logger.info("Generating new dynamic examples via example_generator agent...")
 
-    previous_examples = _load_previous_examples_for_prompt()
-    language_plan = _next_language_plan(config.ui.language)
+        # Run in executor since BaseAgent calls block synchronously
+        loop = asyncio.get_running_loop()
 
-    def run_agent():
-        try:
+        previous_examples = _load_previous_examples_for_prompt()
+        language_plan = _next_language_plan(config.ui.language)
+
+        def run_agent():
             agent = create_agent(
                 "example_generator",
                 agent_cfg,
@@ -174,46 +167,45 @@ async def generate_new_examples(timeout_seconds: Optional[float] = None):
                 language_plan=language_plan,
             )
             return agent.process(prompt)
-        finally:
-            global _generation_in_progress
-            with _generation_state_lock:
-                _generation_in_progress = False
 
-    try:
-        generation_future = loop.run_in_executor(None, run_agent)
-        if timeout_seconds is not None and timeout_seconds > 0:
-            raw_response = await asyncio.wait_for(asyncio.shield(generation_future), timeout=timeout_seconds)
-        else:
-            raw_response = await generation_future
-        parsed = clean_and_parse_json(raw_response)
+        try:
+            generation_future = loop.run_in_executor(None, run_agent)
+            if timeout_seconds is not None and timeout_seconds > 0:
+                raw_response = await asyncio.wait_for(asyncio.shield(generation_future), timeout=timeout_seconds)
+            else:
+                raw_response = await generation_future
+            parsed = clean_and_parse_json(raw_response)
 
-        # Validate structure
-        valid_examples = []
-        for item in parsed:
-            if isinstance(item, dict) and "topic" in item and "instructions" in item:
-                valid_examples.append({
-                    "topic": _truncate_text(item["topic"].strip(), _GENERATED_TOPIC_CHAR_LIMIT),
-                    "instructions": _truncate_text(item["instructions"].strip(), _GENERATED_INSTRUCTIONS_CHAR_LIMIT),
-                })
+            # Validate structure
+            valid_examples = []
+            for item in parsed:
+                if isinstance(item, dict) and "topic" in item and "instructions" in item:
+                    valid_examples.append({
+                        "topic": _truncate_text(item["topic"].strip(), _GENERATED_TOPIC_CHAR_LIMIT),
+                        "instructions": _truncate_text(item["instructions"].strip(), _GENERATED_INSTRUCTIONS_CHAR_LIMIT),
+                    })
 
-        if len(valid_examples) > 0:
-            async with _examples_lock:
-                _dynamic_examples_cache = valid_examples
-                last_generated_at = time.time()
+            if len(valid_examples) > 0:
+                async with _examples_lock:
+                    _dynamic_examples_cache = valid_examples
+                    last_generated_at = time.time()
 
-            # Save to file
-            os.makedirs("config", exist_ok=True)
-            with open(_DYNAMIC_EXAMPLES_PATH, "w", encoding="utf-8") as f:
-                json.dump(valid_examples, f, ensure_ascii=False, indent=2)
-            _save_dynamic_examples_meta(language_plan)
-            logger.info("Successfully updated and saved dynamic examples.")
-        else:
-            logger.warning("Agent returned empty or invalid example list format.")
+                # Save to file
+                os.makedirs("config", exist_ok=True)
+                with open(_DYNAMIC_EXAMPLES_PATH, "w", encoding="utf-8") as f:
+                    json.dump(valid_examples, f, ensure_ascii=False, indent=2)
+                _save_dynamic_examples_meta(language_plan)
+                logger.info("Successfully updated and saved dynamic examples.")
+            else:
+                logger.warning("Agent returned empty or invalid example list format.")
+                raise ValueError("Agent returned empty or invalid example list format.")
 
-    except asyncio.TimeoutError:
-        logger.warning("Dynamic examples generation timed out after %.1fs; keeping cached examples.", timeout_seconds)
-    except Exception as e:
-        logger.exception("Error generating dynamic examples: %s", e)
+        except asyncio.TimeoutError as te:
+            logger.warning("Dynamic examples generation timed out after %.1fs; keeping cached examples.", timeout_seconds)
+            raise te
+        except Exception as e:
+            logger.exception("Error generating dynamic examples: %s", e)
+            raise e
 
 
 def build_dynamic_examples_prompt(

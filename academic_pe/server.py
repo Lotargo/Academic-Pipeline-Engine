@@ -570,7 +570,7 @@ async def refresh_examples():
             "dynamic": True
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=f"Failed to generate new examples: {str(e)}")
 
 
 def _build_prompt_enhancement_prompt(

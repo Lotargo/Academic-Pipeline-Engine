@@ -180,3 +180,61 @@ def test_next_language_plan_uses_metadata_to_alternate(tmp_path, monkeypatch):
 
     meta_path.write_text('{"last_primary_language": "en"}', encoding="utf-8")
     assert _next_language_plan("ru") == ["ru", "ru", "en"]
+
+
+@pytest.mark.anyio
+async def test_generate_new_examples_serialization_and_skip(tmp_path, monkeypatch):
+    import asyncio
+    import time
+    import json
+    from types import SimpleNamespace
+    from academic_pe.core.dynamic_examples import generate_new_examples
+    import academic_pe.core.dynamic_examples
+
+    # Patch paths to temp dir
+    monkeypatch.setattr(academic_pe.core.dynamic_examples, "_DYNAMIC_EXAMPLES_PATH", str(tmp_path / "dynamic_examples.json"))
+    monkeypatch.setattr(academic_pe.core.dynamic_examples, "_DYNAMIC_EXAMPLES_META_PATH", str(tmp_path / "dynamic_examples_meta.json"))
+
+    # Reset cache state
+    monkeypatch.setattr(academic_pe.core.dynamic_examples, "_dynamic_examples_cache", [])
+    monkeypatch.setattr(academic_pe.core.dynamic_examples, "last_generated_at", 0.0)
+
+    # Mock configuration
+    mock_agent_cfg = SimpleNamespace(role="Example Generator", model="m", temperature=0.5, system_prompt="test")
+    mock_config = SimpleNamespace(
+        dynamic_examples_enabled=True,
+        ui=SimpleNamespace(language="ru"),
+        agents={"example_generator": mock_agent_cfg},
+        retry=SimpleNamespace(max_retries=1, base_delay=1, max_delay=5),
+        circuit_breaker=SimpleNamespace(enabled=False)
+    )
+    monkeypatch.setattr("academic_pe.core.dynamic_examples.load_config", lambda path: mock_config)
+
+    # Mock agent with simulated generation delay
+    call_count = 0
+    
+    class MockAgent:
+        def process(self, prompt):
+            nonlocal call_count
+            call_count += 1
+            time.sleep(0.3)
+            return json.dumps([
+                {"topic": f"Topic {call_count}", "instructions": f"Instructions {call_count}"}
+            ])
+
+    monkeypatch.setattr("academic_pe.core.dynamic_examples.create_agent", lambda *args, **kwargs: MockAgent())
+
+    # Run two concurrent generation requests
+    await asyncio.gather(
+        generate_new_examples(),
+        generate_new_examples()
+    )
+
+    # The MockAgent.process method should only be called once because the second call
+    # waits for the first one to finish and then returns early due to the < 10s check.
+    assert call_count == 1
+    
+    # Verify the cache got updated with Topic 1
+    cache = academic_pe.core.dynamic_examples._dynamic_examples_cache
+    assert len(cache) == 1
+    assert cache[0]["topic"] == "Topic 1"
