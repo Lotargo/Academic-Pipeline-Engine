@@ -1841,7 +1841,7 @@ from openai import OpenAI
 @app.get("/api/secrets")
 def get_secrets_status():
     providers = ["openai", "anthropic", "google", "custom_openai", "lm_studio", "zen"]
-    return {p: is_secret_configured(p) for p in providers}
+    return {p: get_secret(p) or "" for p in providers}
 
 @app.post("/api/secrets")
 def update_secret_endpoint(payload: SecretUpdatePayload):

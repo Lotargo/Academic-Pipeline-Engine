@@ -78,7 +78,14 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
       const res = await fetch("/api/secrets")
       if (res.ok) {
         const data = await res.json()
-        setSecretsStatus(data)
+        const statusMap: Record<string, boolean> = {}
+        const keysMap: Record<string, string> = {}
+        for (const [provider, key] of Object.entries(data)) {
+          statusMap[provider] = !!key
+          keysMap[provider] = (key as string) || ""
+        }
+        setSecretsStatus(statusMap)
+        setApiKeys(keysMap)
       }
     } catch (e) {
       console.error("Error loading secrets status:", e)
@@ -167,8 +174,8 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
       // Update secrets status
       await fetchSecretsStatus()
       
-      // Clear key input state
-      setApiKeys(prev => ({ ...prev, [provider]: "" }))
+      // Keep saved key in state to let the user view/edit it
+      // setApiKeys(prev => ({ ...prev, [provider]: "" }))
       
       // Trigger models fetch since key is updated
       if (config?.agents?.writer?.provider === provider) {
@@ -867,13 +874,13 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                               const val = e.target.value;
                               setApiKeys((prev: any) => ({ ...prev, [config.agents.writer.provider]: val }))
                             }}
-                            placeholder={secretsStatus[config.agents.writer.provider] ? "•••••••• (Saved)" : "Enter API Key"}
-                            className="h-8 text-xs pr-8 w-full"
+                            placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
+                            className="h-8 text-xs pr-10 w-full"
                           />
                           <button
                             type="button"
                             onClick={() => toggleShowApiKey(config.agents.writer.provider)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
                           >
                             {showApiKeys[config.agents.writer.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           </button>
@@ -991,13 +998,13 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                               const val = e.target.value;
                               setApiKeys((prev: any) => ({ ...prev, [config.agents.reviewer.provider]: val }))
                             }}
-                            placeholder={secretsStatus[config.agents.reviewer.provider] ? "•••••••• (Saved)" : "Enter API Key"}
-                            className="h-8 text-xs pr-8 w-full"
+                            placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
+                            className="h-8 text-xs pr-10 w-full"
                           />
                           <button
                             type="button"
                             onClick={() => toggleShowApiKey(config.agents.reviewer.provider)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
                           >
                             {showApiKeys[config.agents.reviewer.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           </button>
@@ -1115,13 +1122,13 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                               const val = e.target.value;
                               setApiKeys((prev: any) => ({ ...prev, [config.agents.planner.provider]: val }))
                             }}
-                            placeholder={secretsStatus[config.agents.planner.provider] ? "•••••••• (Saved)" : "Enter API Key"}
-                            className="h-8 text-xs pr-8 w-full"
+                            placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
+                            className="h-8 text-xs pr-10 w-full"
                           />
                           <button
                             type="button"
                             onClick={() => toggleShowApiKey(config.agents.planner.provider)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
                           >
                             {showApiKeys[config.agents.planner.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           </button>
@@ -1239,13 +1246,13 @@ export function ConfigEditor({ language = "en" }: { language?: string }) {
                               const val = e.target.value;
                               setApiKeys((prev: any) => ({ ...prev, [config.agents.example_generator.provider]: val }))
                             }}
-                            placeholder={secretsStatus[config.agents.example_generator.provider] ? "•••••••• (Saved)" : "Enter API Key"}
-                            className="h-8 text-xs pr-8 w-full"
+                            placeholder={language === "ru" ? "Введите API ключ" : "Enter API Key"}
+                            className="h-8 text-xs pr-10 w-full"
                           />
                           <button
                             type="button"
                             onClick={() => toggleShowApiKey(config.agents.example_generator.provider)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 p-0 flex items-center justify-center z-10"
                           >
                             {showApiKeys[config.agents.example_generator.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           </button>
