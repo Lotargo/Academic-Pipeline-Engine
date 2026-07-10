@@ -49,7 +49,7 @@ Part 2 включает многопользовательскую модель,
 - [x] **BE-02** — [ORM and Migrations](backend/BE-02-orm-and-migrations/PLAN.md) · [TODO](backend/BE-02-orm-and-migrations/TODO.md)
 - [x] **BE-03** — [Authentication and RBAC](backend/BE-03-auth-and-rbac/PLAN.md) · [TODO](backend/BE-03-auth-and-rbac/TODO.md)
 - [x] **BE-04** — [Admin Bootstrap](backend/BE-04-admin-bootstrap/PLAN.md) · [TODO](backend/BE-04-admin-bootstrap/TODO.md)
-- [ ] **BE-05** — [Secret Storage](backend/BE-05-secret-storage/PLAN.md) · [TODO](backend/BE-05-secret-storage/TODO.md)
+- [x] **BE-05** — [Secret Storage](backend/BE-05-secret-storage/PLAN.md) · [TODO](backend/BE-05-secret-storage/TODO.md)
 - [ ] **BE-06** — [Queue and Workers](backend/BE-06-queue-and-workers/PLAN.md) · [TODO](backend/BE-06-queue-and-workers/TODO.md)
 - [ ] **BE-07** — [Job State](backend/BE-07-job-state/PLAN.md) · [TODO](backend/BE-07-job-state/TODO.md)
 - [ ] **BE-08** — [Provider Routing](backend/BE-08-provider-routing/PLAN.md) · [TODO](backend/BE-08-provider-routing/TODO.md)

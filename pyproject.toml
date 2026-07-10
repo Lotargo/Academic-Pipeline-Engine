@@ -33,6 +33,7 @@ psycopg = {version = "^3.1", extras = ["binary"]}
 pwdlib = {version = "^0.3", extras = ["argon2"]}
 pyjwt = "^2.10"
 email-validator = "^2.0"
+cryptography = "^45.0"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -289,7 +289,10 @@ class Credential(TimestampMixin, Base):
         nullable=False,
     )
     encrypted_payload: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    wrapped_data_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    payload_nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     encryption_key_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    encryption_version: Mapped[int] = mapped_column(default=1, nullable=False)
 
 
 class UsageEvent(Base):
