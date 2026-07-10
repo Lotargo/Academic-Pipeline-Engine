@@ -104,6 +104,10 @@ class User(TimestampMixin, Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(
+        String(512), default="password-reset-required", nullable=False
+    )
+    token_version: Mapped[int] = mapped_column(default=0, nullable=False)
     actor_role: Mapped[ActorRole] = mapped_column(
         enum_type(ActorRole, "actor_role"), default=ActorRole.USER, nullable=False
     )
