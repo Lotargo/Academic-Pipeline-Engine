@@ -3,7 +3,7 @@
 from .models import (
     Capability,
     CredentialCandidate,
-    CredentialSource,
+    CredentialPolicy, CredentialSource,
     ModelMetadata,
     ProviderDefinition,
     ProviderHealth,
@@ -14,7 +14,7 @@ from .registry import InMemoryProviderRegistry, ProviderAdapter, ProviderRegistr
 from .router import ProviderRoutingError, ProviderRouter
 
 __all__ = [
-    "Capability", "CredentialCandidate", "CredentialSource", "ModelMetadata",
+    "Capability", "CredentialCandidate", "CredentialPolicy", "CredentialSource", "ModelMetadata",
     "ProviderDefinition", "ProviderHealth", "RouteRequest", "RoutingDecision",
     "InMemoryProviderRegistry", "ProviderAdapter", "ProviderRegistry",
     "ProviderRoutingError", "ProviderRouter",

@@ -21,6 +21,13 @@ class CredentialSource(str, Enum):
     NONE = "none"
 
 
+class CredentialPolicy(str, Enum):
+    USER_FIRST = "user_first"
+    PLATFORM_FIRST = "platform_first"
+    USER_ONLY = "user_only"
+    PLATFORM_ONLY = "platform_only"
+
+
 class ProviderHealth(str, Enum):
     HEALTHY = "healthy"
     DEGRADED = "degraded"
@@ -63,6 +70,7 @@ class RouteRequest:
     preferred_model: str | None = None
     allow_platform: bool = True
     allow_user: bool = True
+    credential_policy: CredentialPolicy = CredentialPolicy.USER_FIRST
 
 
 @dataclass(frozen=True)

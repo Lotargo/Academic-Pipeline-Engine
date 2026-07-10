@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 
 from .models import (
-    CredentialCandidate, CredentialSource, ProviderDefinition, ProviderHealth,
+    CredentialCandidate, CredentialPolicy, CredentialSource, ProviderDefinition, ProviderHealth,
     RouteRequest, RoutingDecision,
 )
 from .registry import ProviderRegistry
@@ -64,11 +64,15 @@ class ProviderRouter:
     def _ordered_credentials(self, request: RouteRequest,
                              provider: ProviderDefinition) -> list[CredentialCandidate]:
         allowed = set()
-        if request.allow_user:
+        if request.allow_user and request.credential_policy != CredentialPolicy.PLATFORM_ONLY:
             allowed.add(CredentialSource.USER)
-        if request.allow_platform:
+        if request.allow_platform and request.credential_policy != CredentialPolicy.USER_ONLY:
             allowed.add(CredentialSource.PLATFORM)
         candidates = [candidate for candidate in self.credentials(request, provider.id)
                       if candidate.provider_id == provider.id and candidate.source in allowed]
-        rank = {CredentialSource.USER: 0, CredentialSource.PLATFORM: 1, CredentialSource.NONE: 2}
+        platform_first = request.credential_policy in {
+            CredentialPolicy.PLATFORM_FIRST, CredentialPolicy.PLATFORM_ONLY}
+        rank = ({CredentialSource.PLATFORM: 0, CredentialSource.USER: 1, CredentialSource.NONE: 2}
+                if platform_first else
+                {CredentialSource.USER: 0, CredentialSource.PLATFORM: 1, CredentialSource.NONE: 2})
         return sorted(candidates, key=lambda item: (rank[item.source], str(item.credential_id or "")))

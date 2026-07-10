@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 
 from academic_pe.providers import (
-    Capability, CredentialCandidate, CredentialSource, InMemoryProviderRegistry,
+    Capability, CredentialCandidate, CredentialPolicy, CredentialSource, InMemoryProviderRegistry,
     ModelMetadata, ProviderDefinition, ProviderHealth, ProviderRouter, RouteRequest,
 )
 from academic_pe.providers.openai_compatible import custom_openai_provider
@@ -37,6 +37,22 @@ def test_platform_route_can_be_selected_when_byok_is_disabled():
     ])
     result = router.route(RouteRequest(Capability.TEXT_GENERATION, uuid4(), allow_user=False))
     assert result.credential_id == platform
+
+
+def test_platform_first_and_user_only_are_explicit_policies():
+    registry = InMemoryProviderRegistry(); registry.register(definition("openai"))
+    user, platform = uuid4(), uuid4()
+    candidates = lambda request, provider: [
+        CredentialCandidate(provider, CredentialSource.USER, user),
+        CredentialCandidate(provider, CredentialSource.PLATFORM, platform),
+    ]
+    router = ProviderRouter(registry, candidates)
+    platform_route = router.route(RouteRequest(Capability.TEXT_GENERATION, uuid4(),
+        credential_policy=CredentialPolicy.PLATFORM_FIRST))
+    user_route = router.route(RouteRequest(Capability.TEXT_GENERATION, uuid4(),
+        credential_policy=CredentialPolicy.USER_ONLY))
+    assert platform_route.credential_id == platform
+    assert user_route.credential_id == user
 
 
 def test_open_circuit_falls_back_deterministically():
