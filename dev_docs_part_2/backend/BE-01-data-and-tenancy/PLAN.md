@@ -19,10 +19,6 @@
 - очередь задач;
 - UI.
 
-## Depends on
-
-- local-first release gate.
-
 ## Current state
 
 Текущее приложение предполагает одного локального пользователя и не имеет tenant isolation.
