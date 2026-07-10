@@ -71,6 +71,13 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class AttemptStatus(str, Enum):
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    INTERRUPTED = "interrupted"
+
+
 class CredentialStatus(str, Enum):
     ACTIVE = "active"
     DISABLED = "disabled"
@@ -236,8 +243,61 @@ class Job(TimestampMixin, Base):
         enum_type(JobStatus, "job_status"), default=JobStatus.PENDING, nullable=False
     )
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    current_stage: Mapped[str | None] = mapped_column(String(120))
+    progress: Mapped[int] = mapped_column(default=0, nullable=False)
+    active_attempt: Mapped[int] = mapped_column(default=0, nullable=False)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_code: Mapped[str | None] = mapped_column(String(120))
     error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class JobStage(TimestampMixin, Base):
+    __tablename__ = "job_stages"
+    __table_args__ = (UniqueConstraint("job_id", "name", name="uq_job_stages_job_name"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="RESTRICT"), index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="pending", nullable=False)
+    progress: Mapped[int] = mapped_column(default=0, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class JobAttempt(Base):
+    __tablename__ = "job_attempts"
+    __table_args__ = (UniqueConstraint("job_id", "number", name="uq_job_attempts_job_number"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="RESTRICT"), index=True)
+    number: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[AttemptStatus] = mapped_column(enum_type(AttemptStatus, "attempt_status"), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    worker_id: Mapped[str | None] = mapped_column(String(200))
+
+
+class JobEvent(Base):
+    __tablename__ = "job_events"
+    __table_args__ = (Index("ix_job_events_job_created", "job_id", "created_at"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="RESTRICT"), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class JobCheckpoint(TimestampMixin, Base):
+    __tablename__ = "job_checkpoints"
+    __table_args__ = (UniqueConstraint("job_id", "stage", name="uq_job_checkpoints_job_stage"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="RESTRICT"), index=True)
+    stage: Mapped[str] = mapped_column(String(120), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    attempt_number: Mapped[int] = mapped_column(nullable=False)
 
 
 class Artifact(TimestampMixin, Base):
