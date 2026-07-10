@@ -3,7 +3,7 @@
 ## Required context
 
 - `PLAN.md`
-- `../../README.md` — только release gate и инварианты
+- `../../README.md` — только архитектурные инварианты
 
 ## Tasks
 
