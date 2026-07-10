@@ -46,7 +46,7 @@ Part 2 включает многопользовательскую модель,
 ## Backend
 
 - [x] **BE-01** — [Data and Tenancy](backend/BE-01-data-and-tenancy/PLAN.md) · [TODO](backend/BE-01-data-and-tenancy/TODO.md)
-- [ ] **BE-02** — [ORM and Migrations](backend/BE-02-orm-and-migrations/PLAN.md) · [TODO](backend/BE-02-orm-and-migrations/TODO.md)
+- [x] **BE-02** — [ORM and Migrations](backend/BE-02-orm-and-migrations/PLAN.md) · [TODO](backend/BE-02-orm-and-migrations/TODO.md)
 - [ ] **BE-03** — [Authentication and RBAC](backend/BE-03-auth-and-rbac/PLAN.md) · [TODO](backend/BE-03-auth-and-rbac/TODO.md)
 - [ ] **BE-04** — [Admin Bootstrap](backend/BE-04-admin-bootstrap/PLAN.md) · [TODO](backend/BE-04-admin-bootstrap/TODO.md)
 - [ ] **BE-05** — [Secret Storage](backend/BE-05-secret-storage/PLAN.md) · [TODO](backend/BE-05-secret-storage/TODO.md)
@@ -145,10 +145,23 @@ Contracts создаются только для интерфейсов межд
 1. Открыть этот файл.
 2. Найти доступную композицию с `[ ]`.
 3. Проверить её `Depends on`.
-4. Выбрать незавершённый task в `TODO.md`.
+4. Выбрать связанный пакет незавершённых задач в `TODO.md`.
 5. Прочитать только `Required context`.
 6. Выполнить задачу и тесты.
 7. Обновить локальный TODO и создать walkthrough.
 8. При полном завершении отметить композицию `[x]` в этом индексе.
 
 Этот порядок обязателен для людей и AI-агентов.
+
+Рабочая сессия не обязана ограничиваться одним task ID. Следует брать
+максимальный связанный пакет задач, который помещается в один рабочий контекст,
+имеет общую проверку и не пересекает незакрытые зависимости. Одиночная задача
+выбирается только когда следующая требует отдельного решения, внешнего доступа
+или существенно другого контекста. TODO и walkthrough перечисляют все task ID,
+фактически закрытые в сессии.
+
+После полного завершения backend-композиции её код, документация, TODO,
+walkthrough и отметка в этом индексе закрепляются отдельным коммитом. Перед
+коммитом должны пройти предусмотренные композицией проверки и `git diff
+--check`. Незавершённая композиция может оставаться без промежуточного коммита,
+если это не мешает безопасному продолжению работы.
