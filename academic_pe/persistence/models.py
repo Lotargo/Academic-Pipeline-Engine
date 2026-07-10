@@ -300,6 +300,31 @@ class JobCheckpoint(TimestampMixin, Base):
     attempt_number: Mapped[int] = mapped_column(nullable=False)
 
 
+class OutboxEvent(TimestampMixin, Base):
+    __tablename__ = "outbox_events"
+    __table_args__ = (Index("ix_outbox_pending", "published_at", "available_at"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="RESTRICT"), index=True)
+    workload: Mapped[str] = mapped_column(String(40), nullable=False)
+    attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(String(500))
+
+
+class WorkerDelivery(Base):
+    __tablename__ = "worker_deliveries"
+    __table_args__ = (UniqueConstraint("event_id", "consumer", name="uq_worker_delivery_event_consumer"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("outbox_events.id", ondelete="RESTRICT"), index=True)
+    job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="RESTRICT"), index=True)
+    consumer: Mapped[str] = mapped_column(String(120), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class Artifact(TimestampMixin, Base):
     __tablename__ = "artifacts"
     __table_args__ = (

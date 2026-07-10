@@ -34,6 +34,7 @@ pwdlib = {version = "^0.3", extras = ["argon2"]}
 pyjwt = "^2.10"
 email-validator = "^2.0"
 cryptography = "^45.0"
+celery = "^5.5"
 
 
 [tool.poetry.group.dev.dependencies]
