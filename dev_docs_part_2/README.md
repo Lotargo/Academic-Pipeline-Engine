@@ -55,7 +55,7 @@ Part 2 включает многопользовательскую модель,
 - [x] **BE-08** — [Provider Routing](backend/BE-08-provider-routing/PLAN.md) · [TODO](backend/BE-08-provider-routing/TODO.md)
 - [x] **BE-09** — [Global Resources and BYOK](backend/BE-09-global-resources-and-byok/PLAN.md) · [TODO](backend/BE-09-global-resources-and-byok/TODO.md)
 - [x] **BE-10** — [Object Storage](backend/BE-10-object-storage/PLAN.md) · [TODO](backend/BE-10-object-storage/TODO.md)
-- [ ] **BE-11** — [Local-First Compatibility](backend/BE-11-local-first-compatibility/PLAN.md) · [TODO](backend/BE-11-local-first-compatibility/TODO.md)
+- [x] **BE-11** — [Local-First Compatibility](backend/BE-11-local-first-compatibility/PLAN.md) · [TODO](backend/BE-11-local-first-compatibility/TODO.md)
 
 ## Frontend
 
