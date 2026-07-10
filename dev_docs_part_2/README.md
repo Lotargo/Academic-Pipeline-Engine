@@ -2,335 +2,153 @@
 
 ## Назначение
 
-`dev_docs_part_2` описывает переход Academic Pipeline Engine от local-first однопользовательского приложения к бесплатному многопользовательскому сервису.
+Этот каталог описывает переход APE от local-first приложения к бесплатному многопользовательскому сервису.
 
-Этот файл является короткой точкой входа. Он фиксирует общую архитектуру, правила чтения документации и обязательные инварианты. Подробности реализации находятся в документах отдельных композиций.
-
-Этот файл не является общим TODO-листом.
+Этот файл является точкой входа и индексом общего прогресса. Детали находятся в `PLAN.md` и `TODO.md` отдельных композиций.
 
 ---
 
-# 1. Цель Part 2
+# 1. Цель
 
-Целевая система должна иметь:
+Part 2 включает многопользовательскую модель, отдельные frontend/API/workers, PostgreSQL, очередь задач, object storage, защищённое хранение credentials, admin panel, глобальные AI/OCR-ресурсы, BYOK и Docker deployment.
 
-- бесплатный доступ без статусов Free/Paid;
-- общие OCR- и AI-ресурсы в пределах глобальной доступности;
-- BYOK для собственных ключей пользователей;
-- многопользовательские аккаунты и workspace isolation;
-- отдельные user cabinet и admin panel;
-- PostgreSQL как production source of truth;
-- object storage для постоянных файлов;
-- RabbitMQ и Celery для длительных заданий;
-- stateless API и worker containers;
-- зашифрованное серверное хранилище секретов;
-- сохранённый local-first режим через адаптеры.
-
-Добровольная поддержка через СБП не влияет на функции, лимиты, очередь или права пользователя. Коммерческие предложения выводятся в отдельный публичный канал связи.
+Платных статусов и преимуществ за пожертвования нет. Local-first режим сохраняется через адаптеры.
 
 ---
 
-# 2. Архитектурная основа
+# 2. Индекс выполнения
 
-```text
-Browser
-├── public/auth pages
-├── user application
-└── admin application
-        │
-        ▼
-    FastAPI API
-        │
-   ┌────┼───────────────┐
-   ▼    ▼               ▼
-PostgreSQL RabbitMQ  Object Storage
-          │
-          ▼
-     Celery workers
-          │
-          ▼
-     AI/OCR providers
-```
+Агент сначала смотрит сюда, затем открывает только документы выбранной композиции.
 
-Базовый стек:
+## Как выбрать следующую работу
 
-```text
-Frontend:       Next.js
-API:            FastAPI
-Queue:          RabbitMQ
-Task layer:     Celery
-ORM:            SQLAlchemy 2.x
-Migrations:     Alembic
-Database:       Supabase PostgreSQL или Neon PostgreSQL
-Storage:        Supabase Storage, R2 или S3-compatible storage
-Secrets:        Vault/KMS + envelope encryption
-Deployment:     Docker + Render, frontend также может размещаться на Vercel
-```
+1. Найти подходящую композицию с `[ ]`.
+2. Открыть её `PLAN.md` и проверить `Depends on`.
+3. Если зависимость ниже ещё не отмечена как завершённая, выбрать другую композицию.
+4. Открыть `TODO.md` и взять конкретную незавершённую задачу.
 
-Окончательный выбор Supabase или Neon фиксируется в соответствующей композиции до миграции persistence-слоя.
+Порядок ID является рекомендуемой последовательностью. `Depends on` имеет приоритет.
+
+## Когда ставить `[x]`
+
+Композиция отмечается завершённой только когда:
+
+- обязательные пункты `TODO.md` выполнены или явно отменены;
+- acceptance criteria из `PLAN.md` выполнены;
+- необходимые тесты пройдены;
+- создан итоговый walkthrough;
+- нет незадокументированных блокирующих проблем.
+
+Частично выполненная композиция остаётся с `[ ]`. Её подробный прогресс смотрят только в локальном `TODO.md`.
+
+После полного завершения агент обновляет этот индекс в том же commit или PR.
+
+## Backend
+
+- [ ] **BE-01** — [Data and Tenancy](backend/BE-01-data-and-tenancy/PLAN.md) · [TODO](backend/BE-01-data-and-tenancy/TODO.md)
+- [ ] **BE-02** — [ORM and Migrations](backend/BE-02-orm-and-migrations/PLAN.md) · [TODO](backend/BE-02-orm-and-migrations/TODO.md)
+- [ ] **BE-03** — [Authentication and RBAC](backend/BE-03-auth-and-rbac/PLAN.md) · [TODO](backend/BE-03-auth-and-rbac/TODO.md)
+- [ ] **BE-04** — [Admin Bootstrap](backend/BE-04-admin-bootstrap/PLAN.md) · [TODO](backend/BE-04-admin-bootstrap/TODO.md)
+- [ ] **BE-05** — [Secret Storage](backend/BE-05-secret-storage/PLAN.md) · [TODO](backend/BE-05-secret-storage/TODO.md)
+- [ ] **BE-06** — [Queue and Workers](backend/BE-06-queue-and-workers/PLAN.md) · [TODO](backend/BE-06-queue-and-workers/TODO.md)
+- [ ] **BE-07** — [Job State](backend/BE-07-job-state/PLAN.md) · [TODO](backend/BE-07-job-state/TODO.md)
+- [ ] **BE-08** — [Provider Routing](backend/BE-08-provider-routing/PLAN.md) · [TODO](backend/BE-08-provider-routing/TODO.md)
+- [ ] **BE-09** — [Global Resources and BYOK](backend/BE-09-global-resources-and-byok/PLAN.md) · [TODO](backend/BE-09-global-resources-and-byok/TODO.md)
+- [ ] **BE-10** — [Object Storage](backend/BE-10-object-storage/PLAN.md) · [TODO](backend/BE-10-object-storage/TODO.md)
+- [ ] **BE-11** — [Local-First Compatibility](backend/BE-11-local-first-compatibility/PLAN.md) · [TODO](backend/BE-11-local-first-compatibility/TODO.md)
+
+## Frontend
+
+- [ ] **FE-01** — [Auth Pages](frontend/FE-01-auth-pages/PLAN.md) · [TODO](frontend/FE-01-auth-pages/TODO.md)
+- [ ] **FE-02** — [User Cabinet](frontend/FE-02-user-cabinet/PLAN.md) · [TODO](frontend/FE-02-user-cabinet/TODO.md)
+- [ ] **FE-03** — [Jobs and Live Status](frontend/FE-03-jobs-and-live-status/PLAN.md) · [TODO](frontend/FE-03-jobs-and-live-status/TODO.md)
+- [ ] **FE-04** — [History and Artifacts](frontend/FE-04-history-and-artifacts/PLAN.md) · [TODO](frontend/FE-04-history-and-artifacts/TODO.md)
+- [ ] **FE-05** — [Provider Settings](frontend/FE-05-provider-settings/PLAN.md) · [TODO](frontend/FE-05-provider-settings/TODO.md)
+- [ ] **FE-06** — [Admin Panel](frontend/FE-06-admin-panel/PLAN.md) · [TODO](frontend/FE-06-admin-panel/TODO.md)
+- [ ] **FE-07** — [Support and Contact](frontend/FE-07-support-and-contact/PLAN.md) · [TODO](frontend/FE-07-support-and-contact/TODO.md)
+- [ ] **FE-08** — [Frontend Security](frontend/FE-08-frontend-security/PLAN.md) · [TODO](frontend/FE-08-frontend-security/TODO.md)
+
+## Platform
+
+- [ ] **PL-01** — [Docker](platform/PL-01-docker/PLAN.md) · [TODO](platform/PL-01-docker/TODO.md)
+- [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
+- [ ] **PL-03** — [Observability](platform/PL-03-observability/PLAN.md) · [TODO](platform/PL-03-observability/TODO.md)
 
 ---
 
-# 3. Структура документации
+# 3. Правила чтения
+
+Для одной композиции читаются только:
+
+1. Этот файл и индекс выше.
+2. `PLAN.md` выбранной композиции.
+3. Её `TODO.md`.
+4. Файлы из `Required context`.
+5. Прямо указанные contracts, ADR или reports.
+
+Не нужно читать соседние композиции и всю хронологию отчётов.
 
 ```text
-dev_docs_part_2/
-├── README.md
-├── backend/
-│   ├── BE-01-data-and-tenancy/
-│   ├── BE-02-orm-and-migrations/
-│   ├── BE-03-auth-and-rbac/
-│   ├── BE-04-admin-bootstrap/
-│   ├── BE-05-secret-storage/
-│   ├── BE-06-queue-and-workers/
-│   ├── BE-07-job-state/
-│   ├── BE-08-provider-routing/
-│   ├── BE-09-global-resources-and-byok/
-│   ├── BE-10-object-storage/
-│   └── BE-11-local-first-compatibility/
-├── frontend/
-│   ├── FE-01-auth-pages/
-│   ├── FE-02-user-cabinet/
-│   ├── FE-03-jobs-and-live-status/
-│   ├── FE-04-history-and-artifacts/
-│   ├── FE-05-provider-settings/
-│   ├── FE-06-admin-panel/
-│   ├── FE-07-support-and-contact/
-│   └── FE-08-frontend-security/
-├── platform/
-│   ├── PL-01-docker/
-│   ├── PL-02-render-deployment/
-│   └── PL-03-observability/
-├── contracts/
-└── decisions/
+root README + один PLAN + один TODO + явные зависимости
 ```
+
+Если этого недостаточно, задача должна быть разделена точнее.
+
+---
+
+# 4. Формат работы
 
 Каждая композиция содержит:
 
 ```text
 PLAN.md
 TODO.md
-reports/README.md
+reports/
 ```
 
-`PLAN.md` хранит цель, границы, зависимости, инварианты и критерии готовности.
-
-`TODO.md` хранит исполнимые задачи со стабильными идентификаторами и точным списком обязательного контекста.
-
-`reports/` хранит короткие walkthrough-отчёты о фактически выполненной работе.
-
----
-
-# 4. Правила ограниченного чтения
-
-Документация использует progressive disclosure. Агент или разработчик не должен загружать весь `dev_docs_part_2` перед каждой задачей.
-
-Для работы над одной композицией читаются только:
-
-1. Этот `README.md`.
-2. `PLAN.md` выбранной композиции.
-3. `TODO.md` выбранной композиции.
-4. Файлы, явно перечисленные в `Required context` её `TODO.md`.
-5. Отчёты, контракты или ADR, на которые дана прямая ссылка.
-
-Не нужно:
-
-- читать все соседние композиции;
-- читать весь frontend при backend-задаче и наоборот;
-- просматривать все walkthrough-отчёты;
-- загружать все ADR «на всякий случай»;
-- повторять в документации содержимое кода, diff или официальных руководств библиотек.
-
-Если для одной задачи требуется прочитать слишком много документов, композицию или задачу нужно дополнительно разделить.
-
-Ориентир для одного рабочего контекста:
+Мягкие лимиты:
 
 ```text
-root README
-+ один PLAN
-+ один TODO
-+ только явно указанные зависимости
+PLAN.md:     до 150 строк
+TODO.md:     до 120 строк
+Walkthrough: до 100 строк
+ADR:         до 80 строк
 ```
 
-Код, тесты и Git являются источником фактов о реализации. Документация хранит цели, ограничения, зависимости и причины решений.
+Walkthrough содержит task IDs, commit/PR, сделанное, тесты, отклонения, проблемы и следующий шаг. Он не копирует diff и полные логи.
+
+Task IDs не перенумеровываются после начала работы.
+
+Contracts создаются только для интерфейсов между композициями. ADR создаются только для решений, которые трудно отменить.
 
 ---
 
-# 5. Ограничения размера документов
-
-Мягкие ориентиры:
-
-```text
-PLAN.md:          до 150 строк
-TODO.md:          до 120 строк
-Walkthrough:      до 100 строк
-ADR:              до 80 строк
-Contract:         только устойчивая общая поверхность
-```
-
-Если `PLAN.md` нельзя быстро понять без чтения соседних планов, композиция слишком крупная или плохо отделена.
-
-Тексты не должны повторять master plan. В композиции описывается только то, как конкретная часть применяется в APE.
-
----
-
-# 6. TODO и walkthrough
-
-Каждая задача получает стабильный ID:
-
-```text
-BE-06-T001
-FE-03-T004
-PL-02-T007
-```
-
-После начала реализации ID не перенумеровываются. Отменённая или заменённая задача остаётся в истории с объяснением.
-
-После рабочей сессии, закрывшей одну или несколько задач, создаётся короткий walkthrough в `reports/`.
-
-Минимальное содержание отчёта:
-
-```text
-дата и исполнитель;
-композиция и task IDs;
-commit или PR;
-что сделано;
-какие тесты выполнены;
-отклонения от плана;
-известные проблемы;
-следующий шаг.
-```
-
-Walkthrough не копирует diff и полные логи. Старые отчёты считаются append-only и читаются только при расследовании или по прямой ссылке из текущего TODO.
-
-При завершении композиции допускается короткий `FINAL_SUMMARY.md`, чтобы будущим агентам не приходилось читать все промежуточные отчёты.
-
----
-
-# 7. Contracts и ADR
-
-`contracts/` используется только для интерфейсов, общих минимум для двух композиций, например:
-
-- frontend ↔ API;
-- API ↔ worker;
-- provider router ↔ credential store;
-- artifact access ↔ object storage.
-
-Контракт фиксирует устойчивые поля, статусы и поведение, а не пересказывает архитектуру.
-
-`decisions/` используется только для дорогих межкомпозиционных решений, которые трудно отменить или которые требуют объяснения компромиссов.
-
-Примеры допустимых ADR:
-
-- RabbitMQ вместо Kafka;
-- Supabase или Neon;
-- envelope encryption;
-- сохранение local-first адаптеров;
-- стратегия auth;
-- изменение лицензии.
-
-Мелкие решения внутри одной реализации отдельного ADR не требуют.
-
----
-
-# 8. Ключевые продуктовые правила
-
-## Бесплатная модель
-
-В Part 2 нет:
-
-- платных тарифов;
-- подписок;
-- платных лимитов;
-- привилегий за пожертвования;
-- специальных моделей за оплату.
-
-Технические ограничения допустимы только для защиты общего ресурса: concurrency, очередь, размер загрузки, OCR pages per job и rate limiting.
-
-## Общие ресурсы и BYOK
-
-Провайдеры с известной квотой учитываются через глобальный бюджет.
-
-Провайдеры с непрозрачной квотой отслеживаются по состоянию:
-
-```text
-unknown
-available
-degraded
-exhausted
-disabled
-```
-
-Система использует circuit breaker и fallback, но не выдумывает точный остаток токенов.
-
-Пользователь может выбрать собственный ключ. Сохранённые пользовательские и системные ключи находятся в серверном зашифрованном хранилище и не возвращаются во frontend в plaintext.
-
-## Добровольная поддержка
-
-Поддержка через СБП:
-
-- не связывается с аккаунтом;
-- не изменяет доступ;
-- не изменяет лимиты;
-- не повышает приоритет;
-- не требует billing-подсистемы.
-
-Отдельная ссылка на публичный Telegram используется для интеграций, сотрудничества и коммерческих предложений.
-
----
-
-# 9. Архитектурные инварианты
+# 5. Инварианты
 
 1. Frontend, backend и platform декомпозируются отдельно.
-2. PostgreSQL является source of truth для многопользовательского состояния.
-3. Object storage является source of truth для постоянных файлов.
+2. PostgreSQL хранит многопользовательское состояние.
+3. Object storage хранит постоянные файлы.
 4. Production API и workers являются stateless.
-5. Global `current_run` не используется как production state storage.
-6. RabbitMQ не является базой данных.
-7. В RabbitMQ передаются identifiers и безопасная metadata, но не plaintext API keys, JWT или refresh tokens.
-8. Workers должны быть идемпотентными.
-9. Job creation и публикация выполняются через transactional outbox.
-10. ORM-модели, API-схемы и domain-модели разделены.
-11. OGM и graph database не требуются для первой версии.
-12. Секреты защищаются AEAD и envelope encryption через Vault/KMS.
-13. Только минимально необходимый worker получает decrypt permission.
-14. Frontend route guard не заменяет backend authorization.
-15. Admin invite token не заменяет session JWT.
-16. Tenant isolation проверяется на уровне API, application/repository, database и storage.
-17. Пожертвования не влияют на доступ, функции, лимиты или очередь.
-18. В проекте нет платных пользовательских статусов.
-19. Система не обходит upstream-лимиты ротацией VM, IP или fingerprint.
-20. Local-first adapters сохраняются до завершения и проверки миграции.
+5. Очередь не является базой данных.
+6. Workers идемпотентны; публикация jobs использует transactional outbox.
+7. Persistence, API и domain-модели разделены.
+8. Tenant isolation проверяется на backend и уровне данных.
+9. Пожертвования не влияют на доступ, лимиты или очередь.
+10. Не вводятся платные планы, Kafka, OGM или graph database без нового решения.
+11. Не используется обход upstream-лимитов.
+12. Local-first adapters сохраняются до проверки миграции.
 
 ---
 
-# 10. Не входит в первую реализацию
+# 6. Рабочий алгоритм
 
-Без отдельного архитектурного решения не добавляются:
-
-- Kafka;
-- Neo4j или другая graph database;
-- OGM;
-- платёжный шлюз;
-- подписки и рекуррентные платежи;
-- платные планы;
-- преимущества за пожертвования;
-- browser-only storage как основное хранилище API-ключей;
-- самописная криптография;
-- обязательный post-quantum transport;
-- обход upstream provider limits;
-- горизонтальное масштабирование до завершения job isolation.
-
----
-
-# 11. Условие начала реализации
-
-Изменение кода конкретной композиции разрешено только когда:
-
-1. Для композиции существуют `PLAN.md` и `TODO.md`.
-2. В `TODO.md` указан минимальный `Required context`.
-3. Выбрана конкретная незавершённая задача.
-
-До изменения кода разрешается уточнять архитектуру, разделять композиции, создавать contracts и ADR и обновлять документацию.
+1. Открыть этот файл.
+2. Найти доступную композицию с `[ ]`.
+3. Проверить её `Depends on`.
+4. Выбрать незавершённый task в `TODO.md`.
+5. Прочитать только `Required context`.
+6. Выполнить задачу и тесты.
+7. Обновить локальный TODO и создать walkthrough.
+8. При полном завершении отметить композицию `[x]` в этом индексе.
 
 Этот порядок обязателен для людей и AI-агентов.
