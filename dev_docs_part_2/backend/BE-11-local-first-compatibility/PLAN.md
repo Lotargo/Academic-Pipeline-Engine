@@ -25,7 +25,7 @@
 
 ## Invariants
 
-- local-first release остаётся неизменяемой исторической точкой;
+- исходное local-first поведение сохраняется через отдельный runtime profile;
 - cloud code не размазывается по domain logic;
 - local mode не требует Supabase, RabbitMQ или Vault;
 - migration не уничтожает исходные данные без backup.
