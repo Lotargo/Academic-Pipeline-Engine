@@ -26,6 +26,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class AdminInviteActivation(BaseModel):
+    invite_token: str = Field(min_length=32, max_length=1024)
+
+
 class TokenPair(BaseModel):
     access_token: str
     refresh_token: str
@@ -130,6 +134,15 @@ def create_auth_router(session_factory: Callable[[], Session], settings: AuthSet
         if membership is None:
             raise HTTPException(status_code=404, detail="workspace not found")
         return membership
+
+    @router.post("/admin-invites/activate", status_code=204)
+    def activate_admin(body: AdminInviteActivation, current: Principal = Depends(principal),
+                       session: Session = Depends(session_dep)):
+        from academic_pe.admin_bootstrap import BootstrapError, activate_admin_invite
+        try:
+            activate_admin_invite(session, current.user_id, body.invite_token)
+        except BootstrapError:
+            raise HTTPException(status_code=400, detail="invalid or expired admin invite")
 
     router.principal_dependency = principal  # type: ignore[attr-defined]
     router.admin_dependency = require_admin  # type: ignore[attr-defined]
