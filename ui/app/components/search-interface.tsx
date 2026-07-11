@@ -51,7 +51,7 @@ const CONTINUATION_INTENT_OPTIONS = [
   { value: "restructure", label: "Restructure" },
 ]
 
-type AttachmentType = "passive_reference" | "continuation_source"
+type AttachmentType = "passive_reference" | "continuation_source" | "style_sample"
 
 const REFERENCE_ATTACHMENT_ACCEPT = ".pdf,.docx,.md,.txt,.csv,.xlsx,.pptx"
 const CONTINUATION_ATTACHMENT_ACCEPT = ".pdf,.docx,.md,.txt"
@@ -971,7 +971,7 @@ export function Search() {
                     <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                       {language === "ru" ? "Тип загрузки" : "Upload as"}
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
                         disabled={uploadingFile}
@@ -985,6 +985,21 @@ export function Search() {
                         <span className="block">{language === "ru" ? "Справка" : "Reference"}</span>
                         <span className="block text-[10px] font-normal opacity-80">
                           {language === "ru" ? "Для планировщика" : "Planner background"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={uploadingFile}
+                        onClick={() => setUploadAttachmentType("style_sample")}
+                        className={`rounded-lg border px-3 py-2 text-left text-[11px] font-semibold transition-all ${
+                          uploadAttachmentType === "style_sample"
+                            ? "ape-status-primary border-ape-primary/30"
+                            : "bg-muted/40 dark:bg-ape-surface-subtle/30 border-border/50 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <span className="block">{language === "ru" ? "Образец стиля" : "Style Sample"}</span>
+                        <span className="block text-[10px] font-normal opacity-80">
+                          {language === "ru" ? "Только наблюдаемые черты" : "Observed traits only"}
                         </span>
                       </button>
                       <button
@@ -1054,7 +1069,9 @@ export function Search() {
                               <span className="font-semibold text-ape-primary-text">
                                 {att.attachment_type === "continuation_source"
                                   ? (language === "ru" ? "Источник продолжения" : "Continuation Source")
-                                  : (language === "ru" ? "Справочный материал" : "Reference Material")}
+                                  : att.attachment_type === "style_sample"
+                                    ? (language === "ru" ? "Образец стиля" : "Style Sample")
+                                    : (language === "ru" ? "Справочный материал" : "Reference Material")}
                               </span>
                             </p>
                           </div>
@@ -1064,7 +1081,11 @@ export function Search() {
                             <button
                               type="button"
                               onClick={() => {
-                                const newType = att.attachment_type === "continuation_source" ? "passive_reference" : "continuation_source";
+                                const newType: AttachmentType = att.attachment_type === "passive_reference"
+                                  ? "continuation_source"
+                                  : att.attachment_type === "continuation_source"
+                                    ? "style_sample"
+                                    : "passive_reference";
                                 setActiveAttachments(prev => prev.map((a, i) => {
                                   if (i === idx) {
                                     return { ...a, attachment_type: newType };

@@ -55,6 +55,7 @@ class DocumentPlan(BaseModel):
     calculation_requirements: list[CalculationNeed] = Field(default_factory=list)
     transition_map: list[TransitionEdge] = Field(default_factory=list)
     forbidden_duplications: list[str] = Field(default_factory=list)
+    selected_skill_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_section_references(self) -> "DocumentPlan":

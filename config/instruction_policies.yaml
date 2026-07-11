@@ -1,0 +1,22 @@
+version: 1
+skills:
+  - skill_id: direct_claims
+    description: State claims directly and remove empty announcements.
+    fragments:
+      writer: "State the owned claim directly. Remove sentences that only announce upcoming content."
+      editorial_reviewer: "Flag announcements without content and conclusions repeated from section openings."
+  - skill_id: source_triangulation
+    description: Compare independent sources and surface conflicts.
+    fragments:
+      researcher: "For material claims, compare independent sources when available and record conflicts on SourceCards."
+      evidence_reviewer: "Check whether material conflicts between SourceCards were disclosed and resolved conservatively."
+  - skill_id: calculation_audit
+    description: Keep quantitative reasoning tied to CalculationCards.
+    fragments:
+      writer: "Use only assigned CalculationCards for quantitative results and preserve their units."
+      evidence_reviewer: "Trace external numbers and derived results to the assigned SourceCards or CalculationCards."
+  - skill_id: concise_technical
+    description: Prefer actionable technical prose with bounded examples.
+    fragments:
+      writer: "Prefer concrete actions, inputs, outputs, and constraints; omit generic importance statements."
+      editorial_reviewer: "Flag generic significance prose and examples that do not clarify an action or constraint."

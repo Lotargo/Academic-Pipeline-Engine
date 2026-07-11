@@ -255,6 +255,19 @@ def load_config(path: str = "config/agents.yaml") -> AppConfig:
             )
         }
 
+    if "brief_normalizer" not in data["agents"]:
+        data["agents"]["brief_normalizer"] = {
+            "role": "BriefNormalizer",
+            "provider": "zen",
+            "model": "mimo-v2.5-free",
+            "temperature": 0.1,
+            "agent_type": "brief_normalizer",
+            "system_prompt": (
+                "Extract a strict NormalizedBrief from the supplied task. Preserve explicit user intent, "
+                "record ambiguity, and never design downstream prompts or document structure."
+            ),
+        }
+
     config = AppConfig(**data)
     _CONFIG_CACHE[path] = config
     return config

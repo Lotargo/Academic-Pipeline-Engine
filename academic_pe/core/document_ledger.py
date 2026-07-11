@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SourceCard(BaseModel):
-    """A stable, metadata-only source record shared by every document section."""
+    """A traceable source record produced by Researcher and shared by all sections."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -18,6 +18,10 @@ class SourceCard(BaseModel):
     source_type: str = "unknown"
     reliability: str = "unknown"
     notes: list[str] = Field(default_factory=list)
+    reliability_notes: list[str] = Field(default_factory=list)
+    supported_claims: list[str] = Field(default_factory=list)
+    relevant_excerpt: str = ""
+    conflicts_with: list[str] = Field(default_factory=list)
 
 
 class ClaimCard(BaseModel):
@@ -67,6 +71,10 @@ class DocumentLedger(BaseModel):
         source_type: str = "unknown",
         reliability: str = "unknown",
         notes: Optional[Iterable[str]] = None,
+        reliability_notes: Optional[Iterable[str]] = None,
+        supported_claims: Optional[Iterable[str]] = None,
+        relevant_excerpt: str = "",
+        conflicts_with: Optional[Iterable[str]] = None,
     ) -> SourceCard:
         cleaned_title = _clean_text(title)
         if not cleaned_title:
@@ -76,6 +84,18 @@ class DocumentLedger(BaseModel):
         for source in self.sources:
             existing_key = (_clean_url(source.url) or "", _normalize_title(source.title))
             if source_key == existing_key:
+                if publication_date and not source.publication_date:
+                    source.publication_date = _clean_text(publication_date) or None
+                if source_type and source.source_type in {"", "unknown", "web"}:
+                    source.source_type = _clean_text(source_type) or source.source_type
+                if reliability and source.reliability in {"", "unknown", "unverified"}:
+                    source.reliability = _clean_text(reliability) or source.reliability
+                source.notes = list(dict.fromkeys([*source.notes, *[_clean_text(v) for v in notes or [] if _clean_text(v)]]))
+                source.reliability_notes = list(dict.fromkeys([*source.reliability_notes, *[_clean_text(v) for v in reliability_notes or [] if _clean_text(v)]]))
+                source.supported_claims = list(dict.fromkeys([*source.supported_claims, *[_clean_text(v) for v in supported_claims or [] if _clean_text(v)]]))
+                source.conflicts_with = list(dict.fromkeys([*source.conflicts_with, *[_clean_text(v) for v in conflicts_with or [] if _clean_text(v)]]))
+                if relevant_excerpt and not source.relevant_excerpt:
+                    source.relevant_excerpt = _clean_text(relevant_excerpt)
                 return source
 
         source = SourceCard(
@@ -86,6 +106,10 @@ class DocumentLedger(BaseModel):
             source_type=_clean_text(source_type) or "unknown",
             reliability=_clean_text(reliability) or "unknown",
             notes=[_clean_text(note) for note in notes or [] if _clean_text(note)],
+            reliability_notes=[_clean_text(note) for note in reliability_notes or [] if _clean_text(note)],
+            supported_claims=[_clean_text(claim) for claim in supported_claims or [] if _clean_text(claim)],
+            relevant_excerpt=_clean_text(relevant_excerpt),
+            conflicts_with=[_clean_text(item) for item in conflicts_with or [] if _clean_text(item)],
         )
         self.sources.append(source)
         return source
@@ -121,6 +145,14 @@ class DocumentLedger(BaseModel):
                 lines.append(f"Published: {source.publication_date}")
             for note in source.notes:
                 lines.append(f"Note: {note}")
+            for note in source.reliability_notes:
+                lines.append(f"Reliability note: {note}")
+            if source.supported_claims:
+                lines.append(f"Supports: {', '.join(source.supported_claims)}")
+            if source.relevant_excerpt:
+                lines.append(f"Relevant excerpt: {source.relevant_excerpt}")
+            if source.conflicts_with:
+                lines.append(f"Conflicts with: {', '.join(source.conflicts_with)}")
             lines.append("")
         return "\n".join(lines).strip()
 

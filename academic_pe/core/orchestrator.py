@@ -27,7 +27,7 @@ from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPE
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_line_replace_patch, add_line_numbers
 from academic_pe.core.template_compat import template_section_to_section_prompt
-from academic_pe.instructions import DocumentPlan, InstructionCompiler, parse_document_plan
+from academic_pe.instructions import DocumentPlan, InstructionCompiler, extract_style_profile, parse_document_plan
 from academic_pe.core.template_selector import TemplateSelector
 from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate, TemplateSection
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
@@ -406,6 +406,13 @@ class Orchestrator:
         self.web_search_enabled = web_search_enabled
         self.continuation_source = continuation_source
         self.search_findings = ""
+        style_samples = [
+            str(item.get("content") or "")
+            for item in self.reference_materials
+            if isinstance(item, dict) and item.get("attachment_type") == "style_sample"
+        ]
+        self._style_profile = extract_style_profile("\n\n".join(style_samples)) if style_samples else None
+        self._instruction_bundle_hashes: set[str] = set()
         self._document_ledger = (
             extract_document_state(continuation_source).ledger
             if continuation_source
@@ -420,7 +427,7 @@ class Orchestrator:
             if not isinstance(item, dict):
                 continue
             filename = str(item.get("filename") or item.get("title") or "").strip()
-            if filename:
+            if filename and item.get("attachment_type") != "style_sample":
                 self._document_ledger.register_source(
                     title=filename,
                     url=item.get("url"),
@@ -679,6 +686,20 @@ class Orchestrator:
         curation = getattr(self._researcher, "last_curation", None)
         if curation is None:
             return
+        for card in curation.source_cards:
+            registered = self._document_ledger.register_source(
+                title=card.title,
+                url=card.url,
+                publication_date=card.publication_date,
+                source_type=card.source_type,
+                reliability=card.reliability,
+                notes=card.notes,
+                reliability_notes=card.reliability_notes,
+                supported_claims=card.supported_claims,
+                relevant_excerpt=card.relevant_excerpt,
+                conflicts_with=card.conflicts_with,
+            )
+            card.source_id = registered.source_id
         sources_by_url = {
             (source.url or "").rstrip("/"): source.source_id
             for source in self._document_ledger.sources
@@ -897,7 +918,7 @@ class Orchestrator:
 
             artifact_contract = ArtifactContract.model_validate(raw_contract)
         coverage = self._document_plan.coverage_matrix if self._document_plan is not None else metadata.get("coverage")
-        return InstructionCompiler().compile(
+        bundle = InstructionCompiler().compile(
             "writer",
             artifact_contract=artifact_contract,
             section=section,
@@ -905,7 +926,43 @@ class Orchestrator:
             section_names=[item.name for item in self._config.pipeline.sections],
             document_ledger=self._document_ledger,
             calculation_ledger=self._calculation_ledger,
+            selected_skill_ids=self._document_plan.selected_skill_ids if self._document_plan is not None else (),
+            style_profile=self._style_profile,
         )
+        self._record_instruction_bundle(bundle)
+        return bundle
+
+    def _record_instruction_bundle(self, bundle) -> None:
+        if not bundle.diagnostic_hash or bundle.diagnostic_hash in self._instruction_bundle_hashes:
+            return
+        self._instruction_bundle_hashes.add(bundle.diagnostic_hash)
+        if bundle.prompt_budget and bundle.prompt_budget.status != "ok":
+            logger.warning(
+                "Instruction bundle budget %s for %s: %s tokens (limit %s)",
+                bundle.prompt_budget.status,
+                bundle.role.value,
+                bundle.prompt_budget.estimated_tokens,
+                bundle.prompt_budget.hard_limit_tokens,
+            )
+        try:
+            self._registry_store.add_runtime_snapshot(RuntimeSnapshot(
+                run_id=self.run_id,
+                snapshot_type="instruction_bundle",
+                version=bundle.bundle_version,
+                fingerprint=bundle.diagnostic_hash,
+                metadata_json=bundle.model_dump_json(exclude_none=True),
+            ))
+        except Exception as exc:
+            logger.warning("Failed to register instruction bundle diagnostic: %s", exc)
+
+    def _role_instruction_bundle(self, role: str):
+        bundle = InstructionCompiler().compile(
+            role,
+            selected_skill_ids=self._document_plan.selected_skill_ids if self._document_plan is not None else (),
+            style_profile=self._style_profile,
+        )
+        self._record_instruction_bundle(bundle)
+        return bundle
 
     def _draft_with_merge_operations(self, target_language: str) -> bool:
         if not self.continuation_source:
@@ -1250,7 +1307,8 @@ class Orchestrator:
                     logger.warning("Failed to save reference material file: %s", e)
                     
                 orig_ext = os.path.splitext(filename)[1].lower()
-                source_type = "ocr" if orig_ext in {".pdf", ".docx"} else "manual_reference"
+                is_style_sample = item.get("attachment_type") == "style_sample"
+                source_type = "style_sample" if is_style_sample else "ocr" if orig_ext in {".pdf", ".docx"} else "manual_reference"
                 
                 source_record = Source(
                     run_id=self.run_id,
@@ -1259,7 +1317,7 @@ class Orchestrator:
                     url=None,
                     path=path,
                     sha256=sha256,
-                    used_by="planner,writer",
+                    used_by="instruction_compiler,editorial_reviewer" if is_style_sample else "planner,writer",
                     metadata_json=json.dumps({
                         "token_count": item.get("token_count")
                     }, ensure_ascii=False)
@@ -1320,6 +1378,12 @@ class Orchestrator:
                     from typing import cast
                     from academic_pe.agents.researcher import ResearcherAgent
                     researcher_agent = cast(ResearcherAgent, self._researcher)
+                    research_bundle = InstructionCompiler().compile(
+                        "researcher",
+                        selected_skill_ids=["source_triangulation"],
+                    )
+                    self._record_instruction_bundle(research_bundle)
+                    researcher_agent.instruction_guidance = research_bundle.selected_skill_guidance
                     self.search_findings = researcher_agent.run_research(queries, run_dir)
                     self.search_findings = normalize_generated_text(self.search_findings)
                     logger.info("[Researcher] Parallel search completed. Sourcing findings...")
@@ -1392,14 +1456,13 @@ class Orchestrator:
                                             self._registry_store.add_source(source_record)
                                         except Exception as e:
                                             logger.warning("Failed to register web research source: %s", e)
-                                        self._document_ledger.register_source(
-                                            title=title or url,
-                                            url=url or None,
-                                            source_type="web",
-                                            reliability="unverified",
-                                            notes=[f"query={query_text}"] if query_text else [],
-                                        )
                         self._register_curated_research_claims()
+                        curation = getattr(self._researcher, "last_curation", None)
+                        if curation is not None and curation.source_cards:
+                            self.search_findings = "[Source Cards]\n" + "\n".join(
+                                card.model_dump_json(exclude_none=True)
+                                for card in curation.source_cards
+                            )
                     except Exception as e:
                         logger.warning("Best-effort research log registration failed: %s", e)
 
@@ -1415,8 +1478,12 @@ class Orchestrator:
                     "academic_mode": self._academic_mode_enabled(),
                     "visualization_required": self._visualization_required(),
                     "output_dir": self._config.pipeline.output_dir,
-                    "reference_materials": self.reference_materials,
+                    "reference_materials": [
+                        item for item in self.reference_materials
+                        if item.get("attachment_type") != "style_sample"
+                    ],
                     "search_findings": self.search_findings,
+                    "skill_catalog": InstructionCompiler().skill_registry.planner_catalog(),
                 },
             )
             logger.info("Creating document plan before drafting sections.")
@@ -1437,10 +1504,14 @@ class Orchestrator:
             if not self._draft_with_merge_operations(target_language):
                 for section in self._config.pipeline.sections:
                     self._check_cancelled()
+                    instruction_bundle = self._writer_instruction_bundle(section)
                     task = render_template(
                         DEFAULT_DRAFT_TEMPLATE,
                         {
-                            "section_brief": self._writer_instruction_bundle(section).section_brief.model_dump(),
+                            "section_brief": instruction_bundle.section_brief.model_dump(),
+                            "hard_constraints": [item.text for item in instruction_bundle.hard_constraints],
+                            "skill_guidance": instruction_bundle.selected_skill_guidance,
+                            "style_profile": instruction_bundle.style_profile.model_dump() if instruction_bundle.style_profile else None,
                             "language": target_language,
                             "language_instruction": language_instruction(target_language),
                             "user_topic": self.user_topic,
@@ -1615,6 +1686,8 @@ class Orchestrator:
                         )
                         payloads = []
                         for role, agent in dedicated_reviewers:
+                            bundle_role = "evidence_reviewer" if role == "evidence" else "editorial_reviewer"
+                            review_bundle = self._role_instruction_bundle(bundle_role)
                             if role == "evidence":
                                 role_task = build_evidence_review_prompt(
                                     specialized_task,
@@ -1627,6 +1700,16 @@ class Orchestrator:
                                     specialized_task,
                                     coverage=(self._document_plan.coverage_matrix if self._document_plan else {}),
                                     terminology=(self._document_plan.terminology if self._document_plan else {}),
+                                )
+                            if review_bundle.selected_skill_guidance:
+                                role_task += "\n\n[Selected Role Skills]\n" + "\n".join(
+                                    f"- {item}" for item in review_bundle.selected_skill_guidance
+                                )
+                            if review_bundle.style_profile is not None:
+                                role_task += (
+                                    "\n\n[User Style Profile]\n"
+                                    + review_bundle.style_profile.model_dump_json()
+                                    + "\nEvaluate only observed traits; do not infer biography, opinions, or experiences."
                                 )
                             raw_review = agent.process(role_task, context=full_text)
                             payloads.append(parse_scoped_review(raw_review, role))

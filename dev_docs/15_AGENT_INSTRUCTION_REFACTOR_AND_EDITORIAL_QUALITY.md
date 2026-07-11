@@ -2,7 +2,7 @@
 
 ## Статус
 
-Архитектурная заметка и план будущей переработки инструкций агентов.
+Реализация завершена; документ сохраняет архитектурные решения и критерии приёмки.
 
 ### Checkpoint (2026-07-12)
 
@@ -63,7 +63,32 @@
   отдельные настройки ролей вместо одного смешанного prompt.
 - Профильная regression P1.12 и смежных contracts — 112 passed; полный suite —
   622 passed, 3 skipped.
-- Следующий пакет: P1.13 перевод Researcher на SourceCards.
+- P1.13 выполнен: Researcher возвращает валидируемые `SourceCard` с excerpt,
+  reliability notes, supported claims и conflicts; Writer/Planner получают только
+  карточки и зарегистрированные claims, а не сырой crawler dump.
+- P1.14 выполнен: активный enhancement path заменён однопроходным
+  `BriefNormalizer`, который возвращает строгий `NormalizedBrief` и не проектирует
+  Writer prompt. Старый `PromptEnhancer` оставлен только как compatibility API.
+- P1.15 выполнен: Writer system prompt больше не содержит текстовый GREP-договор.
+  Пассивный parser старого `USE_GREP` ответа сохранён для cached providers, но
+  активные prompts его не рекламируют.
+- P2.16 выполнен: attachment типа `style_sample` компилируется в наблюдаемый
+  `StyleProfile`; профиль видят только Writer и EditorialReviewer. Биографические
+  факты, мнения и опыт из профиля не выводятся.
+- P2.17 выполнен: `config/instruction_policies.yaml` хранит skill IDs и отдельные
+  role fragments; Planner выбирает IDs, а compiler раскрывает только фрагменты
+  текущей роли.
+- P2.18 и P2.20 выполнены: bundle версии `2.0` содержит token estimate, budget
+  status и стабильный SHA-256 diagnostic hash. Реально использованные bundles
+  сохраняются как `instruction_bundle` runtime snapshots.
+- P2.19 выполнен: добавлены воспроизводимый routing/editorial benchmark и CLI
+  `scripts/run_core15_benchmark.py`. Зафиксированный прогон: routing 10/10;
+  compiled variants имеют 0 leakage/role-contamination/abstract-style markers;
+  анонимизированный deterministic editorial rubric предпочёл схему с
+  `SectionBrief` и specialized reviewers (1123 score против 0 у legacy fixture).
+- Итоговая приёмка CORE-15: профильный integration-срез — 129 passed; полный
+  Python suite — 630 passed, 3 skipped; TypeScript typecheck и production UI build
+  прошли. Benchmark зафиксирован в `dev_docs/core15_benchmark_result.json`.
 
 Документ продолжает решения из заметок №13 и №14. Он фиксирует проблемы текущих system prompts, task templates, template manifests, agent adapters и self-critique, а также предлагает новую схему компиляции инструкций.
 

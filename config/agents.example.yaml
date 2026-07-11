@@ -11,11 +11,22 @@
 # Supported providers: mock, openai, custom_openai, anthropic, google, lm_studio, zen
 # base_url is used by custom_openai and lm_studio.
 # agent_type is an optional override for the agent class.
-# Built-in agent types include: default, writer, reviewer, prompt_enhancer, researcher.
+# Built-in agent types include: default, writer, reviewer, brief_normalizer, researcher.
 # reasoning_effort may be omitted for provider default, or set to low, medium, high.
 # deepseek-v4 models also support max.
 
 agents:
+  brief_normalizer:
+    role: "BriefNormalizer"
+    provider: mock
+    model: "gpt-4o"
+    temperature: 0.1
+    agent_type: "brief_normalizer"
+    system_prompt: |
+      Extract a strict NormalizedBrief from the supplied task. Preserve explicit
+      user intent, record unresolved ambiguity, and never design Writer prompts,
+      section structures, or new requirements.
+
   writer:
     role: "Writer"
     provider: mock # mock | openai | custom_openai | anthropic | google | lm_studio | zen

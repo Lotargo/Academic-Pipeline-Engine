@@ -1,0 +1,57 @@
+{
+  "schema_version": "core15-benchmark-v1",
+  "generated_at": "2026-07-12",
+  "routing": {
+    "passed": 10,
+    "total": 10,
+    "failures": []
+  },
+  "variants": [
+    {
+      "variant": "current_prompts",
+      "estimated_tokens": 165,
+      "leakage_markers": 16,
+      "role_contamination": 4,
+      "abstract_style_markers": 8,
+      "typed_scope_signals": 0,
+      "specialized_role_signals": 0,
+      "editorial_penalty": 8765,
+      "editorial_score": 0
+    },
+    {
+      "variant": "compiled_minimal",
+      "estimated_tokens": 180,
+      "leakage_markers": 0,
+      "role_contamination": 0,
+      "abstract_style_markers": 0,
+      "typed_scope_signals": 4,
+      "specialized_role_signals": 0,
+      "editorial_penalty": 180,
+      "editorial_score": 980
+    },
+    {
+      "variant": "compiled_section_brief",
+      "estimated_tokens": 211,
+      "leakage_markers": 0,
+      "role_contamination": 0,
+      "abstract_style_markers": 0,
+      "typed_scope_signals": 4,
+      "specialized_role_signals": 0,
+      "editorial_penalty": 211,
+      "editorial_score": 949
+    },
+    {
+      "variant": "compiled_specialized_reviewers",
+      "estimated_tokens": 497,
+      "leakage_markers": 0,
+      "role_contamination": 0,
+      "abstract_style_markers": 0,
+      "typed_scope_signals": 8,
+      "specialized_role_signals": 1,
+      "editorial_penalty": 497,
+      "editorial_score": 1123
+    }
+  ],
+  "preferred_variant": "compiled_specialized_reviewers",
+  "note": "Deterministic editorial proxy; the harness is ready for an injected blind model/human preference pass."
+}

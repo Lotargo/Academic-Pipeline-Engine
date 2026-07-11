@@ -4,6 +4,7 @@ from academic_pe.agents.base import BaseAgent, DefaultAgent
 from academic_pe.agents.researcher import ResearcherAgent
 from academic_pe.agents.writer import WriterAgent, ReviewerAgent
 from academic_pe.agents.prompt_enhancer import PromptEnhancerAgent
+from academic_pe.agents.brief_normalizer import BriefNormalizerAgent
 from academic_pe.core.config import AppConfig, AgentConfig, RetryConfig, CircuitBreakerConfig
 from academic_pe.core.llm import create_provider, RetryConfig as LLMRetryConfig, CircuitBreakerConfig as LLMCBConfig
 
@@ -14,6 +15,7 @@ _AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "evidence_reviewer": ReviewerAgent,
     "editorial_reviewer": ReviewerAgent,
     "prompt_enhancer": PromptEnhancerAgent,
+    "brief_normalizer": BriefNormalizerAgent,
     "researcher": ResearcherAgent,
 }
 

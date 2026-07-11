@@ -44,20 +44,6 @@ class WriterAgent(BaseAgent):
     ) -> str:
         system_prompt = self.config.system_prompt
         
-        if document_sections:
-            system_prompt += (
-                "\n\n[GREP TOOL AVAILABLE]\n"
-                "You have access to a GREP tool to search for specific words, phrases, or patterns "
-                "(such as Chinese characters or specific text snippets) across all sections of the document.\n"
-                "To use the GREP tool, output exactly:\n"
-                "USE_GREP: <pattern>\n"
-                "where <pattern> is a case-insensitive regular expression or substring to search for.\n"
-                "Do not output anything else in that turn. The system will return the matching lines with their section names and line numbers.\n"
-                "You can run the GREP tool multiple times to locate all issues before generating your final response.\n"
-                "When you are ready to provide your final output (e.g. the section text or REPLACE blocks), "
-                "output it directly without using the GREP tool."
-            )
-
         if context:
             system_prompt += (
                 "\n\n[Context Data]\n"
@@ -81,7 +67,8 @@ class WriterAgent(BaseAgent):
                 reasoning_effort=getattr(self.config.reasoning_effort, "value", self.config.reasoning_effort),
             )
 
-            # Check if response is a grep tool call
+            # Compatibility only for old providers that may have cached the retired
+            # protocol. Active Writer prompts never advertise textual GREP commands.
             match = re.search(r"^\s*USE_GREP:\s*(.+)$", response, re.MULTILINE | re.IGNORECASE)
             if match and document_sections:
                 pattern = match.group(1).strip()

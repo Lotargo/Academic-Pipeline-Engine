@@ -26,7 +26,7 @@ class ContinuationSource(BaseModel):
 class Attachment(BaseModel):
     filename: str
     content: str
-    attachment_type: Literal["passive_reference", "continuation_source"]
+    attachment_type: Literal["passive_reference", "continuation_source", "style_sample"]
     token_count: int
 
 

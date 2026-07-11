@@ -27,6 +27,15 @@ Output form: {{ section_brief.output_form }}.
 {% if section_brief.writing_constraints %}Active section constraints:
 {% for constraint in section_brief.writing_constraints %}- {{ constraint }}
 {% endfor %}{% endif %}
+{% if hard_constraints|default([]) %}Active artifact constraints:
+{% for constraint in hard_constraints %}- {{ constraint }}
+{% endfor %}{% endif %}
+{% if skill_guidance|default([]) %}Selected writing skills:
+{% for fragment in skill_guidance %}- {{ fragment }}
+{% endfor %}{% endif %}
+{% if style_profile|default(None) %}User-supplied style profile (match only these observed traits; invent no experiences or opinions):
+{{ style_profile | tojson }}
+{% endif %}
 
 {{ language_instruction }}
 Follow the document plan and continuity context when provided.
@@ -120,6 +129,12 @@ Research planning rules:
 - Reference the URLs of the sources where appropriate.
 {% endif %}
 
+{% if skill_catalog|default([]) %}
+Available instruction skills (select IDs only when their behavior is required):
+{% for skill in skill_catalog %}- {{ skill.skill_id }}: {{ skill.description }}
+{% endfor %}
+{% endif %}
+
 Return one JSON object and no Markdown fences. Use exactly this schema:
 {
   "central_question": "string or null",
@@ -132,7 +147,8 @@ Return one JSON object and no Markdown fences. Use exactly this schema:
   "evidence_requirements": [{"need_id": "EVIDENCE-001", "description": "what must be supported", "section_owner": "section_id"}],
   "calculation_requirements": [{"need_id": "CALC-NEED-001", "description": "what must be calculated", "section_owner": "section_id"}],
   "transition_map": [{"from_section": "section_id", "to_section": "section_id", "handoff": "what is handed off without repetition"}],
-  "forbidden_duplications": ["content that must have one owner"]
+  "forbidden_duplications": ["content that must have one owner"],
+  "selected_skill_ids": ["IDs from the available skill catalog, or empty"]
 }
 Every referenced section ID must exist in artifact_structure. Assign every material claim, limitation, and conclusion to at least one owner in coverage_matrix.
 """

@@ -693,9 +693,28 @@ def _build_prompt_enhancement_prompt(
     academic_mode: bool = False,
     artifact_override: Optional[str] = None,
 ) -> str:
+    """Deprecated compatibility builder retained for API clients and stored tests."""
     from academic_pe.agent_adapters import build_prompt_enhancement_prompt
 
     return build_prompt_enhancement_prompt(
+        topic=topic,
+        instructions=instructions,
+        language=lang,
+        academic_mode=academic_mode,
+        artifact_override=artifact_override,
+    )
+
+
+def _build_brief_normalization_prompt(
+    topic: str,
+    instructions: Optional[str],
+    lang: str,
+    academic_mode: bool = False,
+    artifact_override: Optional[str] = None,
+) -> str:
+    from academic_pe.agent_adapters import build_brief_normalization_prompt
+
+    return build_brief_normalization_prompt(
         topic=topic,
         instructions=instructions,
         language=lang,
@@ -740,6 +759,13 @@ def _normalize_prompt_enhancement_response(
 
     raw_topic = data.get("topic")
     raw_instructions = data.get("instructions")
+    if not isinstance(raw_instructions, str):
+        from academic_pe.instructions.brief import NormalizedBrief
+
+        try:
+            raw_instructions = NormalizedBrief.model_validate(data).legacy_instructions()
+        except Exception:
+            raw_instructions = None
     has_topic = isinstance(raw_topic, str) and bool(raw_topic.strip())
     has_instructions = isinstance(raw_instructions, str) and bool(raw_instructions.strip())
     topic = raw_topic.strip() if has_topic else fallback_topic_text
@@ -793,13 +819,13 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load configuration: {str(e)}")
 
-    agent_cfg = config.agents.get("example_generator")
+    agent_cfg = config.agents.get("brief_normalizer") or config.agents.get("example_generator")
     if not agent_cfg:
-        raise HTTPException(status_code=500, detail="example_generator agent configuration not found in agents.yaml")
+        raise HTTPException(status_code=500, detail="brief_normalizer agent configuration not found in agents.yaml")
 
     lang = config.ui.language
 
-    prompt = _build_prompt_enhancement_prompt(
+    prompt = _build_brief_normalization_prompt(
         payload.topic,
         payload.instructions,
         lang,
@@ -811,11 +837,11 @@ async def enhance_prompt(payload: PromptEnhanceRequest):
 
     def run_agent():
         agent = create_agent(
-            "example_generator",
+            "brief_normalizer",
             agent_cfg,
             retry_cfg=config.retry,
             cb_cfg=config.circuit_breaker,
-            agent_type="prompt_enhancer"
+            agent_type="brief_normalizer"
         )
         return agent.process(prompt), agent.last_self_critique_summary
 
@@ -1003,7 +1029,7 @@ def run_pipeline_thread(
                     "token_count": a.get("token_count"),
                 }
                 for a in attachments
-                if a.get("attachment_type") == "passive_reference"
+                if a.get("attachment_type") in {"passive_reference", "style_sample"}
             ]
 
         config = _apply_continuation_structure(config, continuation_source)
@@ -1506,9 +1532,10 @@ async def upload_attachment(
     file: UploadFile = File(...),
     attachment_type: str = Form("passive_reference")
 ):
-    if attachment_type not in {"passive_reference", "continuation_source"}:
+    if attachment_type not in {"passive_reference", "continuation_source", "style_sample"}:
         raise HTTPException(
             status_code=400,
+            # Preserve the stable public error text used by older clients.
             detail="attachment_type must be 'passive_reference' or 'continuation_source'",
         )
 
