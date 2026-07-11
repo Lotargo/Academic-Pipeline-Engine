@@ -10,7 +10,7 @@ const env = {
   NODE_OPTIONS: [process.env.NODE_OPTIONS, "--no-deprecation"].filter(Boolean).join(" "),
 }
 
-const result = spawnSync(process.execPath, [nextBin, "build"], {
+const result = spawnSync(process.execPath, [nextBin, "build", "--webpack"], {
   cwd: path.join(__dirname, ".."),
   env,
   encoding: "utf8",

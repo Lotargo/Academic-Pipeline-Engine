@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
+import { SessionGate } from "@/app/components/session-gate"
 
 const uiFont = IBM_Plex_Sans({
   subsets: ["latin", "cyrillic"],
@@ -41,7 +42,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${uiFont.variable} ${monoFont.variable} ${brandFont.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {children}
+          <SessionGate>{children}</SessionGate>
           <Toaster />
           <Analytics />
         </ThemeProvider>

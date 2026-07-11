@@ -59,7 +59,7 @@ Part 2 включает многопользовательскую модель,
 
 ## Frontend
 
-- [ ] **FE-01** — [Auth Pages](frontend/FE-01-auth-pages/PLAN.md) · [TODO](frontend/FE-01-auth-pages/TODO.md)
+- [x] **FE-01** — [Auth Pages](frontend/FE-01-auth-pages/PLAN.md) · [TODO](frontend/FE-01-auth-pages/TODO.md)
 - [ ] **FE-02** — [User Cabinet](frontend/FE-02-user-cabinet/PLAN.md) · [TODO](frontend/FE-02-user-cabinet/TODO.md)
 - [ ] **FE-03** — [Jobs and Live Status](frontend/FE-03-jobs-and-live-status/PLAN.md) · [TODO](frontend/FE-03-jobs-and-live-status/TODO.md)
 - [ ] **FE-04** — [History and Artifacts](frontend/FE-04-history-and-artifacts/PLAN.md) · [TODO](frontend/FE-04-history-and-artifacts/TODO.md)

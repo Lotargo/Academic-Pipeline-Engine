@@ -14,8 +14,10 @@ import {
   ArrowUpFromDot,
   Check,
   HelpCircle,
+  LogOut,
 } from "lucide-react"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 
 interface AccountMenuProps {
   isOpen: boolean
@@ -23,6 +25,13 @@ interface AccountMenuProps {
 }
 
 export function AccountMenu({ isOpen, onClose }: AccountMenuProps) {
+  const router = useRouter()
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined)
+    onClose()
+    router.replace("/login")
+    router.refresh()
+  }
   if (!isOpen) return null
 
   return (
@@ -90,6 +99,11 @@ export function AccountMenu({ isOpen, onClose }: AccountMenuProps) {
           </button>
 
           <div className="my-2 border-t border-border" />
+
+          <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-accent rounded transition-colors">
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span>Выйти</span>
+          </button>
 
           <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-accent rounded transition-colors">
             <ArrowUpFromDot className="h-4 w-4 shrink-0" />
