@@ -28,7 +28,10 @@ export function AdminUsers() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось загрузить пользователей.") }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    const requestId = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(requestId)
+  }, [load])
 
   return <section className="space-y-6"><div><p className="text-sm text-muted-foreground">Администрирование</p><h1 className="mt-1 text-3xl font-bold tracking-tight">Пользователи и роли</h1><p className="mt-2 text-muted-foreground">Роли администратора выдаются только одноразовыми invite-токенами. Пароли, сессии и другие секреты здесь не отображаются.</p></div>{error && <Alert variant="destructive"><CircleAlert /><AlertTitle>Данные недоступны</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}<Card><CardHeader className="flex-row items-start justify-between gap-4"><div><CardTitle className="flex items-center gap-2"><UsersRound className="size-5 text-ape-primary" />Учётные записи</CardTitle><CardDescription>Доступные для администратора безопасные metadata.</CardDescription></div><Button variant="outline" size="sm" onClick={() => void load()}><RefreshCw />Обновить</Button></CardHeader><CardContent>{users === null && !error ? <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Загружаем пользователей…</div> : <Table><TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Роль</TableHead><TableHead>Статус</TableHead><TableHead className="text-right">Создан</TableHead></TableRow></TableHeader><TableBody>{users?.map(user => <TableRow key={user.id}><TableCell><p className="font-medium">{user.email}</p><p className="font-mono text-xs text-muted-foreground">{user.id}</p></TableCell><TableCell><Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role === "admin" && <ShieldCheck />}{roleLabel[user.role]}</Badge></TableCell><TableCell><Badge variant={user.status === "active" ? "outline" : "destructive"}>{statusLabel[user.status]}</Badge></TableCell><TableCell className="text-right text-muted-foreground">{new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(new Date(user.created_at))}</TableCell></TableRow>)}</TableBody></Table>}</CardContent></Card></section>
 }
