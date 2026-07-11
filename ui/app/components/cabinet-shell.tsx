@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
-import { BookOpenText, CircleAlert, Database, FilePlus2, FolderKanban, ListChecks, LogOut, Menu, Settings2, X } from "lucide-react"
+import { BookOpenText, CircleAlert, Database, FilePlus2, FolderKanban, History, ListChecks, LogOut, Menu, Settings2, X } from "lucide-react"
 import { AcademicLogoIcon } from "@/app/components/academic-logo-icon"
 import { useCabinetSession } from "@/app/components/session-gate"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 const navigation = [
   { href: "/cabinet", label: "Обзор", icon: FolderKanban },
   { href: "/cabinet/jobs", label: "Задания", icon: ListChecks },
+  { href: "/cabinet/history", label: "История", icon: History },
   { href: "/", label: "Редактор", icon: FilePlus2 },
   { href: "/cabinet/settings", label: "Настройки", icon: Settings2 },
 ]

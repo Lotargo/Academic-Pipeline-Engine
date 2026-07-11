@@ -127,15 +127,34 @@ npm install
 npm run dev
 ```
 
-Скрипты автоматического запуска (локальный запуск backend и frontend в один клик):
+Скрипты запуска разделяют режимы явно. По умолчанию запускается
+многопользовательский `service-dev`: он поднимает локальный PostgreSQL Docker
+container, применяет Alembic migrations и включает `/api/auth/*`.
 
 ```powershell
 .\run.bat
+# или явно:
+.\run-service-dev.bat
 ```
 
 ```bash
 ./run.sh
+# или явно:
+./run-service-dev.sh
 ```
+
+Для прежнего автономного режима без аккаунтов, jobs API и service auth:
+
+```powershell
+.\run-local.bat
+```
+
+```bash
+./run-local.sh
+```
+
+Не используйте `run-local` для проверки login, cabinet или history service UI:
+в этом режиме `/api/auth/*` намеренно не монтируются.
 
 ## Конфигурация
 

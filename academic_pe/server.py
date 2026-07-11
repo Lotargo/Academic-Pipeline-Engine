@@ -367,11 +367,27 @@ def _write_history_metadata(metadata_path: str, data: dict) -> None:
 
 def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
     run_id = _resolve_history_run_id(metadata_id, data)
+    output_dir = _pipeline_output_dir()
+
+    def file_size(filename: Optional[str]) -> Optional[int]:
+        if not filename:
+            return None
+        try:
+            candidate = os.path.abspath(os.path.join(output_dir, filename))
+            root = os.path.abspath(output_dir)
+            return os.path.getsize(candidate) if candidate.startswith(root + os.sep) and os.path.isfile(candidate) else None
+        except OSError:
+            return None
+
     return {
         "id": metadata_id,
         "run_id": run_id,
         "filename": data.get("docx_filename"),
         "pdf_filename": data.get("pdf_filename"),
+        "artifact_sizes": {
+            "docx": file_size(data.get("docx_filename")),
+            "pdf": file_size(data.get("pdf_filename")),
+        },
         "topic": data.get("topic", "Unknown"),
         "instructions": data.get("instructions"),
         "previous_prompt": data.get("previous_prompt"),
@@ -1622,6 +1638,19 @@ def get_history(archived: Optional[bool] = None, include_archived: bool = False)
             runs = registry_store.list_runs(kind="generation", limit=1000)
             history = []
             output_dir = _pipeline_output_dir()
+
+            def artifact_size(artifact: Any, filename: Optional[str], run_id: str) -> Optional[int]:
+                if artifact is not None and artifact.size_bytes is not None:
+                    return artifact.size_bytes
+                if not filename:
+                    return None
+                try:
+                    for candidate in (os.path.join(output_dir, filename), os.path.join(output_dir, run_id, filename)):
+                        if os.path.isfile(candidate):
+                            return os.path.getsize(candidate)
+                except OSError:
+                    pass
+                return None
             
             for run in runs:
                 # Load metadata_json
@@ -1692,6 +1721,10 @@ def get_history(archived: Optional[bool] = None, include_archived: bool = False)
                     "run_id": run.run_id,
                     "filename": docx_name,
                     "pdf_filename": pdf_name,
+                    "artifact_sizes": {
+                        "docx": artifact_size(docx_artifact, docx_name, run.run_id),
+                        "pdf": artifact_size(pdf_artifact, pdf_name, run.run_id),
+                    },
                     "topic": run.topic or "Unknown",
                     "instructions": run.instructions_preview,
                     "previous_prompt": meta.get("previous_prompt"),

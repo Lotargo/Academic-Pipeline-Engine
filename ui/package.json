@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test:auth": "node --test tests/auth-pages.mjs",
     "test:jobs": "node --test tests/jobs-api.mjs",
+    "test:history": "node --test tests/history-contract.mjs",
     "start": "next start"
   },
   "dependencies": {
