@@ -26,7 +26,7 @@ from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPE
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_line_replace_patch, add_line_numbers
 from academic_pe.core.template_compat import template_section_to_section_prompt
-from academic_pe.instructions import InstructionCompiler
+from academic_pe.instructions import DocumentPlan, InstructionCompiler, parse_document_plan
 from academic_pe.core.template_selector import TemplateSelector
 from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate, TemplateSection
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
@@ -445,6 +445,7 @@ class Orchestrator:
         self.user_topic: str = ""
         self.user_instructions: str = ""
         self._draft_plan: str = ""
+        self._document_plan: DocumentPlan | None = None
         self._state_history: List[PipelineState] = []
         self._hooks: Dict[str, List[HookFn]] = {
             "on_enter": [],
@@ -894,7 +895,7 @@ class Orchestrator:
             from academic_pe.contracts.models import ArtifactContract
 
             artifact_contract = ArtifactContract.model_validate(raw_contract)
-        coverage = metadata.get("coverage")
+        coverage = self._document_plan.coverage_matrix if self._document_plan is not None else metadata.get("coverage")
         return InstructionCompiler().compile(
             "writer",
             artifact_contract=artifact_contract,
@@ -1420,6 +1421,12 @@ class Orchestrator:
             logger.info("Creating document plan before drafting sections.")
             self._draft_plan = self._planner.process(plan_task)
             self._draft_plan = self._clean_section_content(self._draft_plan)
+            self._document_plan, used_legacy_plan = parse_document_plan(
+                self._draft_plan,
+                self._config.pipeline.sections,
+            )
+            if used_legacy_plan:
+                logger.warning("Planner returned legacy prose; using a typed compatibility plan without prose instructions.")
             self._capture_self_critique_summary(self._planner, stage="planning", section_name="document_plan")
             self._set_section_content("document_plan", self._draft_plan)
 

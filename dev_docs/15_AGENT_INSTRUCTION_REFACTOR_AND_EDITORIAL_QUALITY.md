@@ -42,8 +42,18 @@
   compiler path; legacy вызов без coverage остаётся совместимым.
 - Regression P1.9--P1.10 и смежных prompt/orchestrator/revision contracts — 81 passed;
   полный suite — 613 passed, 3 skipped.
-- Следующий пакет: P1.11 строгая JSON-схема Planner/Reviewer, затем P1.12
-  специализированные EvidenceReviewer и EditorialReviewer.
+- P1.11 выполнен: Planner prompt возвращает строгий JSON `DocumentPlan` с
+  типизированными sections, coverage, evidence/calculation needs и transitions;
+  все section references и лишние поля валидируются. Legacy prose из custom
+  adapters изолирован в compatibility fallback и не становится инструкцией.
+- Reviewer prompt теперь имеет один непротиворечивый JSON protocol.
+  `StructuredReviewPayload` запрещает лишние поля, неизвестные role/severity/code
+  и решения `approved`, противоречащие material issues; старые `APPROVED` и
+  `REJECTED` поддерживаются только compatibility parser-ом.
+- Профильная regression P1.11 и смежных contracts — 83 passed; полный suite —
+  617 passed, 3 skipped.
+- Следующий пакет: P1.12 специализированные EvidenceReviewer и
+  EditorialReviewer.
 
 Документ продолжает решения из заметок №13 и №14. Он фиксирует проблемы текущих system prompts, task templates, template manifests, agent adapters и self-critique, а также предлагает новую схему компиляции инструкций.
 

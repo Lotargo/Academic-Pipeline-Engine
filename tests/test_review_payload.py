@@ -1,3 +1,8 @@
+import json
+
+import pytest
+from pydantic import ValidationError
+
 from academic_pe.core.review_payload import parse_review_payload
 
 
@@ -23,3 +28,21 @@ def test_legacy_review_payload_remains_supported():
     assert rejected.approved is False
     assert rejected.issues[0].section == "general"
     assert rejected.issues[0].line == 3
+
+
+def test_strict_review_payload_rejects_unknown_fields_and_inconsistent_decision():
+    with pytest.raises(ValidationError):
+        parse_review_payload(json.dumps({
+            "approved": True,
+            "reviewer_role": "editorial",
+            "summary": "Contradictory",
+            "issues": [{"section": "body", "severity": "major", "code": "DUPLICATION", "message": "Repeated."}],
+        }))
+    with pytest.raises(ValidationError):
+        parse_review_payload(json.dumps({
+            "approved": True,
+            "reviewer_role": "general",
+            "summary": "Fine",
+            "issues": [],
+            "extra": "forbidden",
+        }))

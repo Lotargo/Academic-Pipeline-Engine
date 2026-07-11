@@ -120,14 +120,21 @@ Research planning rules:
 - Reference the URLs of the sources where appropriate.
 {% endif %}
 
-Return a concise Markdown plan with:
-- core intent / central claim when applicable;
-- section-by-section goals;
-- which headings are final-document headings and which blocks are internal-only;
-- terminology and style choices that must stay consistent;
-- continuation actions for preserved, revised, bridge, and newly expanded material when a continuation source is provided;
-- facts, formulas, or complexity claims that must not contradict each other;
-- forbidden inconsistencies, including missing section numbers or references to unavailable document parts.
+Return one JSON object and no Markdown fences. Use exactly this schema:
+{
+  "central_question": "string or null",
+  "central_claim": "string or null",
+  "artifact_structure": [
+    {"section_id": "configured section name", "purpose": "specific function", "semantic_role": "body", "heading_policy": "render_required|render_allowed|internal_only"}
+  ],
+  "coverage_matrix": {"responsibility or claim": ["owning_section_id"]},
+  "terminology": {"canonical term": "required meaning or spelling"},
+  "evidence_requirements": [{"need_id": "EVIDENCE-001", "description": "what must be supported", "section_owner": "section_id"}],
+  "calculation_requirements": [{"need_id": "CALC-NEED-001", "description": "what must be calculated", "section_owner": "section_id"}],
+  "transition_map": [{"from_section": "section_id", "to_section": "section_id", "handoff": "what is handed off without repetition"}],
+  "forbidden_duplications": ["content that must have one owner"]
+}
+Every referenced section ID must exist in artifact_structure. Assign every material claim, limitation, and conclusion to at least one owner in coverage_matrix.
 """
 
 
@@ -254,8 +261,7 @@ The document was generated in continuation mode. Reject if it reads as two separ
 {% endif %}
 
 The text is provided with line numbers (e.g., "1: text") and section headers (e.g., "=== Section: section_name ===") for your convenience so you can refer to precise lines and sections. Do not complain about or try to fix the line numbers or section headers themselves, as they are added by the environment.
-
-If the text passes, return exactly: APPROVED
+You must group the issues by the section field in the JSON payload; use `general` only for document-wide issues.
 
 Reject only for concrete issues that materially harm correctness, coherence, or renderability.
 Do not reject for minor preference, harmless wording, or label differences such as "section" vs "chapter" unless they create an actual broken reference.
@@ -269,10 +275,6 @@ Academic Mode: check for weak assumptions, unsupported claims, shallow definitio
 {% endif %}
 
 If a review focus is provided, first verify whether those issues are fixed. You MUST carefully verify whether all those issues are completely fixed. If any of those issues are still present (even partially), you MUST reject again. Add new issues only when they are severe regressions or major contradictions.
-
-If the text fails, start your response with the line "REJECTED" (without quotes) and then list the specific actionable issues.
-You MUST group the issues by the section they occur in using the tag `[section_name]` (from the list below).
-For each issue, specify the line number(s) if possible.
 
 {% if sections is defined and sections -%}
 Valid section names you MUST use in square brackets:
@@ -298,6 +300,7 @@ Return a machine-readable JSON object and no Markdown fences:
   ]
 }
 Set approved=false when any blocker or material issue remains. Use an empty issues array when approved=true. Do not invent line numbers; use null for a document-level issue.
+The JSON object is the only allowed response. Unknown fields, invalid severity values, and contradictions between approved and issues are rejected by the runtime schema.
 """
 
 

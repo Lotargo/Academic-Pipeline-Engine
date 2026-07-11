@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 REVIEW_ROLE_GUIDANCE = {
@@ -27,22 +27,31 @@ def reviewer_role_guidance(role: str) -> str:
 
 
 class ReviewIssue(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     section: str = "general"
     line: int | None = Field(default=None, ge=1)
-    severity: str = "major"
-    code: str = "REVIEW_ISSUE"
-    message: str
+    severity: Literal["blocker", "major", "minor"] = "major"
+    code: str = Field(default="REVIEW_ISSUE", pattern=r"^[A-Z][A-Z0-9_]*$")
+    message: str = Field(..., min_length=1)
 
 
 class StructuredReviewPayload(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     approved: bool
-    reviewer_role: str = "general"
+    reviewer_role: Literal["evidence", "editorial", "general"] = "general"
     issues: list[ReviewIssue] = Field(default_factory=list)
     summary: str = ""
+
+    @model_validator(mode="after")
+    def _decision_matches_issues(self) -> "StructuredReviewPayload":
+        material = [issue for issue in self.issues if issue.severity in {"blocker", "major"}]
+        if self.approved and material:
+            raise ValueError("approved review cannot contain blocker or major issues")
+        if not self.approved and not material:
+            raise ValueError("rejected review requires at least one blocker or major issue")
+        return self
 
     def reason(self) -> str:
         if self.approved:
@@ -51,6 +60,8 @@ class StructuredReviewPayload(BaseModel):
         if self.summary.strip():
             lines.append(self.summary.strip())
         for issue in self.issues:
+            if issue.message.strip() == self.summary.strip():
+                continue
             location = f"[{issue.section}]"
             if issue.line is not None:
                 location += f" line {issue.line}"
@@ -82,15 +93,7 @@ def parse_review_payload(raw: str | StructuredReviewPayload) -> StructuredReview
 
     candidate = _json_candidate(raw)
     if candidate is not None and "approved" in candidate:
-        issues = candidate.get("issues") or []
-        if not isinstance(issues, list):
-            issues = []
-        return StructuredReviewPayload(
-            approved=bool(candidate.get("approved")),
-            reviewer_role=str(candidate.get("reviewer_role") or "general"),
-            issues=issues,
-            summary=str(candidate.get("summary") or ""),
-        )
+        return StructuredReviewPayload.model_validate(candidate)
 
     if raw.strip().upper() == "APPROVED":
         return StructuredReviewPayload(approved=True)
@@ -109,6 +112,8 @@ def parse_review_payload(raw: str | StructuredReviewPayload) -> StructuredReview
                 "message": match.group(3).strip(),
             }
         )
+    if not issues:
+        issues = [{"section": "general", "severity": "major", "message": summary or "Unstructured rejection."}]
     return StructuredReviewPayload(approved=False, issues=issues, summary=summary)
 
 
@@ -119,10 +124,11 @@ def merge_review_payloads(payloads: list[StructuredReviewPayload]) -> Structured
         return StructuredReviewPayload(approved=True)
     issues = [issue for payload in payloads for issue in payload.issues]
     summaries = [payload.summary.strip() for payload in payloads if payload.summary.strip()]
-    roles = ",".join(payload.reviewer_role for payload in payloads)
+    roles = {payload.reviewer_role for payload in payloads}
+    merged_role = roles.pop() if len(roles) == 1 else "general"
     return StructuredReviewPayload(
         approved=all(payload.approved for payload in payloads),
-        reviewer_role=roles,
+        reviewer_role=merged_role,
         issues=issues,
         summary="; ".join(summaries),
     )
