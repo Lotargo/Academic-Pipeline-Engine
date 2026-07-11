@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated, Callable
+from decimal import Decimal
+from typing import Annotated, Callable, Literal
 from uuid import UUID
 
 import jwt
@@ -15,6 +16,8 @@ from academic_pe.auth.security import (AuthSettings, create_access_token, decode
     hash_password, hash_refresh_token, new_refresh_token, verify_password)
 from academic_pe.persistence.models import (ActorRole, LoginSession, Membership, MembershipRole,
     MembershipStatus, Organization, OrganizationKind, TenantStatus, User, UserStatus, Workspace)
+from academic_pe.providers import InMemoryProviderRegistry, ProviderHealth, ProviderRegistry
+from academic_pe.providers.resources import BudgetKind, ResourceCoordinator
 
 
 class Credentials(BaseModel):
@@ -62,8 +65,49 @@ class AdminUserSummary(BaseModel):
     created_at: datetime
 
 
-def create_auth_router(session_factory: Callable[[], Session], settings: AuthSettings) -> APIRouter:
+class AdminResourceModel(BaseModel):
+    id: str
+    capabilities: list[str]
+
+
+class KnownBudget(BaseModel):
+    kind: Literal["known"]
+    limit: Decimal
+    used: Decimal
+
+
+class UnknownBudget(BaseModel):
+    kind: Literal["unknown"]
+
+
+class AdminResourceProvider(BaseModel):
+    id: str
+    display_name: str
+    models: list[AdminResourceModel]
+    health: ProviderHealth
+    availability: str
+    supports_byok: bool
+    platform_credential: None = None
+    budget: KnownBudget | UnknownBudget
+
+
+class FairUseContext(BaseModel):
+    max_active_per_user: int
+    max_queued_per_user: int
+
+
+class AdminResourceSnapshot(BaseModel):
+    providers: list[AdminResourceProvider]
+    fair_use: FairUseContext
+    generated_at: datetime
+
+
+def create_auth_router(session_factory: Callable[[], Session], settings: AuthSettings,
+                       provider_registry: ProviderRegistry | None = None,
+                       resource_coordinator: ResourceCoordinator | None = None) -> APIRouter:
     router = APIRouter(prefix="/api/auth", tags=["auth"])
+    provider_registry = provider_registry or InMemoryProviderRegistry()
+    resource_coordinator = resource_coordinator or ResourceCoordinator()
 
     def session_dep():
         session = session_factory()
@@ -178,6 +222,30 @@ def create_auth_router(session_factory: Callable[[], Session], settings: AuthSet
         users = session.scalars(select(User).order_by(User.created_at.desc(), User.email)).all()
         return [AdminUserSummary(id=user.id, email=user.email, role=user.actor_role,
                                  status=user.status, created_at=user.created_at) for user in users]
+
+    @router.get("/admin/resources", response_model=AdminResourceSnapshot)
+    def admin_resources(_: Principal = Depends(require_admin)):
+        providers: list[AdminResourceProvider] = []
+        for definition in provider_registry.list():
+            state = resource_coordinator.budget(definition.id)
+            budget: KnownBudget | UnknownBudget
+            if state.kind == BudgetKind.KNOWN:
+                budget = KnownBudget(kind="known", limit=state.limit, used=state.used)
+            else:
+                budget = UnknownBudget(kind="unknown")
+            providers.append(AdminResourceProvider(
+                id=definition.id, display_name=definition.display_name or definition.id,
+                models=[AdminResourceModel(id=model.id, capabilities=sorted(capability.value for capability in model.capabilities))
+                        for model in definition.models], health=ProviderHealth.UNKNOWN,
+                availability=state.availability.value, supports_byok=definition.requires_credential,
+                budget=budget,
+            ))
+        return AdminResourceSnapshot(
+            providers=providers,
+            fair_use=FairUseContext(max_active_per_user=resource_coordinator.policy.max_active_per_user,
+                                    max_queued_per_user=resource_coordinator.policy.max_queued_per_user),
+            generated_at=datetime.now(UTC),
+        )
 
     def require_workspace(workspace_id: UUID, current: Principal = Depends(principal), session: Session = Depends(session_dep)) -> Membership:
         membership = session.scalar(select(Membership).join(Workspace).where(

@@ -9,13 +9,15 @@ from sqlalchemy.pool import StaticPool
 from academic_pe.auth import AuthSettings, create_auth_router
 from academic_pe.persistence.base import Base
 from academic_pe.persistence.models import ActorRole, LoginSession, Membership, User, UserStatus
+from academic_pe.providers import Capability, InMemoryProviderRegistry, ModelMetadata, ProviderDefinition
+from academic_pe.providers.resources import BudgetKind, BudgetState, FairUsePolicy, ResourceCoordinator
 
 
-def app_and_sessions():
+def app_and_sessions(provider_registry=None, resource_coordinator=None):
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, expire_on_commit=False)
-    router = create_auth_router(sessions, AuthSettings(jwt_secret="x" * 32))
+    router = create_auth_router(sessions, AuthSettings(jwt_secret="x" * 32), provider_registry, resource_coordinator)
     app = FastAPI()
 
     @app.get("/admin")
@@ -86,6 +88,25 @@ def test_admin_can_view_safe_user_metadata_only():
     users = response.json()
     assert {user["email"] for user in users} == {"admin@example.com", "member@example.com"}
     assert all("password_hash" not in user and "token_version" not in user for user in users)
+
+
+def test_admin_resource_snapshot_hides_credentials_and_unknown_quota_balance():
+    registry = InMemoryProviderRegistry()
+    registry.register(ProviderDefinition("openai", (ModelMetadata("gpt-test", frozenset({Capability.TEXT_GENERATION})),), display_name="OpenAI"))
+    resources = ResourceCoordinator(FairUsePolicy(2, 4))
+    resources.set_budget("openai", BudgetState(BudgetKind.UNKNOWN))
+    client, sessions = app_and_sessions(registry, resources)
+    tokens = register(client, "admin@example.com").json()
+    with sessions() as session:
+        session.scalar(select(User)).actor_role = ActorRole.ADMIN
+        session.commit()
+    response = client.get("/api/auth/admin/resources", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["providers"][0]["models"] == [{"id": "gpt-test", "capabilities": ["text_generation"]}]
+    assert body["providers"][0]["budget"] == {"kind": "unknown"}
+    assert body["providers"][0]["platform_credential"] is None
+    assert body["fair_use"] == {"max_active_per_user": 2, "max_queued_per_user": 4}
 
 
 def test_context_only_exposes_callers_active_workspace_memberships():
