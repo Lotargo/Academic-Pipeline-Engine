@@ -69,6 +69,23 @@ def test_user_cannot_escalate_or_cross_tenant_boundary():
     assert client.get("/admin", headers=headers).status_code == 403
     assert client.get(f"/workspaces/{own}", headers=headers).status_code == 200
     assert client.get(f"/workspaces/{foreign}", headers=headers).status_code == 404
+    assert client.get("/api/auth/admin/users", headers=headers).status_code == 403
+
+
+def test_admin_can_view_safe_user_metadata_only():
+    client, sessions = app_and_sessions()
+    admin_tokens = register(client, "admin@example.com").json()
+    register(client, "member@example.com")
+    with sessions() as session:
+        admin = session.scalar(select(User).where(User.email == "admin@example.com"))
+        admin.actor_role = ActorRole.ADMIN
+        session.commit()
+    headers = {"Authorization": f"Bearer {admin_tokens['access_token']}"}
+    response = client.get("/api/auth/admin/users", headers=headers)
+    assert response.status_code == 200
+    users = response.json()
+    assert {user["email"] for user in users} == {"admin@example.com", "member@example.com"}
+    assert all("password_hash" not in user and "token_version" not in user for user in users)
 
 
 def test_context_only_exposes_callers_active_workspace_memberships():

@@ -54,6 +54,14 @@ class UserContext(BaseModel):
     workspaces: list[WorkspaceContext]
 
 
+class AdminUserSummary(BaseModel):
+    id: UUID
+    email: str
+    role: ActorRole
+    status: UserStatus
+    created_at: datetime
+
+
 def create_auth_router(session_factory: Callable[[], Session], settings: AuthSettings) -> APIRouter:
     router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -163,6 +171,13 @@ def create_auth_router(session_factory: Callable[[], Session], settings: AuthSet
                 for membership, workspace in memberships
             ],
         )
+
+    @router.get("/admin/users", response_model=list[AdminUserSummary])
+    def admin_users(_: Principal = Depends(require_admin), session: Session = Depends(session_dep)):
+        """List user metadata for an administrator; credentials and sessions are never exposed."""
+        users = session.scalars(select(User).order_by(User.created_at.desc(), User.email)).all()
+        return [AdminUserSummary(id=user.id, email=user.email, role=user.actor_role,
+                                 status=user.status, created_at=user.created_at) for user in users]
 
     def require_workspace(workspace_id: UUID, current: Principal = Depends(principal), session: Session = Depends(session_dep)) -> Membership:
         membership = session.scalar(select(Membership).join(Workspace).where(
