@@ -11,9 +11,9 @@ def test_writer_guidance_for_poem():
 def test_writer_guidance_for_story():
     guidance = contract_guidance_for_agent("writer", "creative_story")
     assert "Creative story writing checks" in guidance
-    assert "showing instead of telling" in guidance
-    assert "narrative voice" in guidance
-    assert "Reject sterile summary tones" in guidance
+    assert "concrete action and sensory detail" in guidance
+    assert "established narrator" in guidance
+    assert "Remove moralizing wrap-ups" in guidance
 
 
 def test_writer_guidance_for_essay():

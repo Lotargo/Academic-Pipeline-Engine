@@ -10,8 +10,8 @@ _GENRE_GUIDANCE_WRITER = {
     ),
     "creative_story": (
         "Creative story writing checks:\n"
-        "- Use a natural narrative voice, showing instead of telling, and focus on style, pacing, and character consistency.\n"
-        "- Reject sterile summary tones, moralizing explanations, or machine-like transitions."
+        "- Preserve the established narrator, pacing, and character behavior; prefer concrete action and sensory detail to explanatory summary.\n"
+        "- Remove moralizing wrap-ups and transitions that do not express a real time, place, cause, or viewpoint change."
     ),
     "school_essay": (
         "School composition writing checks:\n"
@@ -34,8 +34,8 @@ _GENRE_GUIDANCE_WRITER = {
 def contract_guidance(artifact_id: Optional[str] = None) -> str:
     base = (
         "Writer: produce final content that obeys the contract; do not output analysis of the contract. Preserve "
-        "voice, genre, audience level, pacing, structure, mode clauses, and negative constraints. Natural human style "
-        "means artifact-appropriate prose, not false claims about authorship, provenance, or process."
+        "voice, genre, audience level, pacing, structure, mode clauses, and negative constraints. State claims directly, "
+        "avoid repeated conclusions and empty transitions, and never make false claims about authorship, provenance, or process."
     )
     genre = _GENRE_GUIDANCE_WRITER.get(artifact_id) if artifact_id else None
     if genre:

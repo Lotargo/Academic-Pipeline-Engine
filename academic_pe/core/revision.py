@@ -24,6 +24,7 @@ from academic_pe.core.prompting import DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_
 from academic_pe.core.quality_gate import run_all as run_quality_gate
 from academic_pe.core.review_payload import merge_review_payloads, parse_review_payload, reviewer_role_guidance
 from academic_pe.core.section_patch import SectionPatchError, add_line_numbers, apply_line_replace_patch
+from academic_pe.instructions import compile_section_brief
 
 
 class RevisionRequest(BaseModel):
@@ -254,7 +255,7 @@ def execute_patch_revision(
         task = render_template(
             DEFAULT_PATCH_REVISION_TEMPLATE,
             {
-                "section": section,
+                "section_brief": compile_section_brief(section).model_dump(),
                 "reviewer_reason": request.feedback,
                 "language": language,
                 "language_instruction": language_instruction(language),

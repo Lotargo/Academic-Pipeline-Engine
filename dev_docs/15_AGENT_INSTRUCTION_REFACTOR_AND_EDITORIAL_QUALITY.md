@@ -25,8 +25,13 @@
   типизированный `SectionBrief`, protocol markers отбрасываются, Writer template
   больше не читает raw `section.instruction`.
 - Regression для P0.6--P0.7 и смежных pipeline contracts — 162 passed.
-- Следующий пакет: завершить P0-аудит остальных prompt surfaces и перейти к P1
-  `InstructionCompiler`/coverage-aware SectionBrief.
+- P0-аудит завершён: patch revision, optional revision и fallback revision также
+  используют compiled `SectionBrief`; полный system prompt удалён из всех
+  self-critique ролей; абстрактные style checks в active adapters заменены
+  наблюдаемыми редакционными критериями. Объединённая regression — 147 passed.
+- Оставшийся `section.instruction` используется только в Planner input для legacy
+  структуры и будет заменён строгой схемой в P1.
+- Следующий пакет: P1 `InstructionCompiler` и coverage-aware `SectionBrief`.
 
 Документ продолжает решения из заметок №13 и №14. Он фиксирует проблемы текущих system prompts, task templates, template manifests, agent adapters и self-critique, а также предлагает новую схему компиляции инструкций.
 

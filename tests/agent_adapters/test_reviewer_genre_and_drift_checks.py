@@ -4,9 +4,9 @@ from academic_pe.agent_adapters import contract_guidance_for_agent
 def test_reviewer_guidance_base_and_drifts():
     guidance = contract_guidance_for_agent("reviewer")
     assert "Reviewer: check for genre, style, audience, structure" in guidance
-    assert "artificial smoothness" in guidance
-    assert "generic transitions" in guidance
-    assert "meaningless balance phrases" in guidance
+    assert "repeated paragraph openings or conclusions" in guidance
+    assert "transitions without a real logical relation" in guidance
+    assert "unsupported balance phrases" in guidance
     assert "disclaimers" in guidance
     assert "meta-text" in guidance
 
@@ -21,7 +21,7 @@ def test_reviewer_guidance_for_poem():
 def test_reviewer_guidance_for_story():
     guidance = contract_guidance_for_agent("reviewer", "creative_story")
     assert "Story Reviewer checks" in guidance
-    assert "Ensure the narrative flow is natural and preserves genre/voice" in guidance
+    assert "events follow a comprehensible time, cause, place, or viewpoint sequence" in guidance
     assert "Reject sterile summaries" in guidance
 
 
@@ -29,7 +29,7 @@ def test_reviewer_guidance_for_essay():
     guidance = contract_guidance_for_agent("reviewer", "school_essay")
     assert "School Essay Reviewer checks" in guidance
     assert "Verify that the essay is student-appropriate" in guidance
-    assert "student register is natural and consistent" in guidance
+    assert "sentence complexity, and explanation depth" in guidance
 
 
 def test_reviewer_guidance_for_readme():

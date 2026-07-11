@@ -161,13 +161,9 @@ def _build_self_critique_prompt(
             "- Verify that necessary source/evidence gaps are repaired directly if the contract requires evidence/sources."
         )
 
-    if exact_patch_mode:
-        active_constraints = _extract_active_contract_sections(system_prompt)
-        contract_block = f"\n\n[Active Constraints]\n{active_constraints}" if active_constraints else ""
-        context_block = ""
-    else:
-        contract_block = f"\n\n[Active System Prompt And Contract]\n{system_prompt}"
-        context_block = f"\n\n[Context]\n{context}" if context else ""
+    active_constraints = _extract_active_contract_sections(system_prompt)
+    contract_block = f"\n\n[Active Constraints]\n{active_constraints}" if active_constraints else ""
+    context_block = "" if exact_patch_mode else (f"\n\n[Context]\n{context}" if context else "")
     return (
         f"Agent: {agent_name}\n"
         f"{agent_rules}\n"

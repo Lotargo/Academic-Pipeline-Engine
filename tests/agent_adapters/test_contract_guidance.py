@@ -8,7 +8,7 @@ def test_contract_guidance_for_writer_preserves_artifact_voice():
     assert "Preserve voice, genre, audience level" in guidance
     assert "mode clauses" in guidance
     assert "negative constraints" in guidance
-    assert "not false claims about authorship, provenance, or process" in guidance
+    assert "never make false claims about authorship, provenance, or process" in guidance
 
 
 def test_contract_guidance_for_planner_avoids_generic_academic_structure():
@@ -28,11 +28,11 @@ def test_contract_guidance_for_reviewer_checks_drift_and_ai_markers():
     assert "forbidden-clause drift" in guidance
     assert "standard_mode and academic_mode clauses" in guidance
     assert "AI/meta markers" in guidance
-    assert "artificial smoothness" in guidance
-    assert "generic transitions" in guidance
-    assert "meaningless balance phrases" in guidance
+    assert "repeated paragraph openings or conclusions" in guidance
+    assert "transitions without a real logical relation" in guidance
+    assert "unsupported balance phrases" in guidance
     assert "disclaimers" in guidance
-    assert "not false claims about authorship, provenance, or process" in guidance
+    assert "Do not infer authorship or provenance from style" in guidance
 
 
 def test_contract_guidance_for_researcher_does_not_force_sources():

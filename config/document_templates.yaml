@@ -46,7 +46,7 @@ templates:
         forbidden:
           - missing methodology when methods are required
           - hallucinated quantitative claims
-          - AI-style concluding filler
+          - conclusions that only repeat the introduction or make generic significance claims
       output_constraints:
         markdown_allowed: true
         latex_allowed: true

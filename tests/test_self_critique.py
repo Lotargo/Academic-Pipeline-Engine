@@ -110,6 +110,22 @@ def test_writer_self_critique_receives_only_active_contract_sections():
     assert "[Active System Prompt And Contract]" not in prompt
 
 
+def test_non_writer_self_critique_does_not_receive_full_system_prompt():
+    provider = StaticCritiqueProvider('{"summary":"No changes.","output":"Plan."}')
+
+    run_self_critique(
+        agent_name="planner",
+        config=_config(),
+        llm=provider,
+        task_description="Return the requested plan JSON.",
+        draft_output="Plan.",
+        system_prompt="PRIVATE PLANNER SYSTEM PROMPT",
+    )
+
+    assert "PRIVATE PLANNER SYSTEM PROMPT" not in provider.calls[0]["user_prompt"]
+    assert "[Active System Prompt And Contract]" not in provider.calls[0]["user_prompt"]
+
+
 def test_self_critique_invalid_response_keeps_original_output():
     provider = StaticCritiqueProvider("not json")
 

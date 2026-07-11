@@ -85,7 +85,6 @@ def test_generic_templates_are_artifact_neutral_without_academic_mode():
         DEFAULT_REVISION_TEMPLATE,
         {
             **base_context,
-            "section": section,
             "reviewer_reason": "Tighten one sentence.",
         },
     )

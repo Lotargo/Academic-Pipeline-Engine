@@ -834,7 +834,7 @@ def test_patch_revision_trims_leaked_following_section():
                 return "VERIFIED"
 
             if "minimal patch" in user_prompt:
-                if "Section topic: Overview" in user_prompt:
+                if "Purpose: Overview" in user_prompt:
                     return """<<<<<<< REPLACE 1-1
 Overview fixed.
 
@@ -1573,7 +1573,7 @@ def test_quality_gate_automated_rejection_in_loop():
                 return "VERIFIED"
 
             # Writer calls
-            if "Revise the section" in user_prompt or "minimal patch" in user_prompt:
+            if "Revise section" in user_prompt or "minimal patch" in user_prompt:
                 self.draft_calls += 1
                 if "Quality Gate issue" in user_prompt:
                     # Clean up code fence because of quality gate rejection

@@ -159,15 +159,18 @@ Required JSON shape:
 """
 
 
-DEFAULT_REVISION_TEMPLATE = """Revise the section about {{ section.topic }}.
+DEFAULT_REVISION_TEMPLATE = """Revise section `{{ section_brief.section_id }}`.
+Purpose: {{ section_brief.purpose }}.
 Address these reviewer issues: {{ reviewer_reason }}
-{{ section.instruction }}
+{% if section_brief.writing_constraints %}Active section constraints:
+{% for constraint in section_brief.writing_constraints %}- {{ constraint }}
+{% endfor %}{% endif %}
 
 {{ language_instruction }}
 Make the smallest possible targeted edits to the existing section.
 Preserve unaffected paragraphs, wording, Markdown structure, requested tone/register, and existing LaTeX formulas whenever they are not part of the reviewer issue.
 Do not introduce new chapter numbering schemes, new missing references, or unrelated claims.
-Section heading policy: {{ section.heading_policy|default("render_required") }}. If it is internal_only, do not expose its title or internal planning labels in the corrected final text.
+Output form: {{ section_brief.output_form }}. {% if not section_brief.visible_heading %}Do not expose its title or internal planning labels in the corrected final text.{% endif %}
 Context may include other document sections for continuity. Treat those other sections as read-only reference material; do not include or rewrite them in your output.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
@@ -184,7 +187,7 @@ Academic Mode: preserve compatible rigor and evidence discipline while keeping t
 {% endif %}
 {% if visualization_required|default(false) %}
 IMPORTANT: Preserve or correct the python-run code block used for visualization.
-If correcting a visualization error, ensure the block starts with ` ```python-run `, sets `matplotlib.use("Agg")`, saves to `{{ output_dir | default('exports') }}/plot_{{ section.name }}.png`, and prints the Markdown image tag `![Caption]({{ output_dir | default('exports') }}/plot_{{ section.name }}.png)`.
+If correcting a visualization error, ensure the block starts with ` ```python-run `, sets `matplotlib.use("Agg")`, saves to `{{ output_dir | default('exports') }}/plot_{{ section_brief.section_id }}.png`, and prints the Markdown image tag `![Caption]({{ output_dir | default('exports') }}/plot_{{ section_brief.section_id }}.png)`.
 {% endif %}
 
 IMPORTANT: Return only the final corrected Markdown text of the current section. Do not return the full document, other sections, diffs, search/replace blocks, edit instructions, or explanations.
@@ -192,9 +195,12 @@ IMPORTANT: Return only the final corrected Markdown text of the current section.
 
 
 DEFAULT_PATCH_REVISION_TEMPLATE = """Edit the current section by returning a minimal patch.
-Section topic: {{ section.topic }}
+Section: `{{ section_brief.section_id }}`
+Purpose: {{ section_brief.purpose }}
 Reviewer issues to address: {{ reviewer_reason }}
-{{ section.instruction }}
+{% if section_brief.writing_constraints %}Active section constraints:
+{% for constraint in section_brief.writing_constraints %}- {{ constraint }}
+{% endfor %}{% endif %}
 
 {{ language_instruction }}
 

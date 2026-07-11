@@ -10,13 +10,13 @@ _GENRE_GUIDANCE_REVIEWER = {
     ),
     "creative_story": (
         "Story Reviewer checks:\n"
-        "- Ensure the narrative flow is natural and preserves genre/voice.\n"
+        "- Ensure events follow a comprehensible time, cause, place, or viewpoint sequence and preserve genre/voice.\n"
         "- Reject sterile summaries, template transitions, or moralizing wrap-ups."
     ),
     "school_essay": (
         "School Essay Reviewer checks:\n"
         "- Verify that the essay is student-appropriate and does not look like a professional research publication.\n"
-        "- Ensure the student register is natural and consistent."
+        "- Ensure vocabulary, sentence complexity, and explanation depth remain consistent with the requested student level."
     ),
     "technical_readme": (
         "Technical README Reviewer checks:\n"
@@ -35,9 +35,9 @@ def contract_guidance(artifact_id: Optional[str] = None) -> str:
     base = (
         "Reviewer: check for genre, style, audience, structure, prompt, and forbidden-clause drift against the "
         "contract. Treat standard_mode and academic_mode clauses as binding. Reject incompatible academicization, "
-        "bureaucracy, missing user constraints, and AI/meta markers. Look for and reject artificial smoothness, "
-        "repeated syntactic patterns, generic transitions, meaningless balance phrases, disclaimers, or meta-text."
-        " Natural human style means artifact-appropriate prose, not false claims about authorship, provenance, or process."
+        "bureaucracy, missing user constraints, and AI/meta markers. Reject repeated paragraph openings or conclusions, "
+        "transitions without a real logical relation, unsupported balance phrases, disclaimers, and meta-text. "
+        "Do not infer authorship or provenance from style."
     )
     genre = _GENRE_GUIDANCE_REVIEWER.get(artifact_id) if artifact_id else None
     if genre:

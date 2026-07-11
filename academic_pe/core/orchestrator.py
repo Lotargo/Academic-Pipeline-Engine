@@ -1621,7 +1621,7 @@ class Orchestrator:
                         task = render_template(
                             DEFAULT_PATCH_REVISION_TEMPLATE,
                             {
-                                "section": section,
+                                "section_brief": compile_section_brief(section).model_dump(),
                                 "reviewer_reason": sec_reason,
                                 "language": target_language,
                                 "language_instruction": language_instruction(target_language),
@@ -1663,7 +1663,7 @@ class Orchestrator:
                             fallback_task = render_template(
                                 DEFAULT_REVISION_TEMPLATE,
                                 {
-                                    "section": section,
+                                    "section_brief": compile_section_brief(section).model_dump(),
                                     "reviewer_reason": sec_reason,
                                     "language": target_language,
                                     "language_instruction": language_instruction(target_language),
