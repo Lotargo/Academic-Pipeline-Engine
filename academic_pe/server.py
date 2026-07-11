@@ -74,6 +74,7 @@ app = FastAPI(title="Academic PE API Server", version="0.1.0", lifespan=lifespan
 # server remains usable without PostgreSQL or a JWT secret.
 if os.getenv("APE_DATABASE_SYNC_URL"):
     from academic_pe.auth import AuthSettings, create_auth_router
+    from academic_pe.jobs import create_jobs_router
     from academic_pe.persistence.config import DatabaseSettings, create_worker_engine, create_worker_session_factory
 
     _auth_secret = os.getenv("APE_AUTH_JWT_SECRET")
@@ -81,7 +82,10 @@ if os.getenv("APE_DATABASE_SYNC_URL"):
         raise RuntimeError("APE_AUTH_JWT_SECRET is required when service auth is enabled")
     _database_settings = DatabaseSettings.from_env()
     _auth_engine = create_worker_engine(_database_settings)
-    app.include_router(create_auth_router(create_worker_session_factory(_auth_engine), AuthSettings(_auth_secret)))
+    _session_factory = create_worker_session_factory(_auth_engine)
+    _auth_router = create_auth_router(_session_factory, AuthSettings(_auth_secret))
+    app.include_router(_auth_router)
+    app.include_router(create_jobs_router(_session_factory, _auth_router.principal_dependency))
 
 # CORS middleware for Next.js on port 3000
 app.add_middleware(

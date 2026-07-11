@@ -8,6 +8,7 @@
     "dev": "node scripts/dev.cjs",
     "lint": "eslint .",
     "test:auth": "node --test tests/auth-pages.mjs",
+    "test:jobs": "node --test tests/jobs-api.mjs",
     "start": "next start"
   },
   "dependencies": {

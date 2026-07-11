@@ -5,6 +5,7 @@
 - `PLAN.md`
 - `../BE-01-data-and-tenancy/PLAN.md`
 - `../BE-02-orm-and-migrations/PLAN.md`
+- `../../contracts/job-api.md`
 
 ## Tasks
 
@@ -16,3 +17,4 @@
 - [x] `BE-07-T006` Добавить checkpoint/recovery policy.
 - [x] `BE-07-T007` Покрыть transition и idempotency тестами.
 - [x] `BE-07-T008` Создать walkthrough-отчёт.
+- [x] `BE-07-T009` Добавить tenant-scoped HTTP Job API и SSE stream для FE-03.
