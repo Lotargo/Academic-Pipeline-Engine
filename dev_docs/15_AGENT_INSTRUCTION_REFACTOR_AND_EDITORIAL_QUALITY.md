@@ -18,8 +18,15 @@
   `test_prompt_enhance`, `test_orchestrator` — 88 passed.
 - P0.8 выполнен: deterministic leakage gate блокирует runtime contract,
   self-critique, GREP и REPLACE protocol markers; профильная проверка — 50 passed.
-- Следующий пакет: P0.6--P0.7 (patch-only self-critique и компиляция
-  SectionBrief вместо raw section instructions).
+- P0.6 выполнен для Writer: обычный self-critique возвращает exact-text patches,
+  неоднозначные замены отклоняются, незатронутый текст сохраняется; полный system
+  prompt и document context повторно не передаются.
+- P0.7 выполнен для первичного drafting: legacy `SectionPrompt` компилируется в
+  типизированный `SectionBrief`, protocol markers отбрасываются, Writer template
+  больше не читает raw `section.instruction`.
+- Regression для P0.6--P0.7 и смежных pipeline contracts — 162 passed.
+- Следующий пакет: завершить P0-аудит остальных prompt surfaces и перейти к P1
+  `InstructionCompiler`/coverage-aware SectionBrief.
 
 Документ продолжает решения из заметок №13 и №14. Он фиксирует проблемы текущих system prompts, task templates, template manifests, agent adapters и self-critique, а также предлагает новую схему компиляции инструкций.
 

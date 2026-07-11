@@ -46,7 +46,7 @@ def run_self_critique(
 
     raw = _call_provider_generate(
         llm,
-        system_prompt=_SELF_CRITIQUE_SYSTEM_PROMPT,
+        system_prompt=_self_critique_system_prompt(agent_name, task_description),
         user_prompt=prompt,
         model=config.model,
         temperature=temperature,
@@ -61,7 +61,30 @@ def run_self_critique(
             skipped_reason="invalid_response",
         )
 
-    summary, repaired = parsed
+    summary = parsed["summary"]
+    legacy_output = parsed.get("output")
+    if isinstance(legacy_output, str) and _looks_like_blocking_feedback(legacy_output):
+        return SelfCritiqueResult(
+            output=draft_output,
+            summary="Self-critique skipped: critic returned blocking feedback.",
+            skipped_reason="blocking_feedback",
+        )
+    if _uses_exact_text_patches(agent_name, task_description):
+        repaired = _apply_exact_text_patches(draft_output, parsed.get("patches"))
+        if repaired is None:
+            return SelfCritiqueResult(
+                output=draft_output,
+                summary="Self-critique skipped: invalid or ambiguous patch.",
+                skipped_reason="invalid_exact_patch",
+            )
+    else:
+        repaired = legacy_output
+        if not isinstance(repaired, str):
+            return SelfCritiqueResult(
+                output=draft_output,
+                summary="Self-critique skipped: missing repaired output.",
+                skipped_reason="invalid_response",
+            )
     if not repaired.strip():
         return SelfCritiqueResult(
             output=draft_output,
@@ -97,12 +120,22 @@ def run_self_critique(
     )
 
 
-_SELF_CRITIQUE_SYSTEM_PROMPT = """You are an internal, non-blocking self-critique pass.
-Your job is to repair the agent's own draft directly before it is handed forward.
-Do not ask the user for approval. Do not return REJECTED, TODOs, review notes, or explanations.
-Do not reveal chain-of-thought. Return ONLY a compact JSON object:
-{"summary":"short factual repair summary, max 160 characters","output":"final repaired output"}
-"""
+def _self_critique_system_prompt(agent_name: str, task_description: str) -> str:
+    base = (
+        "You are an internal, non-blocking self-critique pass.\n"
+        "Do not ask the user for approval. Do not return REJECTED, TODOs, review notes, or explanations.\n"
+        "Do not reveal chain-of-thought. "
+    )
+    if _uses_exact_text_patches(agent_name, task_description):
+        return base + (
+            "Repair only diagnosed text spans. Return ONLY compact JSON:\n"
+            '{"summary":"short factual summary","patches":[{"old":"exact unique text","new":"replacement"}]}\n'
+            "Use an empty patches array when no repair is required. Each old value must occur exactly once in the draft."
+        )
+    return base + (
+        "Return ONLY a compact JSON object:\n"
+        '{"summary":"short factual repair summary, max 160 characters","output":"final repaired output"}'
+    )
 
 
 def _build_self_critique_prompt(
@@ -116,6 +149,7 @@ def _build_self_critique_prompt(
     agent_rules = _agent_rules(agent_name)
     patch_rules = _patch_revision_rules(task_description)
     is_academic = "academic_mode" in system_prompt or "execution_mode academic" in system_prompt
+    exact_patch_mode = _uses_exact_text_patches(agent_name, task_description)
     
     academic_rules = ""
     if is_academic:
@@ -127,20 +161,25 @@ def _build_self_critique_prompt(
             "- Verify that necessary source/evidence gaps are repaired directly if the contract requires evidence/sources."
         )
 
-    context_block = f"\n\n[Context]\n{context}" if context else ""
+    if exact_patch_mode:
+        active_constraints = _extract_active_contract_sections(system_prompt)
+        contract_block = f"\n\n[Active Constraints]\n{active_constraints}" if active_constraints else ""
+        context_block = ""
+    else:
+        contract_block = f"\n\n[Active System Prompt And Contract]\n{system_prompt}"
+        context_block = f"\n\n[Context]\n{context}" if context else ""
     return (
         f"Agent: {agent_name}\n"
         f"{agent_rules}\n"
         f"{patch_rules}"
-        f"{academic_rules}\n\n"
-        "[Active System Prompt And Contract]\n"
-        f"{system_prompt}\n"
+        f"{academic_rules}"
+        f"{contract_block}"
         f"{context_block}\n\n"
         "[Original Task]\n"
         f"{task_description}\n\n"
         "[Draft Output]\n"
         f"{draft_output}\n\n"
-        "Repair the draft in one pass. If it already satisfies the task and contract, return it unchanged."
+        "Repair only material diagnosed issues. Preserve every unaffected span exactly."
     )
 
 
@@ -206,7 +245,9 @@ def _normalize_agent_name(agent_name: str) -> str:
     return re.sub(r"_+", "_", normalized).strip("_")
 
 
-def _parse_self_critique_response(raw: str) -> tuple[str, str] | None:
+def _parse_self_critique_response(raw: str) -> dict[str, object] | None:
+    if not isinstance(raw, str):
+        return None
     try:
         data = json.loads(_extract_json_object(raw))
     except (json.JSONDecodeError, TypeError):
@@ -214,13 +255,43 @@ def _parse_self_critique_response(raw: str) -> tuple[str, str] | None:
 
     if not isinstance(data, dict):
         return None
-    output = data.get("output")
-    if not isinstance(output, str):
-        return None
     summary = data.get("summary", "")
     if not isinstance(summary, str):
         summary = str(summary)
-    return summary, output
+    return {**data, "summary": summary}
+
+
+def _uses_exact_text_patches(agent_name: str, task_description: str) -> bool:
+    return "writer" in set(_normalize_agent_name(agent_name).split("_")) and not _is_patch_revision_task(
+        task_description
+    )
+
+
+def _apply_exact_text_patches(draft: str, patches: object) -> str | None:
+    if not isinstance(patches, list):
+        return None
+    repaired = draft
+    for patch in patches:
+        if not isinstance(patch, dict):
+            return None
+        old = patch.get("old")
+        new = patch.get("new")
+        if not isinstance(old, str) or not old or not isinstance(new, str):
+            return None
+        if repaired.count(old) != 1:
+            return None
+        repaired = repaired.replace(old, new, 1)
+    return repaired
+
+
+def _extract_active_contract_sections(system_prompt: str) -> str:
+    sections = re.findall(
+        r"\[(?:Active Artifact Contract|Active Agent Contract)\]\n.*?(?=\n\[[^\]]+\]|\Z)",
+        system_prompt,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    compact = "\n\n".join(section.strip() for section in sections)
+    return compact[:6000]
 
 
 def _extract_json_object(raw: str) -> str:

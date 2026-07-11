@@ -31,7 +31,7 @@ def _config() -> AgentConfig:
 
 def test_self_critique_repairs_output_from_json_response():
     provider = StaticCritiqueProvider(
-        '{"summary":"Removed AI wrapper.","output":"Final artifact text."}'
+        '{"summary":"Removed AI wrapper.","patches":[{"old":"Sure, here is the final artifact: ","new":""}]}'
     )
 
     result = run_self_critique(
@@ -48,6 +48,66 @@ def test_self_critique_repairs_output_from_json_response():
     assert result.changed is True
     assert provider.calls[0]["temperature"] == 0.1
     assert "Do not return REJECTED" in provider.calls[0]["system_prompt"]
+    assert "exact unique text" in provider.calls[0]["system_prompt"]
+
+
+def test_writer_self_critique_rejects_ambiguous_patch_and_preserves_draft():
+    provider = StaticCritiqueProvider(
+        '{"summary":"Changed repeated text.","patches":[{"old":"same","new":"other"}]}'
+    )
+
+    result = run_self_critique(
+        agent_name="writer",
+        config=_config(),
+        llm=provider,
+        task_description="Write the final artifact.",
+        draft_output="same and same",
+        system_prompt="Contract prompt.",
+    )
+
+    assert result.output == "same and same"
+    assert result.skipped_reason == "invalid_exact_patch"
+
+
+def test_writer_self_critique_empty_patch_list_preserves_draft():
+    provider = StaticCritiqueProvider('{"summary":"No repair needed.","patches":[]}')
+
+    result = run_self_critique(
+        agent_name="writer",
+        config=_config(),
+        llm=provider,
+        task_description="Write the final artifact.",
+        draft_output="Already correct.",
+        system_prompt="Contract prompt.",
+    )
+
+    assert result.output == "Already correct."
+    assert result.changed is False
+
+
+def test_writer_self_critique_receives_only_active_contract_sections():
+    provider = StaticCritiqueProvider('{"summary":"No repair needed.","patches":[]}')
+
+    run_self_critique(
+        agent_name="writer",
+        config=_config(),
+        llm=provider,
+        task_description="Write the final artifact.",
+        draft_output="Already correct.",
+        system_prompt=(
+            "PRIVATE BASE SYSTEM GUIDANCE\n\n"
+            "[Active Artifact Contract]\n(document (artifact report))\n\n"
+            "[Active Agent Contract]\n(agent_contract_delta (agent writer))"
+        ),
+        context="FULL DOCUMENT CONTEXT MUST NOT BE REPEATED",
+    )
+
+    prompt = provider.calls[0]["user_prompt"]
+    assert "(artifact report)" in prompt
+    assert "agent_contract_delta" in prompt
+    assert "PRIVATE BASE SYSTEM GUIDANCE" not in prompt
+    assert "FULL DOCUMENT CONTEXT MUST NOT BE REPEATED" not in prompt
+    assert "[Active System Prompt And Contract]" not in prompt
 
 
 def test_self_critique_invalid_response_keeps_original_output():

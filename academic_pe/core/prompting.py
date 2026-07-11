@@ -14,16 +14,20 @@ _env = Environment(
 )
 
 
-DEFAULT_DRAFT_TEMPLATE = """Write a section about {{ section.topic }}.
-{{ section.instruction }}
+DEFAULT_DRAFT_TEMPLATE = """Write the final text for section `{{ section_brief.section_id }}`.
+
+Purpose: {{ section_brief.purpose }}.
+Output form: {{ section_brief.output_form }}.
+{% if section_brief.writing_constraints %}Active section constraints:
+{% for constraint in section_brief.writing_constraints %}- {{ constraint }}
+{% endfor %}{% endif %}
 
 {{ language_instruction }}
 Follow the document plan and continuity context when provided.
 Preserve Markdown structure, the requested tone/register, and existing LaTeX formulas when present.
 Do not call sections "chapters" unless the user explicitly requested chapter-based output.
-Section semantic role: {{ section.semantic_role|default("body") }}.
-Section heading policy: {{ section.heading_policy|default("render_required") }}.
-If the section heading policy is internal_only, use it only as private planning context: do not print the section title, do not create a visible heading for it, and do not expose internal labels such as exposition, development, conflict analysis, risks, red_flags, or pacing notes.
+{% if not section_brief.visible_heading %}Do not print a section title or expose internal planning labels such as exposition, development, conflict analysis, risks, red_flags, or pacing notes.
+{% endif %}
 Avoid forward references to sections, tables, formulas, or chapters that do not exist in the current document.
 {% if user_topic %}Original user topic: {{ user_topic }}{% endif %}
 {% if user_instructions %}Original user instructions: {{ user_instructions }}{% endif %}
@@ -50,10 +54,10 @@ The code inside this block will be executed in a sandbox. It MUST:
 2. Generate the plot/chart based on the section's data or formulas.
 3. Save the plot to a unique png file in the `{{ output_dir | default('exports') }}` directory, e.g., `{{ output_dir | default('exports') }}/plot_{{ section.name }}.png`.
 4. Use `print()` to output a standard Markdown image tag referencing the saved image, e.g.:
-   print("![Description of the plot]({{ output_dir | default('exports') }}/plot_{{ section.name }}.png)")
+    print("![Description of the plot]({{ output_dir | default('exports') }}/plot_{{ section_brief.section_id }}.png)")
 This output tag will automatically embed the figure in the final Word document.
 Ensure your code is clean and executable, and does not print any document text besides the Markdown image tag.
-If this sandbox block also produces a material calculation used in the section, emit one single-line machine-readable record with `print("CALCULATION_LEDGER_JSON:" + json.dumps({"entries": [...]}, ensure_ascii=False))`. Import `json`; each entry must include calculation_id (`CALC-001` format), expression, inputs (`value`, `unit`, optional `source`), expected_result, and section_owner equal to `{{ section.name }}`. This transport line is stored as internal audit data and is not rendered in the document.
+If this sandbox block also produces a material calculation used in the section, emit one single-line machine-readable record with `print("CALCULATION_LEDGER_JSON:" + json.dumps({"entries": [...]}, ensure_ascii=False))`. Import `json`; each entry must include calculation_id (`CALC-001` format), expression, inputs (`value`, `unit`, optional `source`), expected_result, and section_owner equal to `{{ section_brief.section_id }}`. This transport line is stored as internal audit data and is not rendered in the document.
 {% endif %}
 
 """

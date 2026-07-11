@@ -165,7 +165,7 @@ def test_writer_agent_self_critique_repairs_final_output():
             self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
             if len(self.calls) == 1:
                 return "Sure, here is the requested artifact: Clean text."
-            return '{"summary":"Removed wrapper.","output":"Clean text."}'
+            return '{"summary":"Removed wrapper.","patches":[{"old":"Sure, here is the requested artifact: ","new":""}]}'
 
     cfg = AgentConfig(
         role="Writer",

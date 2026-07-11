@@ -26,6 +26,7 @@ from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPE
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_line_replace_patch, add_line_numbers
 from academic_pe.core.template_compat import template_section_to_section_prompt
+from academic_pe.instructions import compile_section_brief
 from academic_pe.core.template_selector import TemplateSelector
 from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate, TemplateSection
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
@@ -1412,7 +1413,7 @@ class Orchestrator:
                     task = render_template(
                         DEFAULT_DRAFT_TEMPLATE,
                         {
-                            "section": section,
+                            "section_brief": compile_section_brief(section).model_dump(),
                             "language": target_language,
                             "language_instruction": language_instruction(target_language),
                             "user_topic": self.user_topic,

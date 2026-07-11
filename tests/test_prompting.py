@@ -1,4 +1,5 @@
 from academic_pe.core.config import SectionPrompt
+from academic_pe.instructions import compile_section_brief
 from academic_pe.core.prompting import (
     DEFAULT_DRAFT_TEMPLATE,
     DEFAULT_MERGE_OPERATION_TEMPLATE,
@@ -13,14 +14,14 @@ def test_draft_template_uses_section_not_chapter():
     prompt = render_template(
         DEFAULT_DRAFT_TEMPLATE,
         {
-            "section": SectionPrompt(name="theory", topic="Finite State Machines", instruction="Use H2/H3."),
+            "section_brief": compile_section_brief(SectionPrompt(name="theory", topic="Finite State Machines", instruction="Use H2/H3.")).model_dump(),
             "language_instruction": "Write the entire document in English.",
             "user_topic": "FSM",
             "user_instructions": "",
         },
     )
 
-    assert "Write a section about Finite State Machines." in prompt
+    assert "Purpose: Finite State Machines." in prompt
     assert "Write a chapter" not in prompt
 
 
@@ -28,7 +29,7 @@ def test_draft_template_does_not_accept_raw_research_or_reference_context():
     prompt = render_template(
         DEFAULT_DRAFT_TEMPLATE,
         {
-            "section": SectionPrompt(name="body", topic="Draft section", instruction="Write clean prose."),
+            "section_brief": compile_section_brief(SectionPrompt(name="body", topic="Draft section", instruction="Write clean prose.")).model_dump(),
             "language_instruction": "Write the entire document in English.",
             "user_topic": "Topic",
             "user_instructions": "",
@@ -60,7 +61,7 @@ def test_review_template_accepts_focus_and_limits_issues():
 def test_generic_templates_are_artifact_neutral_without_academic_mode():
     section = SectionPrompt(name="scene", topic="Summer field", instruction="Write a lyrical scene.")
     base_context = {
-        "section": section,
+        "section_brief": compile_section_brief(section).model_dump(),
         "language_instruction": "Write the entire document in English.",
         "user_topic": "Summer field",
         "user_instructions": "Write a lyrical scene.",
@@ -84,6 +85,7 @@ def test_generic_templates_are_artifact_neutral_without_academic_mode():
         DEFAULT_REVISION_TEMPLATE,
         {
             **base_context,
+            "section": section,
             "reviewer_reason": "Tighten one sentence.",
         },
     )
@@ -112,7 +114,7 @@ def test_academic_mode_does_not_force_visualization_by_default():
     prompt = render_template(
         DEFAULT_DRAFT_TEMPLATE,
         {
-            "section": SectionPrompt(name="poem", topic="Lady in Red", instruction="Write a poem."),
+            "section_brief": compile_section_brief(SectionPrompt(name="poem", topic="Lady in Red", instruction="Write a poem.")).model_dump(),
             "language_instruction": "Write the entire document in English.",
             "user_topic": "Lady in Red",
             "user_instructions": "Write a poem.",
