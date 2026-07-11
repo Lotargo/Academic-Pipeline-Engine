@@ -4,6 +4,7 @@
 
 - `PLAN.md`
 - только PLAN backend-композиций, endpoint которых реализуется в текущей сессии
+- [`../../contracts/admin-resource-api.md`](../../contracts/admin-resource-api.md) для `FE-06-T003`
 
 ## Tasks
 
