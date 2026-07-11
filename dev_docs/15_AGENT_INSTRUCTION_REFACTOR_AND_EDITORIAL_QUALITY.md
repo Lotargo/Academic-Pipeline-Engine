@@ -4,6 +4,21 @@
 
 Архитектурная заметка и план будущей переработки инструкций агентов.
 
+### Checkpoint (2026-07-12)
+
+- P0.1 выполнен: runtime prompt содержит ArtifactContract один раз, а
+  AgentContract рендерится как role-specific delta со ссылкой на активный contract.
+- P0.2 выполнен для template manifest: Writer не получает reviewer rubric,
+  Planner не получает output/export constraints, Researcher не получает
+  нерелевантные template-секции.
+- P0.3--P0.5 начаты в `config/agents.example.yaml`: абстрактные стилевые запреты
+  заменены наблюдаемыми критериями, универсальные `3-5 sections` удалены,
+  Reviewer использует severity-based решение.
+- Regression: `test_config`, `test_prompt_manifest_resolver`,
+  `test_prompt_enhance`, `test_orchestrator` — 88 passed.
+- Следующий пакет: P0.6--P0.8 (patch-only self-critique, компиляция SectionBrief
+  вместо raw section instructions, leakage/protocol regression gates).
+
 Документ продолжает решения из заметок №13 и №14. Он фиксирует проблемы текущих system prompts, task templates, template manifests, agent adapters и self-critique, а также предлагает новую схему компиляции инструкций.
 
 Цель изменений состоит не в обходе AI-детекторов и не в имитации человеческих ошибок. Система должна уменьшать количество воспроизводимых машинных шаблонов, служебных следов, пустых переходов, чрезмерно ровной структуры и повторяющихся выводов. Итоговый текст должен выглядеть естественно потому, что он конкретен, внутренне согласован, соответствует задаче и сохраняет реальный пользовательский замысел.

@@ -83,6 +83,7 @@ def test_prompt_manifest_resolver_composes_writer_prompt():
     assert "Role for this document template: Poet" in resolved.system_prompt
     assert "Task for this document template: Write stanza-oriented poetry." in resolved.system_prompt
     assert "structure: stanzas" in resolved.system_prompt
+    assert "[Template Review Rubric]" not in resolved.system_prompt
     assert "latex_allowed: false" in resolved.system_prompt
 
 
@@ -105,9 +106,10 @@ def test_prompt_manifest_resolver_adds_artifact_contract_to_writer_prompt():
     assert "Writer: produce final content that obeys the contract" in resolved.system_prompt
     assert "(agent writer)" in resolved.system_prompt
     assert "(responsibilities produce_final_content preserve_voice_genre_audience satisfy_user_constraints)" in resolved.system_prompt
-    assert "(artifact creative_poem)" in resolved.system_prompt
-    assert "(forbid academic_drift forced_visualization research_paper_structure)" in resolved.system_prompt
-    assert "(visualization_required false)" in resolved.system_prompt
+    assert resolved.system_prompt.count("(artifact creative_poem)") == 1
+    assert resolved.system_prompt.count("(forbid academic_drift forced_visualization research_paper_structure)") == 1
+    assert resolved.system_prompt.count("(visualization_required false)") == 1
+    assert "(artifact_contract_ref active_artifact_contract)" in resolved.system_prompt
 
 
 def test_prompt_manifest_resolver_composes_reviewer_prompt():
@@ -123,6 +125,22 @@ def test_prompt_manifest_resolver_composes_reviewer_prompt():
     assert "Role for this document template: Poetry reviewer" in resolved.system_prompt
     assert "Validate poetic fit without academic methodology checks." in resolved.system_prompt
     assert "demand for formulas" in resolved.system_prompt
+
+
+def test_prompt_manifest_resolver_scopes_template_sections_by_role():
+    resolver = PromptManifestResolver()
+
+    planner = resolver.compose_manifest_prompt("planner", _runtime_manifest().prompt_manifest)
+    researcher = resolver.compose_manifest_prompt("researcher", _runtime_manifest().prompt_manifest)
+    exporter = resolver.compose_manifest_prompt("exporter", _runtime_manifest().prompt_manifest)
+
+    assert "[Template Style Contract]" in planner
+    assert "[Template Review Rubric]" not in planner
+    assert "[Template Output Constraints]" not in planner
+    assert researcher == ""
+    assert "[Template Output Constraints]" in exporter
+    assert "[Template Style Contract]" not in exporter
+    assert "[Template Review Rubric]" not in exporter
 
 
 def test_prompt_manifest_resolver_adds_reviewer_drift_guidance():
@@ -143,7 +161,7 @@ def test_prompt_manifest_resolver_adds_reviewer_drift_guidance():
     assert "AI/meta markers" in resolved.system_prompt
     assert "(agent reviewer)" in resolved.system_prompt
     assert "(checks genre_drift style_drift audience_drift structure_drift ai_markers)" in resolved.system_prompt
-    assert "(artifact creative_poem)" in resolved.system_prompt
+    assert resolved.system_prompt.count("(artifact creative_poem)") == 1
 
 
 def test_prompt_manifest_resolver_adds_planner_structure_guidance():
@@ -165,7 +183,7 @@ def test_prompt_manifest_resolver_adds_planner_structure_guidance():
     assert "artifact-native sections" in resolved.system_prompt
     assert "(agent planner)" in resolved.system_prompt
     assert "(responsibilities select_artifact_native_structure preserve_continuation_structure plan_deliverables)" in resolved.system_prompt
-    assert "(artifact creative_poem)" in resolved.system_prompt
+    assert resolved.system_prompt.count("(artifact creative_poem)") == 1
 
 
 def test_prompt_manifest_resolver_adds_researcher_source_policy():
@@ -186,7 +204,7 @@ def test_prompt_manifest_resolver_adds_researcher_source_policy():
     assert "Do not force citations" in resolved.system_prompt
     assert "(agent researcher)" in resolved.system_prompt
     assert "(forbid unrequested_citations source_hunting_for_creative_artifacts unsupported_claims)" in resolved.system_prompt
-    assert "(artifact creative_poem)" in resolved.system_prompt
+    assert resolved.system_prompt.count("(artifact creative_poem)") == 1
 
 
 def test_prompt_manifest_resolver_adds_exporter_formatting_policy():
@@ -207,7 +225,7 @@ def test_prompt_manifest_resolver_adds_exporter_formatting_policy():
     assert "do not add title pages or citation sections unless required" in resolved.system_prompt
     assert "(agent exporter)" in resolved.system_prompt
     assert "(checks format_compatibility heading_policy citation_section_policy)" in resolved.system_prompt
-    assert "(artifact creative_poem)" in resolved.system_prompt
+    assert resolved.system_prompt.count("(artifact creative_poem)") == 1
 
 
 def test_prompt_manifest_resolver_skips_contract_section_without_metadata():

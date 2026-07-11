@@ -46,6 +46,21 @@ def render_agent_contract_sexpr(contract: AgentContract) -> str:
     return "\n".join(lines)
 
 
+def render_agent_contract_delta_sexpr(contract: AgentContract) -> str:
+    """Render only the role-specific delta; the artifact contract is supplied separately."""
+    lines = ["(agent_contract_delta"]
+    lines.append(f"  (agent {_atom(contract.agent)})")
+    if contract.responsibilities:
+        lines.append("  (responsibilities " + " ".join(_atom(item) for item in contract.responsibilities) + ")")
+    if contract.checks:
+        lines.append("  (checks " + " ".join(_atom(item) for item in contract.checks) + ")")
+    if contract.forbid:
+        lines.append("  (forbid " + " ".join(_atom(item) for item in contract.forbid) + ")")
+    lines.append("  (artifact_contract_ref active_artifact_contract)")
+    lines.append(")")
+    return "\n".join(lines)
+
+
 def _value(value: Any) -> str:
     if isinstance(value, bool):
         return _bool(value)

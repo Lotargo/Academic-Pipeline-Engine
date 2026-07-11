@@ -6,7 +6,7 @@ import yaml
 from pydantic import ValidationError
 
 from academic_pe.agent_adapters import contract_guidance_for_agent
-from academic_pe.contracts import ArtifactContract, compile_agent_contract, render_agent_contract_sexpr
+from academic_pe.contracts import ArtifactContract, compile_agent_contract, render_agent_contract_delta_sexpr
 from academic_pe.core.config import AgentConfig, AppConfig
 from academic_pe.core.templates import PromptManifest, RuntimePromptManifest
 
@@ -73,13 +73,13 @@ class PromptManifestResolver:
         if task:
             sections.append(f"Task for this document template: {task}")
 
-        if manifest.style_contract:
+        if manifest.style_contract and agent_name in {"planner", "writer", "reviewer"}:
             sections.append("[Template Style Contract]\n" + self._format_mapping(manifest.style_contract))
 
-        if manifest.review_rubric:
+        if manifest.review_rubric and agent_name == "reviewer":
             sections.append("[Template Review Rubric]\n" + self._format_mapping(manifest.review_rubric))
 
-        if manifest.output_constraints:
+        if manifest.output_constraints and agent_name in {"writer", "reviewer", "exporter"}:
             sections.append("[Template Output Constraints]\n" + self._format_mapping(manifest.output_constraints))
 
         if not sections:
@@ -127,8 +127,8 @@ class PromptManifestResolver:
 
         return (
             "[Active Agent Contract]\n"
-            "This is the adapter-specific contract compiled from the artifact contract and the current agent role.\n"
-            f"{render_agent_contract_sexpr(agent_contract)}"
+            "This role-specific delta refers to [Active Artifact Contract] and does not repeat it.\n"
+            f"{render_agent_contract_delta_sexpr(agent_contract)}"
         )
 
     def _role_for_agent(self, agent_name: str, manifest: PromptManifest) -> Optional[str]:

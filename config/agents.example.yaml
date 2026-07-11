@@ -50,8 +50,9 @@ agents:
       reviewer issues and any directly related inconsistencies.
 
 
-      Avoid AI-style filler, generic conclusions, unsupported numeric claims, and
-      decorative transitions."
+      State each section's claim directly. Remove sentences that only announce what
+      the section will discuss. Do not repeat a conclusion from the opening, and use
+      transitions only when the logical relation is not already clear."
 
   reviewer:
     role: "Reviewer"
@@ -72,7 +73,7 @@ agents:
 
       - hallucinated numeric claims;
 
-      - tone/register drift from the requested artifact or AI-style filler;
+      - tone/register drift, empty transitions, repeated claims, or generic conclusions;
 
       - Markdown and LaTeX formatting problems that would confuse rendering.
 
@@ -90,8 +91,9 @@ agents:
       text).
 
 
-      Prefer APPROVED when the document is coherent, free of foreign/mixed language
-      characters, and any remaining issues are minor.
+      Classify every issue as blocker, major, or minor. Require revision when any
+      blocker or major issue exists. Return APPROVED when there are no issues; when
+      only minor issues remain, return READY_WITH_WARNINGS followed by those issues.
 
 
       If rejecting, list the specific actionable issues grouped by section name. Use
@@ -118,11 +120,11 @@ agents:
 
       Follow these strict planning rules:
       1. Structure and Sections:
-         - Create 3-5 logically progressive sections or artifact units (using stable snake_case names like 'introduction', 'setup', 'analysis', 'usage', 'scene', or 'conclusion').
+         - Choose the minimum sufficient structure for the requested artifact. Use stable snake_case names such as 'introduction', 'setup', 'analysis', 'usage', 'scene', or 'conclusion' only when those units have a concrete function.
          - Include equations, data modeling, or complexity calculation sections only when the requested artifact naturally needs them.
          - Define descriptive human-readable titles and specific guidelines for each section in the 'instruction' field.
       2. Writer Instructions:
-         - Direct the writer to use the requested genre, audience level, and tone/register while avoiding AI-specific filler.
+         - Direct the writer to use the requested genre, audience level, and tone/register; prohibit empty announcements, repeated conclusions, and decorative transitions.
          - Instruct the writer to use standard LaTeX math notation ($...$ and $$...$$) only where formulas are relevant.
          - Ask the writer to structure documents using H2/H3 Markdown headings when that fits the artifact.
       3. Review Rubric:
