@@ -76,6 +76,53 @@ def test_artifact_manifest_metadata_is_flattened_for_history_items():
     assert history_item["contract_sexpr"].startswith("(document")
 
 
+def test_revision_api_queues_versioned_patch_without_rewriting_history(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    metadata_dir = tmp_path / "exports" / "_metadata"
+    metadata_dir.mkdir(parents=True)
+    run_id = "run_20260712_120000"
+    metadata_path = metadata_dir / f"{run_id}.metadata.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "topic": "Patch revision",
+                "timestamp": "2026-07-12T12:00:00+00:00",
+                "status": "COMPLETED",
+                "context": {
+                    "introduction": "Original introduction.",
+                    "conclusion": "Original conclusion.",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("academic_pe.server._run_revision_thread", lambda *args: None)
+
+    with run_lock:
+        previous_run = dict(current_run)
+        current_run.update({"status": "COMPLETED", "logs": []})
+    try:
+        client = TestClient(app)
+        response = client.post(
+            f"/api/runs/{run_id}/revisions",
+            json={"base_revision": 1, "feedback": "Please correct the conclusion."},
+        )
+        assert response.status_code == 200
+        assert response.json()["revision"] == 2
+        assert response.json()["plan"]["affected_sections"] == ["conclusion"]
+
+        listed = client.get(f"/api/runs/{run_id}/revisions")
+        assert listed.status_code == 200
+        assert [item["revision"] for item in listed.json()] == [1, 2]
+        assert listed.json()[0]["context_snapshot"]["introduction"] == "Original introduction."
+        assert listed.json()[1]["status"] == "queued"
+    finally:
+        with run_lock:
+            current_run.clear()
+            current_run.update(previous_run)
+
+
 def test_export_metadata_persists_artifact_override(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
 

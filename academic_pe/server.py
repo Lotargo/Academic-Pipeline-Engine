@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, F
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
-from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, ExportRequest, RunRequest, SecretUpdatePayload, PromptEnhanceRequest, PromptEnhanceResponse
+from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, ExportRequest, RevisionCreateRequest, RunRequest, SecretUpdatePayload, PromptEnhanceRequest, PromptEnhanceResponse
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
 from academic_pe.core.continuation import is_terminal_section_name
 from academic_pe.core.document_structure import is_renderable_section
@@ -137,6 +137,9 @@ current_run: Dict[str, Any] = {
     "document_state": None,
     "edit_plan": None,
     "merge_patch": None,
+    "revisions": [],
+    "document_ledger": None,
+    "calculation_ledger": None,
 }
 
 
@@ -365,6 +368,30 @@ def _write_history_metadata(metadata_path: str, data: dict) -> None:
         logging.getLogger(__name__).warning("Failed to sync written metadata to SQLite registry: %s", ree)
 
 
+def _metadata_for_run_id(run_id: str) -> tuple[str, dict]:
+    """Resolve the most recently updated local history record for a run."""
+    if not _is_valid_run_id(run_id):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    metadata_dir = _history_metadata_dir()
+    candidates: list[tuple[float, str, dict]] = []
+    if os.path.isdir(metadata_dir):
+        for name in os.listdir(metadata_dir):
+            if not name.endswith(".metadata.json"):
+                continue
+            path = os.path.join(metadata_dir, name)
+            try:
+                with open(path, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+                if _resolve_history_run_id(name, data) == run_id:
+                    candidates.append((os.path.getmtime(path), path, data))
+            except (OSError, json.JSONDecodeError):
+                continue
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Run history item not found")
+    _, path, data = max(candidates, key=lambda item: item[0])
+    return path, data
+
+
 def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
     run_id = _resolve_history_run_id(metadata_id, data)
     output_dir = _pipeline_output_dir()
@@ -379,6 +406,8 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         except OSError:
             return None
 
+    from academic_pe.core.revision import revision_history
+    revisions = [item.model_dump(mode="json") for item in revision_history(data)]
     return {
         "id": metadata_id,
         "run_id": run_id,
@@ -418,6 +447,8 @@ def _history_item_from_metadata(metadata_id: str, data: dict) -> dict:
         "document_state": data.get("document_state"),
         "edit_plan": data.get("edit_plan"),
         "merge_patch": data.get("merge_patch"),
+        "revisions": revisions,
+        "latest_revision": revisions[-1]["revision"] if revisions else 1,
     }
 
 
@@ -1120,6 +1151,8 @@ def run_pipeline_thread(
             current_run["document_state"] = editorial_metadata.get("document_state")
             current_run["edit_plan"] = editorial_metadata.get("edit_plan")
             current_run["merge_patch"] = editorial_metadata.get("merge_patch")
+            current_run["document_ledger"] = orch._document_ledger.model_dump(mode="json")
+            current_run["calculation_ledger"] = orch._calculation_ledger.model_dump(mode="json")
             current_run["docx_filename"] = os.path.basename(output_path) if output_path else None
             current_run["export_report"] = None
             current_run["status"] = "COMPLETED"
@@ -1170,7 +1203,11 @@ def run_pipeline_thread(
             "document_state": current_run.get("document_state"),
             "edit_plan": current_run.get("edit_plan"),
             "merge_patch": current_run.get("merge_patch"),
+            "document_ledger": current_run.get("document_ledger"),
+            "calculation_ledger": current_run.get("calculation_ledger"),
         })
+        from academic_pe.core.revision import initialize_revision_history
+        initialize_revision_history(metadata)
         with open(metadata_filename, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
         try:
@@ -1255,6 +1292,9 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         current_run["document_state"] = None
         current_run["edit_plan"] = None
         current_run["merge_patch"] = None
+        current_run["revisions"] = []
+        current_run["document_ledger"] = None
+        current_run["calculation_ledger"] = None
 
     background_tasks.add_task(
         run_pipeline_thread,
@@ -1275,6 +1315,190 @@ def run_pipeline(payload: RunRequest, background_tasks: BackgroundTasks):
         [a.model_dump() for a in payload.attachments] if payload.attachments else None,
     )
     return {"status": "started", "message": "Pipeline execution started in the background"}
+
+
+def _run_revision_thread(metadata_path: str, request, revision_number: int) -> None:
+    """Execute a queued revision without routing it through full generation."""
+    from academic_pe.core.calculation_audit import CalculationLedger
+    from academic_pe.core.document_ledger import DocumentLedger
+    from academic_pe.core.document_state import extract_document_state
+    from academic_pe.core.revision import (
+        DocumentRevision,
+        append_revision,
+        execute_patch_revision,
+        revision_history,
+    )
+
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as file:
+            metadata = json.load(file)
+        history = revision_history(metadata)
+        pending = next(item for item in history if item.revision == revision_number and item.status == "queued")
+        ready = [item for item in history if item.status == "ready"]
+        parent = max(ready, key=lambda item: item.revision)
+        running = pending.model_copy(update={"status": "running"})
+        append_revision(metadata, running)
+        _write_history_metadata(metadata_path, metadata)
+
+        config = _apply_continuation_structure(load_config("config/agents.yaml"), {
+            "context": parent.context_snapshot,
+            "runtime_template": metadata.get("runtime_template"),
+        })
+        continuation_source = {
+            "source_type": "generated",
+            "topic": metadata.get("topic"),
+            "instructions": metadata.get("instructions"),
+            "context": parent.context_snapshot,
+            "runtime_template": metadata.get("runtime_template"),
+            "runtime_prompt_manifest": metadata.get("runtime_prompt_manifest"),
+            "intent_override": "revise_in_place",
+        }
+        orch = create_orchestrator_from_config(
+            config,
+            user_topic=str(metadata.get("topic") or ""),
+            user_instructions=request.feedback,
+            continuation_source=continuation_source,
+            registry_store=registry_store,
+        )
+        result = execute_patch_revision(
+            request=request,
+            config=config,
+            writer=orch._writer,
+            context=parent.context_snapshot,
+            runtime_template=metadata.get("runtime_template"),
+            runtime_prompt_manifest=metadata.get("runtime_prompt_manifest"),
+            document_ledger=(
+                DocumentLedger.model_validate(metadata["document_ledger"])
+                if isinstance(metadata.get("document_ledger"), dict)
+                else None
+            ),
+            calculation_ledger=(
+                CalculationLedger.model_validate(metadata["calculation_ledger"])
+                if isinstance(metadata.get("calculation_ledger"), dict)
+                else None
+            ),
+            reviewer=orch._reviewer,
+            evidence_reviewer=orch._evidence_reviewer,
+            editorial_reviewer=orch._editorial_reviewer,
+        )
+        completed = running.model_copy(update={
+            "status": "ready",
+            "changed_sections": result.changed_sections,
+            "change_summary": (
+                "No content changes were required."
+                if not result.changed_sections
+                else "Patched section(s): " + ", ".join(result.changed_sections)
+            ),
+            "context_snapshot": result.context,
+        })
+        metadata["context"] = result.context
+        metadata["revision_plan"] = result.plan.model_dump(mode="json")
+        metadata["document_state"] = extract_document_state({
+            "context": result.context,
+            "runtime_template": metadata.get("runtime_template"),
+            "runtime_prompt_manifest": metadata.get("runtime_prompt_manifest"),
+        }).model_dump(mode="json")
+        append_revision(metadata, completed)
+        _write_history_metadata(metadata_path, metadata)
+        with run_lock:
+            current_run.update({
+                "status": "COMPLETED",
+                "state": "DONE",
+                "context": result.context,
+                "document_state": metadata["document_state"],
+                "revisions": metadata["revisions"],
+                "document_ledger": metadata.get("document_ledger"),
+                "calculation_ledger": metadata.get("calculation_ledger"),
+                "active_section": None,
+            })
+            current_run["logs"].append(f"[Revision] Version {completed.revision} is ready.")
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Revision execution failed")
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as file:
+                metadata = json.load(file)
+            history = revision_history(metadata)
+            for item in history:
+                if item.revision == revision_number and item.status in {"queued", "running"}:
+                    append_revision(metadata, item.model_copy(update={"status": "failed", "change_summary": str(exc)}))
+                    break
+            _write_history_metadata(metadata_path, metadata)
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to record revision failure")
+        with run_lock:
+            current_run.update({"status": "FAILED", "state": "FAILED", "error": str(exc), "active_section": None})
+            current_run["logs"].append(f"[Revision Error] {exc}")
+
+
+@app.get("/api/runs/{run_id}/revisions")
+def list_revisions(run_id: str):
+    from academic_pe.core.revision import revision_history
+    _, metadata = _metadata_for_run_id(run_id)
+    return [item.model_dump(mode="json") for item in revision_history(metadata)]
+
+
+@app.get("/api/runs/{run_id}/revisions/{revision}")
+def get_revision(run_id: str, revision: int):
+    from academic_pe.core.revision import revision_history
+    _, metadata = _metadata_for_run_id(run_id)
+    for item in revision_history(metadata):
+        if item.revision == revision:
+            return item.model_dump(mode="json")
+    raise HTTPException(status_code=404, detail="Revision not found")
+
+
+@app.post("/api/runs/{run_id}/revisions")
+def create_revision(run_id: str, payload: RevisionCreateRequest, background_tasks: BackgroundTasks):
+    """Queue a user-requested revision of a ready document version."""
+    from academic_pe.core.revision import DocumentRevision, RevisionRequest, append_revision, build_revision_plan, revision_history
+
+    with run_lock:
+        if current_run["status"] == "RUNNING":
+            raise HTTPException(status_code=409, detail="A pipeline or revision is already executing")
+    metadata_path, metadata = _metadata_for_run_id(run_id)
+    history = revision_history(metadata)
+    ready = [item for item in history if item.status == "ready"]
+    if not ready:
+        raise HTTPException(status_code=409, detail="The document has no ready revision")
+    base = max(ready, key=lambda item: item.revision)
+    if payload.base_revision != base.revision:
+        raise HTTPException(status_code=409, detail=f"base_revision must be the current ready revision ({base.revision})")
+    request = RevisionRequest(
+        run_id=run_id,
+        base_revision=payload.base_revision,
+        feedback=payload.feedback,
+        affected_sections=payload.affected_sections,
+    )
+    try:
+        plan = build_revision_plan(request, base.context_snapshot, metadata.get("runtime_template"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    next_revision = max(item.revision for item in history) + 1
+    pending = DocumentRevision(
+        run_id=run_id,
+        revision=next_revision,
+        parent_revision=base.revision,
+        trigger="user_feedback",
+        feedback=request.feedback,
+        changed_sections=[],
+        change_summary="Revision request accepted; patch planning is queued.",
+    )
+    append_revision(metadata, pending)
+    _write_history_metadata(metadata_path, metadata)
+    with run_lock:
+        current_run.update({
+            "status": "RUNNING",
+            "state": "REVISING",
+            "run_id": run_id,
+            "context": base.context_snapshot,
+            "revisions": metadata["revisions"],
+            "error": None,
+        })
+        current_run["logs"].append(f"[Revision] Queued version {next_revision} from version {base.revision}.")
+    background_tasks.add_task(_run_revision_thread, metadata_path, request, next_revision)
+    response = pending.model_dump(mode="json")
+    response["plan"] = plan.model_dump(mode="json")
+    return response
 
 
 @app.post("/api/attachments/upload")
@@ -1511,6 +1735,12 @@ def _write_export_metadata(
     export_context,
     run_id: Optional[str],
 ) -> None:
+    revision_metadata_path = None
+    if isinstance(run_id, str) and _is_valid_run_id(run_id):
+        try:
+            revision_metadata_path, _ = _metadata_for_run_id(run_id)
+        except HTTPException:
+            pass
     metadata_dir = os.path.join("exports", "_metadata")
     os.makedirs(metadata_dir, exist_ok=True)
     metadata_filename = os.path.join(
@@ -1543,9 +1773,32 @@ def _write_export_metadata(
         "document_state": current_run.get("document_state"),
         "edit_plan": current_run.get("edit_plan"),
         "merge_patch": current_run.get("merge_patch"),
+        "document_ledger": current_run.get("document_ledger"),
+        "calculation_ledger": current_run.get("calculation_ledger"),
+        "revisions": current_run.get("revisions", []),
     })
+    from academic_pe.core.revision import initialize_revision_history
+    initialize_revision_history(metadata)
     with open(metadata_filename, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
+    if revision_metadata_path:
+        try:
+            from academic_pe.core.revision import append_revision, revision_history
+            with open(revision_metadata_path, "r", encoding="utf-8") as file:
+                revision_metadata = json.load(file)
+            ready = [item for item in revision_history(revision_metadata) if item.status == "ready"]
+            if ready:
+                latest = max(ready, key=lambda item: item.revision)
+                append_revision(
+                    revision_metadata,
+                    latest.model_copy(update={"artifact_path": result.filename}),
+                )
+                _write_history_metadata(revision_metadata_path, revision_metadata)
+                with run_lock:
+                    if current_run.get("run_id") == run_id:
+                        current_run["revisions"] = revision_metadata["revisions"]
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Failed to link export to document revision: %s", exc)
 
 
 @app.post("/api/export/docx")

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { FileDown, FileText, Check, Eye, Loader2, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
@@ -100,6 +101,17 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
   const [exportReport, setExportReport] = useState<any>(null)
   const [editorialOpen, setEditorialOpen] = useState(true)
   const [viewChanges, setViewChanges] = useState(false)
+  const [revisionFeedback, setRevisionFeedback] = useState("")
+  const [submittingRevision, setSubmittingRevision] = useState(false)
+  const [revisionStatus, setRevisionStatus] = useState("")
+  const revisions: Array<{ status?: string; revision?: number }> = Array.isArray(source.revisions)
+    ? source.revisions.filter(
+        (revision: unknown): revision is { status?: string; revision?: number } =>
+          typeof revision === "object" && revision !== null
+      )
+    : []
+  const readyRevisions = revisions.filter((revision) => revision.status === "ready")
+  const baseRevision = readyRevisions.length > 0 ? (readyRevisions[readyRevisions.length - 1].revision ?? 1) : 1
 
   useEffect(() => {
     setExportedFilename(docxFilename || null)
@@ -199,6 +211,29 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
       toast.error(e.message || "Failed to export PDF")
     } finally {
       setExportingPdf(false)
+    }
+  }
+
+  const handleRevision = async () => {
+    const feedback = revisionFeedback.trim()
+    if (!feedback || !runId) return
+    setSubmittingRevision(true)
+    setRevisionStatus("")
+    try {
+      const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/revisions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_revision: baseRevision, feedback }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || "Failed to start revision")
+      setRevisionFeedback("")
+      setRevisionStatus(`Версия ${data.revision} поставлена в очередь.`)
+      toast.success("Точечная доработка запущена")
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Не удалось запустить доработку")
+    } finally {
+      setSubmittingRevision(false)
     }
   }
 
@@ -903,6 +938,40 @@ export function DocumentPreview({ topic, context, docxFilename, runId, runtimeTe
             )}
           </div>
         </div>
+
+        {runId && (
+          <Card className="border-dashed">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Замечания к готовому документу</CardTitle>
+              <p className="text-xs text-muted-foreground">Необязательно. Будут изменены только затронутые фрагменты; текущая версия сохранится в истории.</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Textarea
+                value={revisionFeedback}
+                onChange={(event) => setRevisionFeedback(event.target.value)}
+                placeholder="Например: уберите повтор ограничений в заключении и проверьте расчёт NPV."
+                maxLength={20000}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">Текущая версия: {baseRevision}</span>
+                <Button size="sm" onClick={handleRevision} disabled={submittingRevision || !revisionFeedback.trim()}>
+                  {submittingRevision && <Loader2 className="animate-spin" />}
+                  Отправить на доработку
+                </Button>
+              </div>
+              {revisionStatus && <p className="text-xs text-emerald-600 dark:text-emerald-400">{revisionStatus}</p>}
+              {revisions.length > 0 && (
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  {revisions.map((revision) => (
+                    <span key={revision.revision} className="rounded bg-muted px-2 py-1">
+                      Версия {revision.revision ?? "?"}: {revision.status === "ready" ? "готова" : revision.status || "неизвестно"}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Paper Text Display */}
         <div className="rounded-2xl border border-border bg-card p-6 md:p-8 min-h-[300px] shadow-sm relative">

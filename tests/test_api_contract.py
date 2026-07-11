@@ -1,4 +1,4 @@
-from academic_pe.api_models import RunRequest
+from academic_pe.api_models import RevisionCreateRequest, RunRequest
 
 
 def test_run_request_accepts_template_selection_fields():
@@ -56,3 +56,14 @@ def test_run_request_accepts_continuation_source():
     assert payload.continuation_source.previous_prompt == "Topic: AI Agent Design\nInstructions: Write for school pupils."
     assert payload.continuation_source.runtime_template is not None
     assert payload.continuation_source.runtime_template["name"] == "Story Template"
+
+
+def test_revision_create_request_accepts_optional_target_sections():
+    payload = RevisionCreateRequest(
+        base_revision=2,
+        feedback="Correct the NPV calculation.",
+        affected_sections=["financial_model"],
+    )
+
+    assert payload.base_revision == 2
+    assert payload.affected_sections == ["financial_model"]

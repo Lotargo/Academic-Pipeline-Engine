@@ -56,6 +56,14 @@ class ExportRequest(BaseModel):
     run_id: Optional[str] = None
 
 
+class RevisionCreateRequest(BaseModel):
+    """Payload for an optional patch-first revision of a completed run."""
+
+    base_revision: int
+    feedback: str
+    affected_sections: Optional[List[str]] = None
+
+
 class SecretUpdatePayload(BaseModel):
     provider: str
     api_key: str
