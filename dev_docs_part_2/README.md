@@ -63,7 +63,7 @@ Part 2 включает многопользовательскую модель,
 - [x] **FE-02** — [User Cabinet](frontend/FE-02-user-cabinet/PLAN.md) · [TODO](frontend/FE-02-user-cabinet/TODO.md)
 - [x] **FE-03** — [Jobs and Live Status](frontend/FE-03-jobs-and-live-status/PLAN.md) · [TODO](frontend/FE-03-jobs-and-live-status/TODO.md)
 - [x] **FE-04** — [History and Artifacts](frontend/FE-04-history-and-artifacts/PLAN.md) · [TODO](frontend/FE-04-history-and-artifacts/TODO.md)
-- [ ] **FE-05** — [Provider Settings](frontend/FE-05-provider-settings/PLAN.md) · [TODO](frontend/FE-05-provider-settings/TODO.md)
+- [x] **FE-05** — [Provider Settings](frontend/FE-05-provider-settings/PLAN.md) · [TODO](frontend/FE-05-provider-settings/TODO.md)
 - [ ] **FE-06** — [Admin Panel](frontend/FE-06-admin-panel/PLAN.md) · [TODO](frontend/FE-06-admin-panel/TODO.md)
 - [ ] **FE-07** — [Support and Contact](frontend/FE-07-support-and-contact/PLAN.md) · [TODO](frontend/FE-07-support-and-contact/TODO.md)
 - [ ] **FE-08** — [Frontend Security](frontend/FE-08-frontend-security/PLAN.md) · [TODO](frontend/FE-08-frontend-security/TODO.md)
@@ -250,3 +250,8 @@ walkthrough и отметка в этом индексе закрепляютс�
 коммитом должны пройти предусмотренные композицией проверки и `git diff
 --check`. Незавершённая композиция может оставаться без промежуточного коммита,
 если это не мешает безопасному продолжению работы.
+
+Визуальная browser-верификация остаётся за пользователем: в приложении есть
+ошибки, из-за которых автоматическая попытка открыть или проверить UI может
+закрыть приложение. Агент не запускает браузерную проверку самостоятельно и
+фиксирует в walkthrough только подтверждённую пользователем визуальную проверку.
