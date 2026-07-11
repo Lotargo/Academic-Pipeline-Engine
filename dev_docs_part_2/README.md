@@ -128,13 +128,17 @@ Core-pipeline задача отмечается завершённой толь�
 - `FE-09`: его явные зависимости `FE-02`, `FE-05` и `BE-12` завершены.
 - `FE-11`: baseline ESLint является контролируемым техническим долгом и не
   блокирует исправления выбранного связанного UI-пакета.
-- `CORE-13`, этап D: этапы A--C завершены, включая integrity gates,
-  Source/Calculation Cards, передачу расчётов из sandbox в ledger и structured
-  curation Researcher для claim-карточек. Этап D частично реализован:
-  добавлены `ASSEMBLING`/`VALIDATING`, deterministic assembly pass, coverage
-  matrix, role-scoped Evidence/Editorial reviewer adapters и structured review
-  payload. `CORE-13` остаётся незавершённой до полного validation contract и
-  прохождения этапов D--E с критериями приёмки.
+- `CORE-13`, checkpoint (2026-07-12): этапы A--D реализованы. В E уже есть
+  versioned `RevisionRequest`/`DocumentRevision`, patch-first revision flow,
+  revision API, snapshots предыдущих версий, selective reviewer pass и READY
+  UI для необязательных замечаний. Текущие regression/contract проверки
+  проходят. Не перечитывать всю историю `CORE-13` для продолжения: до
+  возвращения к задаче достаточно открыть checkpoint в
+  `dev_docs/13_DOCUMENT_INTEGRITY_AND_OPTIONAL_REVISION_PIPELINE.md` и
+  проверить актуальные integration/acceptance tests. `CORE-13` остаётся
+  незавершённой и не отмечается `[x]` до стабилизации `CORE-15` и `CORE-14`,
+  после которых optional revision flow должен пройти итоговую интеграционную
+  приёмку.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.
