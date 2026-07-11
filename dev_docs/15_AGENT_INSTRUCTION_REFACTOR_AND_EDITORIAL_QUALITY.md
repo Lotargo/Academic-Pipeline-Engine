@@ -31,7 +31,19 @@
   наблюдаемыми редакционными критериями. Объединённая regression — 147 passed.
 - Оставшийся `section.instruction` используется только в Planner input для legacy
   структуры и будет заменён строгой схемой в P1.
-- Следующий пакет: P1 `InstructionCompiler` и coverage-aware `SectionBrief`.
+- P1.9--P1.10 выполнены: добавлен типизированный role-scoped
+  `InstructionCompiler` с отдельным `GatePlan`; Writer bundle получает только
+  собственный `SectionBrief`, authoring constraints и разрешённые ledger inputs,
+  тогда как export mechanics остаются в Exporter bundle.
+- `SectionBrief` теперь валидирует coverage matrix, назначает текущей секции
+  owned responsibilities, помечает чужие responsibilities как
+  `must_not_repeat` и выбирает принадлежащие секции ClaimCard, SourceCard и
+  CalculationCard IDs. Обычный drafting и optional revision используют один
+  compiler path; legacy вызов без coverage остаётся совместимым.
+- Regression P1.9--P1.10 и смежных prompt/orchestrator/revision contracts — 81 passed;
+  полный suite — 613 passed, 3 skipped.
+- Следующий пакет: P1.11 строгая JSON-схема Planner/Reviewer, затем P1.12
+  специализированные EvidenceReviewer и EditorialReviewer.
 
 Документ продолжает решения из заметок №13 и №14. Он фиксирует проблемы текущих system prompts, task templates, template manifests, agent adapters и self-critique, а также предлагает новую схему компиляции инструкций.
 

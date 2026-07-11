@@ -26,7 +26,7 @@ from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPE
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_line_replace_patch, add_line_numbers
 from academic_pe.core.template_compat import template_section_to_section_prompt
-from academic_pe.instructions import compile_section_brief
+from academic_pe.instructions import InstructionCompiler
 from academic_pe.core.template_selector import TemplateSelector
 from academic_pe.core.templates import RuntimePromptManifest, RuntimeTemplate, TemplateSection
 from academic_pe.core.translator import has_cyrillic, translate_markdown_to_ru
@@ -886,6 +886,25 @@ class Orchestrator:
             return dict(self.runtime_template.metadata or {})
         return {}
 
+    def _writer_instruction_bundle(self, section: SectionPrompt):
+        metadata = self._runtime_metadata()
+        raw_contract = metadata.get("artifact_contract")
+        artifact_contract = None
+        if isinstance(raw_contract, dict):
+            from academic_pe.contracts.models import ArtifactContract
+
+            artifact_contract = ArtifactContract.model_validate(raw_contract)
+        coverage = metadata.get("coverage")
+        return InstructionCompiler().compile(
+            "writer",
+            artifact_contract=artifact_contract,
+            section=section,
+            coverage=coverage,
+            section_names=[item.name for item in self._config.pipeline.sections],
+            document_ledger=self._document_ledger,
+            calculation_ledger=self._calculation_ledger,
+        )
+
     def _draft_with_merge_operations(self, target_language: str) -> bool:
         if not self.continuation_source:
             return False
@@ -1413,7 +1432,7 @@ class Orchestrator:
                     task = render_template(
                         DEFAULT_DRAFT_TEMPLATE,
                         {
-                            "section_brief": compile_section_brief(section).model_dump(),
+                            "section_brief": self._writer_instruction_bundle(section).section_brief.model_dump(),
                             "language": target_language,
                             "language_instruction": language_instruction(target_language),
                             "user_topic": self.user_topic,
@@ -1621,7 +1640,7 @@ class Orchestrator:
                         task = render_template(
                             DEFAULT_PATCH_REVISION_TEMPLATE,
                             {
-                                "section_brief": compile_section_brief(section).model_dump(),
+                                "section_brief": self._writer_instruction_bundle(section).section_brief.model_dump(),
                                 "reviewer_reason": sec_reason,
                                 "language": target_language,
                                 "language_instruction": language_instruction(target_language),
@@ -1663,7 +1682,7 @@ class Orchestrator:
                             fallback_task = render_template(
                                 DEFAULT_REVISION_TEMPLATE,
                                 {
-                                    "section_brief": compile_section_brief(section).model_dump(),
+                                    "section_brief": self._writer_instruction_bundle(section).section_brief.model_dump(),
                                     "reviewer_reason": sec_reason,
                                     "language": target_language,
                                     "language_instruction": language_instruction(target_language),

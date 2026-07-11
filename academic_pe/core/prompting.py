@@ -14,10 +14,16 @@ _env = Environment(
 )
 
 
-DEFAULT_DRAFT_TEMPLATE = """Write the final text for section `{{ section_brief.section_id }}`.
+DEFAULT_DRAFT_TEMPLATE = """Write a section's final text for `{{ section_brief.section_id }}`.
 
 Purpose: {{ section_brief.purpose }}.
 Output form: {{ section_brief.output_form }}.
+{% if section_brief.owned_claims %}This section owns these responsibilities:
+{% for claim in section_brief.owned_claims %}- {{ claim }}
+{% endfor %}{% endif %}
+{% if section_brief.must_not_repeat %}Do not develop responsibilities owned by other sections:
+{% for claim in section_brief.must_not_repeat %}- {{ claim }}
+{% endfor %}{% endif %}
 {% if section_brief.writing_constraints %}Active section constraints:
 {% for constraint in section_brief.writing_constraints %}- {{ constraint }}
 {% endfor %}{% endif %}

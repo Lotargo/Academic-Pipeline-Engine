@@ -24,7 +24,7 @@ from academic_pe.core.prompting import DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_
 from academic_pe.core.quality_gate import run_all as run_quality_gate
 from academic_pe.core.review_payload import merge_review_payloads, parse_review_payload, reviewer_role_guidance
 from academic_pe.core.section_patch import SectionPatchError, add_line_numbers, apply_line_replace_patch
-from academic_pe.instructions import compile_section_brief
+from academic_pe.instructions import InstructionCompiler
 
 
 class RevisionRequest(BaseModel):
@@ -241,6 +241,10 @@ def execute_patch_revision(
     updated = dict(original)
     changed: list[str] = []
     sections = _section_prompts(original, runtime_template)
+    runtime_metadata = dict((runtime_prompt_manifest or {}).get("metadata") or {})
+    if not runtime_metadata:
+        runtime_metadata = dict((runtime_template or {}).get("metadata") or {})
+    coverage = runtime_metadata.get("coverage")
     raw_language = getattr(config.pipeline, "language", "auto")
     language = resolve_output_language(request.feedback, str(getattr(raw_language, "value", raw_language)))
     continuation_source = {
@@ -255,7 +259,14 @@ def execute_patch_revision(
         task = render_template(
             DEFAULT_PATCH_REVISION_TEMPLATE,
             {
-                "section_brief": compile_section_brief(section).model_dump(),
+                "section_brief": InstructionCompiler().compile(
+                    "writer",
+                    section=section,
+                    coverage=coverage,
+                    section_names=list(sections),
+                    document_ledger=document_ledger,
+                    calculation_ledger=calculation_ledger,
+                ).section_brief.model_dump(),
                 "reviewer_reason": request.feedback,
                 "language": language,
                 "language_instruction": language_instruction(language),
