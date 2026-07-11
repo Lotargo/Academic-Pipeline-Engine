@@ -18,6 +18,8 @@ from academic_pe.core.document_structure import HeadingPolicy, SemanticRole, is_
 from academic_pe.core.document_state import extract_document_state
 from academic_pe.core.calculation_audit import CalculationEntry, CalculationLedger
 from academic_pe.core.document_ledger import DocumentLedger
+from academic_pe.core.document_assembly import assemble_document
+from academic_pe.core.review_payload import merge_review_payloads, parse_review_payload, reviewer_role_guidance
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import language_instruction, resolve_output_language
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPERATION_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
@@ -52,6 +54,8 @@ class PipelineState(Enum):
     INIT = auto()
     PLANNING = auto()
     DRAFTING = auto()
+    ASSEMBLING = auto()
+    VALIDATING = auto()
     REVIEWING = auto()
     RENDERING = auto()
     DONE = auto()
@@ -61,7 +65,11 @@ class PipelineState(Enum):
 _DEFAULT_TRANSITIONS: Dict[PipelineState, List[PipelineState]] = {
     PipelineState.INIT: [PipelineState.PLANNING, PipelineState.DRAFTING],
     PipelineState.PLANNING: [PipelineState.DRAFTING],
-    PipelineState.DRAFTING: [PipelineState.REVIEWING],
+    # REVIEWING remains a direct compatibility transition for callers that
+    # manually drive the legacy FSM. run_pipeline uses the complete route.
+    PipelineState.DRAFTING: [PipelineState.ASSEMBLING, PipelineState.REVIEWING],
+    PipelineState.ASSEMBLING: [PipelineState.VALIDATING],
+    PipelineState.VALIDATING: [PipelineState.REVIEWING],
     PipelineState.REVIEWING: [PipelineState.DRAFTING, PipelineState.RENDERING],
     PipelineState.RENDERING: [PipelineState.DONE],
     PipelineState.DONE: [],
@@ -378,9 +386,13 @@ class Orchestrator:
         researcher: Optional[BaseAgent] = None,
         registry_store: Optional[RegistryStore] = None,
         run_id: Optional[str] = None,
+        evidence_reviewer: Optional[BaseAgent] = None,
+        editorial_reviewer: Optional[BaseAgent] = None,
     ):
         self._writer = writer
         self._reviewer = reviewer
+        self._evidence_reviewer = evidence_reviewer
+        self._editorial_reviewer = editorial_reviewer
         self._has_dedicated_planner = planner is not None
         self._planner = planner or writer
         self._researcher = researcher
@@ -596,7 +608,10 @@ class Orchestrator:
                         "volume": self._config.quality_gate.volume.enabled,
                         "latex": self._config.quality_gate.latex.enabled,
                         "markdown": self._config.quality_gate.markdown.enabled,
+                        "unicode_hygiene": self._config.quality_gate.unicode_hygiene.enabled,
+                        "prompt_leakage": self._config.quality_gate.prompt_leakage.enabled,
                         "evidence": self._config.quality_gate.evidence.enabled,
+                        "calculation": self._config.quality_gate.calculation.enabled,
                     }
                 }, ensure_ascii=False),
                 created_at=datetime.now().isoformat()
@@ -1017,6 +1032,24 @@ class Orchestrator:
             "The pipeline cannot treat the internal document plan as the final artifact."
         )
 
+    def _store_assembly_metadata(self, assembly) -> None:
+        metadata = {
+            "coverage": assembly.coverage.model_dump(mode="json"),
+            "section_order": assembly.section_order,
+            "merged_reference_sections": assembly.merged_reference_sections,
+            "assembly_issues": assembly.issues,
+        }
+        if self.runtime_template is not None:
+            current = dict(self.runtime_template.metadata or {})
+            current["assembly"] = metadata
+            current["coverage"] = metadata["coverage"]
+            self.runtime_template = self.runtime_template.model_copy(update={"metadata": current})
+        if self.runtime_prompt_manifest is not None:
+            current = dict(self.runtime_prompt_manifest.metadata or {})
+            current["assembly"] = metadata
+            current["coverage"] = metadata["coverage"]
+            self.runtime_prompt_manifest = self.runtime_prompt_manifest.model_copy(update={"metadata": current})
+
     def run_pipeline(self, render_artifact: bool = True) -> str:
         logger.info("Pipeline started.")
         
@@ -1059,6 +1092,8 @@ class Orchestrator:
         for role, agent_obj in [
             ("writer", self._writer),
             ("reviewer", self._reviewer),
+            ("evidence_reviewer", self._evidence_reviewer),
+            ("editorial_reviewer", self._editorial_reviewer),
             ("planner", self._planner if self._has_dedicated_planner else None),
             ("researcher", self._researcher),
         ]:
@@ -1444,6 +1479,42 @@ class Orchestrator:
 
             self._ensure_drafted_content_exists()
 
+            # --- ASSEMBLING ---
+            self.transition_to(PipelineState.ASSEMBLING)
+            try:
+                assembly = assemble_document(
+                    self.context,
+                    self._config.pipeline.sections,
+                    coverage=self._runtime_metadata().get("coverage"),
+                )
+            except ValueError as exc:
+                raise PipelineError(f"Document assembly failed: {exc}") from exc
+            self.context = assembly.context
+            self._store_assembly_metadata(assembly)
+            logger.info(
+                "Document assembled: %d sections, merged references: %s.",
+                len(assembly.section_order),
+                assembly.merged_reference_sections or "none",
+            )
+
+            # --- VALIDATING ---
+            self.transition_to(PipelineState.VALIDATING)
+            from academic_pe.core.quality_gate import run_all as run_quality_gate
+
+            validation_result = run_quality_gate(
+                self.context,
+                self._config.quality_gate,
+                document_state=self._runtime_metadata().get("document_state"),
+                ledger=self._document_ledger,
+                calculation_ledger=self._calculation_ledger,
+            )
+            self._log_quality_evaluations(validation_result, self._contract_drift_issues())
+            if not validation_result.passed:
+                logger.warning(
+                    "Pre-review validation found %d issue(s); reviewer/revision loop will handle them.",
+                    len(validation_result.issues),
+                )
+
             # --- REVIEWING ---
             self.transition_to(PipelineState.REVIEWING)
 
@@ -1453,7 +1524,7 @@ class Orchestrator:
             review_focus = ""
             for attempt in range(max_retries):
                 self._check_cancelled()
-                if self._reviewer is None:
+                if not any((self._reviewer, self._evidence_reviewer, self._editorial_reviewer)):
                     logger.info("No reviewer configured, skipping review.")
                     break
 
@@ -1488,21 +1559,33 @@ class Orchestrator:
                     logger.warning("Contract drift checks failed during review loop: %s", drift_issues)
                     critique = "REJECTED\n" + "\n".join(f"- [general]: Contract Drift issue: {issue}" for issue in drift_issues)
                 else:
-                    critique = self._reviewer.process(
-                        render_template(
-                            DEFAULT_REVIEW_TEMPLATE,
-                            {
-                                "language": target_language,
-                                "review_focus": review_focus,
-                                "sections": self._config.pipeline.sections,
-                                "continuation_context": self._continuation_context(),
-                                "academic_mode": self._academic_mode_enabled(),
-                                "visualization_required": self._visualization_required(),
-                                "output_dir": self._config.pipeline.output_dir,
-                            },
-                        ),
-                        context=full_text,
+                    review_task = render_template(
+                        DEFAULT_REVIEW_TEMPLATE,
+                        {
+                            "language": target_language,
+                            "review_focus": review_focus,
+                            "sections": self._config.pipeline.sections,
+                            "continuation_context": self._continuation_context(),
+                            "academic_mode": self._academic_mode_enabled(),
+                            "visualization_required": self._visualization_required(),
+                            "output_dir": self._config.pipeline.output_dir,
+                        },
                     )
+                    dedicated_reviewers = [
+                        ("evidence", self._evidence_reviewer),
+                        ("editorial", self._editorial_reviewer),
+                    ]
+                    dedicated_reviewers = [(role, agent) for role, agent in dedicated_reviewers if agent is not None]
+                    if dedicated_reviewers:
+                        payloads = []
+                        for role, agent in dedicated_reviewers:
+                            role_task = f"{review_task}\n\n{reviewer_role_guidance(role)}\nSet reviewer_role to '{role}'."
+                            raw_review = agent.process(role_task, context=full_text)
+                            payloads.append(parse_review_payload(raw_review))
+                        combined_payload = merge_review_payloads(payloads)
+                        critique = "APPROVED" if combined_payload.approved else "REJECTED\n" + combined_payload.reason()
+                    else:
+                        critique = self._reviewer.process(review_task, context=full_text)
 
                 approved = (
                     self._reviewer.is_approved(critique)
@@ -2003,6 +2086,12 @@ def create_orchestrator_from_config(
     reviewer = None
     if "reviewer" in resolved_config.agents:
         reviewer = create_agent("reviewer", resolved_config.agents["reviewer"], retry_cfg=resolved_config.retry)
+    evidence_reviewer = None
+    if "evidence_reviewer" in resolved_config.agents:
+        evidence_reviewer = create_agent("evidence_reviewer", resolved_config.agents["evidence_reviewer"], retry_cfg=resolved_config.retry)
+    editorial_reviewer = None
+    if "editorial_reviewer" in resolved_config.agents:
+        editorial_reviewer = create_agent("editorial_reviewer", resolved_config.agents["editorial_reviewer"], retry_cfg=resolved_config.retry)
     planner = None
     if "planner" in resolved_config.agents:
         planner = create_agent("planner", resolved_config.agents["planner"], retry_cfg=resolved_config.retry)
@@ -2013,6 +2102,8 @@ def create_orchestrator_from_config(
     orchestrator = Orchestrator(
         writer=writer,
         reviewer=reviewer,
+        evidence_reviewer=evidence_reviewer,
+        editorial_reviewer=editorial_reviewer,
         planner=planner,
         researcher=researcher,
         config=resolved_config,

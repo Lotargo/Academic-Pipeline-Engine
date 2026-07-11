@@ -143,12 +143,14 @@ class TransitionConfig(BaseModel):
 class FSMConfig(BaseModel):
     enabled: bool = False
     states: List[str] = Field(default_factory=lambda: [
-        "INIT", "PLANNING", "DRAFTING", "REVIEWING", "RENDERING", "DONE", "FAILED",
+        "INIT", "PLANNING", "DRAFTING", "ASSEMBLING", "VALIDATING", "REVIEWING", "RENDERING", "DONE", "FAILED",
     ])
     transitions: List[TransitionConfig] = Field(default_factory=lambda: [
         TransitionConfig(from_state="INIT", to_states=["PLANNING", "DRAFTING"]),
         TransitionConfig(from_state="PLANNING", to_states=["DRAFTING"]),
-        TransitionConfig(from_state="DRAFTING", to_states=["REVIEWING"]),
+        TransitionConfig(from_state="DRAFTING", to_states=["ASSEMBLING", "REVIEWING"]),
+        TransitionConfig(from_state="ASSEMBLING", to_states=["VALIDATING"]),
+        TransitionConfig(from_state="VALIDATING", to_states=["REVIEWING"]),
         TransitionConfig(from_state="REVIEWING", to_states=["DRAFTING", "RENDERING"]),
         TransitionConfig(from_state="RENDERING", to_states=["DONE"]),
         TransitionConfig(from_state="DONE", to_states=[]),

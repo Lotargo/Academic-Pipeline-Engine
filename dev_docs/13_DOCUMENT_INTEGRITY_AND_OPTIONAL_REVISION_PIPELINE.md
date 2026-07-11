@@ -19,10 +19,18 @@
   соответствующей секции; Researcher принимает structured curation с claims
   только для URL, уже зарегистрированных в SourceCard.
 
-Следующий пакет: этап D — `ASSEMBLING`/`VALIDATING`, coverage matrix и
+Текущий пакет: этап D — `ASSEMBLING`/`VALIDATING`, coverage matrix и
 structured reviewer payload. Не отмечать
 `CORE-13` завершённой до прохождения всех этапов A--E и критериев из раздела
 11.
+
+Пакет D находится в работе: добавлены детерминированная сборка порядка секций
+и единой библиографии, проверяемая coverage matrix, состояния
+`ASSEMBLING`/`VALIDATING` и структурированный JSON review payload с поддержкой
+legacy-ответов `APPROVED`/`REJECTED`. Для EvidenceReviewer и
+EditorialReviewer добавлены отдельные role-scoped adapters и объединение их
+решений; полный набор validation contracts и optional revision flow остаются
+незавершёнными.
 
 Документ фиксирует меры по повышению качества, доказательности и целостности итоговых документов Academic Pipeline Engine. Цель не состоит в создании «антидетектора» или искусственной маскировке генерации. Система должна устранять собственные технические отпечатки, не выпускать служебный текст, проверять источники и расчёты, собирать секции в единый документ и поддерживать реальную, но необязательную авторскую доработку.
 
@@ -742,6 +750,8 @@ tests/test_quality_gate.py
 academic_pe/core/document_state.py
 academic_pe/core/document_ledger.py
 academic_pe/core/calculation_audit.py
+academic_pe/core/document_assembly.py
+academic_pe/core/review_payload.py
 academic_pe/core/revision.py
 academic_pe/core/registry/*
 academic_pe/server.py

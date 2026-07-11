@@ -117,7 +117,7 @@ Core-pipeline задача отмечается завершённой толь�
 - [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
 - [ ] **PL-03** — [Observability](platform/PL-03-observability-and-audit/PLAN.md) · [TODO](platform/PL-03-observability-and-audit/TODO.md)
 
-## Актуальная карта выполнения и блокировок (2026-07-11)
+## Актуальная карта выполнения и блокировок (2026-07-12)
 
 `[ ]` означает только «не завершено». Он не означает автоматически, что всю
 композицию нельзя начинать. Перед началом работы следует различать доступные
@@ -130,10 +130,11 @@ Core-pipeline задача отмечается завершённой толь�
   блокирует исправления выбранного связанного UI-пакета.
 - `CORE-13`, этап D: этапы A--C завершены, включая integrity gates,
   Source/Calculation Cards, передачу расчётов из sandbox в ledger и structured
-  curation Researcher для claim-карточек.
-  Следующий пакет — `ASSEMBLING`/`VALIDATING`: расширить FSM, добавить
-  assembly pass, coverage matrix и structured reviewer payload. `CORE-13`
-  остаётся незавершённой до прохождения этапов D--E и его критериев приёмки.
+  curation Researcher для claim-карточек. Этап D частично реализован:
+  добавлены `ASSEMBLING`/`VALIDATING`, deterministic assembly pass, coverage
+  matrix, role-scoped Evidence/Editorial reviewer adapters и structured review
+  payload. `CORE-13` остаётся незавершённой до полного validation contract и
+  прохождения этапов D--E с критериями приёмки.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.

@@ -266,11 +266,22 @@ Valid section names you MUST use in square brackets:
 {%- endif %}
 - [general] (for general issues affecting the whole document or multiple sections)
 
-Use the following format for rejections:
-REJECTED
-- [section_name]: line <number>: <issue description>
-- [section_name]: line <number>: <issue description>
-- [general]: <global issue description>
+Return a machine-readable JSON object and no Markdown fences:
+{
+  "approved": true,
+  "reviewer_role": "evidence|editorial|general",
+  "summary": "短кое пояснение",
+  "issues": [
+    {
+      "section": "section_name or general",
+      "line": 83,
+      "severity": "blocker|major|minor",
+      "code": "STABLE_UPPER_SNAKE_CASE",
+      "message": "specific actionable issue"
+    }
+  ]
+}
+Set approved=false when any blocker or material issue remains. Use an empty issues array when approved=true. Do not invent line numbers; use null for a document-level issue.
 """
 
 

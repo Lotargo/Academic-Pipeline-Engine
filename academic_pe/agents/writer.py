@@ -3,6 +3,7 @@ import logging
 from typing import Callable, Optional, Dict
 
 from academic_pe.agents.base import BaseAgent
+from academic_pe.core.review_payload import parse_review_payload
 from academic_pe.agents.self_critique import run_self_critique
 from academic_pe.core.llm import _call_provider_generate
 
@@ -145,10 +146,19 @@ class ReviewerAgent(BaseAgent):
         return raw.strip()
 
     def is_approved(self, feedback: str) -> bool:
-        return bool(self._APPROVED_PATTERN.match(feedback))
+        if self._APPROVED_PATTERN.match(feedback):
+            return True
+        try:
+            return parse_review_payload(feedback).approved
+        except Exception:
+            return False
 
     def parse_reason(self, feedback: str) -> str:
         if self.is_approved(feedback):
             return ""
+        try:
+            return parse_review_payload(feedback).reason()
+        except Exception:
+            pass
         match = re.match(r"REJECTED[:\s]*(.*)", feedback, re.IGNORECASE | re.DOTALL)
         return match.group(1).strip() if match else feedback
