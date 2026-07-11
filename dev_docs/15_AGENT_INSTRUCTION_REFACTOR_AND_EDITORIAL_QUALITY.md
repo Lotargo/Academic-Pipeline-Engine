@@ -52,8 +52,18 @@
   `REJECTED` поддерживаются только compatibility parser-ом.
 - Профильная regression P1.11 и смежных contracts — 83 passed; полный suite —
   617 passed, 3 skipped.
-- Следующий пакет: P1.12 специализированные EvidenceReviewer и
-  EditorialReviewer.
+- P1.12 выполнен: `EvidenceReviewer` и `EditorialReviewer` используют общий
+  нейтральный JSON protocol, но разные prompt builders и взаимоисключающие
+  rubric scopes. Evidence получает SourceCard/ClaimCard/CalculationCard и
+  coverage state, не оценивает стиль; Editorial получает coverage/terminology,
+  не видит evidence registries и не оценивает числа или источники.
+- Specialized role фиксируется схемой: JSON-ответ с чужим `reviewer_role`
+  отклоняется. Оба reviewer-а подключены к generation и selective optional
+  revision; factory создаёт их как `ReviewerAgent`. Example config содержит
+  отдельные настройки ролей вместо одного смешанного prompt.
+- Профильная regression P1.12 и смежных contracts — 112 passed; полный suite —
+  622 passed, 3 skipped.
+- Следующий пакет: P1.13 перевод Researcher на SourceCards.
 
 Документ продолжает решения из заметок №13 и №14. Он фиксирует проблемы текущих system prompts, task templates, template manifests, agent adapters и self-critique, а также предлагает новую схему компиляции инструкций.
 

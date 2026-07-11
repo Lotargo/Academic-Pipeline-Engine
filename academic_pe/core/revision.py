@@ -20,9 +20,10 @@ from academic_pe.core.calculation_audit import CalculationLedger
 from academic_pe.core.document_ledger import DocumentLedger
 from academic_pe.core.document_state import extract_document_state
 from academic_pe.core.language import language_instruction, resolve_output_language
-from academic_pe.core.prompting import DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, render_template
+from academic_pe.core.prompting import DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_SPECIALIZED_REVIEW_TEMPLATE, render_template
 from academic_pe.core.quality_gate import run_all as run_quality_gate
-from academic_pe.core.review_payload import merge_review_payloads, parse_review_payload, reviewer_role_guidance
+from academic_pe.core.review_payload import merge_review_payloads, parse_review_payload
+from academic_pe.review import build_editorial_review_prompt, build_evidence_review_prompt, parse_scoped_review
 from academic_pe.core.section_patch import SectionPatchError, add_line_numbers, apply_line_replace_patch
 from academic_pe.instructions import InstructionCompiler
 
@@ -315,6 +316,9 @@ def execute_patch_revision(
         reviewer=reviewer,
         evidence_reviewer=evidence_reviewer,
         editorial_reviewer=editorial_reviewer,
+        document_ledger=active_document_ledger,
+        calculation_ledger=active_calculation_ledger,
+        coverage=coverage or {},
     )
     return RevisionExecutionResult(
         context=updated,
@@ -343,14 +347,14 @@ def _review_changed_sections(
     reviewer: Writer | None,
     evidence_reviewer: Writer | None,
     editorial_reviewer: Writer | None,
+    document_ledger: DocumentLedger,
+    calculation_ledger: CalculationLedger,
+    coverage: Mapping[str, Any],
 ) -> None:
     """Review only changed sections while keeping the deterministic global gate."""
 
-    reviewers = [
-        ("general", reviewer),
-        ("evidence", evidence_reviewer),
-        ("editorial", editorial_reviewer),
-    ]
+    specialized = [("evidence", evidence_reviewer), ("editorial", editorial_reviewer)]
+    reviewers = specialized if any(agent is not None for _, agent in specialized) else [("general", reviewer)]
     reviewers = [(role, agent) for role, agent in reviewers if agent is not None]
     if not reviewers or not changed_sections:
         return
@@ -372,14 +376,32 @@ def _review_changed_sections(
             "output_dir": config.pipeline.output_dir,
         },
     )
+    specialized_prompt = render_template(
+        DEFAULT_SPECIALIZED_REVIEW_TEMPLATE,
+        {
+            "language": "auto",
+            "review_focus": "Review only these user-revised sections; global integrity was checked deterministically.",
+            "sections": review_sections,
+        },
+    )
     payloads = []
     for role, agent in reviewers:
+        role_prompt = prompt
+        if role == "evidence":
+            role_prompt = build_evidence_review_prompt(
+                specialized_prompt,
+                document_ledger=document_ledger,
+                calculation_ledger=calculation_ledger,
+                coverage=coverage,
+            )
+        elif role == "editorial":
+            role_prompt = build_editorial_review_prompt(specialized_prompt, coverage=coverage)
         response = agent.process(
-            f"{prompt}\n\n{reviewer_role_guidance(role)}",
+            role_prompt,
             context=line_numbered_text,
             document_sections=dict(context),
         )
-        payload = parse_review_payload(response).model_copy(update={"reviewer_role": role})
+        payload = parse_review_payload(response) if role == "general" else parse_scoped_review(response, role)
         payloads.append(payload)
     merged = merge_review_payloads(payloads)
     if not merged.approved:

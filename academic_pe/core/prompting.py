@@ -304,6 +304,26 @@ The JSON object is the only allowed response. Unknown fields, invalid severity v
 """
 
 
+DEFAULT_SPECIALIZED_REVIEW_TEMPLATE = """Review the provided line-numbered document within your assigned reviewer scope.
+Expected document language: {{ language }}.
+{% if review_focus %}Review focus from the previous attempt: {{ review_focus }}{% endif %}
+Use `general` only for an issue that genuinely spans multiple sections.
+{% if sections is defined and sections %}Valid section names:
+{% for section in sections %}- {{ section.name }}
+{% endfor %}{% endif %}
+Return one JSON object and no Markdown fences:
+{
+  "approved": true,
+  "reviewer_role": "evidence|editorial",
+  "summary": "short decision summary",
+  "issues": [
+    {"section": "section_name or general", "line": null, "severity": "blocker|major|minor", "code": "STABLE_UPPER_SNAKE_CASE", "message": "specific actionable issue"}
+  ]
+}
+Set approved=false when a blocker or major issue remains. Use an empty issues array when approved=true. Do not invent line numbers.
+"""
+
+
 DEFAULT_VERIFY_TEMPLATE = """You are the Writer agent. Your task is to verify if the text of section '{{ section.topic }}' is free of the specific errors identified by the reviewer in their first rejection:
 {{ first_attempt_reason }}
 

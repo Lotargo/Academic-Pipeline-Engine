@@ -11,6 +11,8 @@ _AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "default": DefaultAgent,
     "writer": WriterAgent,
     "reviewer": ReviewerAgent,
+    "evidence_reviewer": ReviewerAgent,
+    "editorial_reviewer": ReviewerAgent,
     "prompt_enhancer": PromptEnhancerAgent,
     "researcher": ResearcherAgent,
 }

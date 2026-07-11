@@ -19,10 +19,11 @@ from academic_pe.core.document_state import extract_document_state
 from academic_pe.core.calculation_audit import CalculationEntry, CalculationLedger
 from academic_pe.core.document_ledger import DocumentLedger
 from academic_pe.core.document_assembly import assemble_document
-from academic_pe.core.review_payload import merge_review_payloads, parse_review_payload, reviewer_role_guidance
+from academic_pe.core.review_payload import merge_review_payloads
+from academic_pe.review import build_editorial_review_prompt, build_evidence_review_prompt, parse_scoped_review
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import language_instruction, resolve_output_language
-from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPERATION_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
+from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPERATION_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_SPECIALIZED_REVIEW_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
 from academic_pe.core.prompt_manifest_resolver import PromptManifestResolver
 from academic_pe.core.section_patch import SectionPatchError, apply_line_replace_patch, add_line_numbers
 from academic_pe.core.template_compat import template_section_to_section_prompt
@@ -1604,11 +1605,31 @@ class Orchestrator:
                     ]
                     dedicated_reviewers = [(role, agent) for role, agent in dedicated_reviewers if agent is not None]
                     if dedicated_reviewers:
+                        specialized_task = render_template(
+                            DEFAULT_SPECIALIZED_REVIEW_TEMPLATE,
+                            {
+                                "language": target_language,
+                                "review_focus": review_focus,
+                                "sections": self._config.pipeline.sections,
+                            },
+                        )
                         payloads = []
                         for role, agent in dedicated_reviewers:
-                            role_task = f"{review_task}\n\n{reviewer_role_guidance(role)}\nSet reviewer_role to '{role}'."
+                            if role == "evidence":
+                                role_task = build_evidence_review_prompt(
+                                    specialized_task,
+                                    document_ledger=self._document_ledger,
+                                    calculation_ledger=self._calculation_ledger,
+                                    coverage=(self._document_plan.coverage_matrix if self._document_plan else {}),
+                                )
+                            else:
+                                role_task = build_editorial_review_prompt(
+                                    specialized_task,
+                                    coverage=(self._document_plan.coverage_matrix if self._document_plan else {}),
+                                    terminology=(self._document_plan.terminology if self._document_plan else {}),
+                                )
                             raw_review = agent.process(role_task, context=full_text)
-                            payloads.append(parse_review_payload(raw_review))
+                            payloads.append(parse_scoped_review(raw_review, role))
                         combined_payload = merge_review_payloads(payloads)
                         critique = "APPROVED" if combined_payload.approved else "REJECTED\n" + combined_payload.reason()
                     else:

@@ -73,6 +73,15 @@ class TestAgentFactory:
         agent = create_agent("reviewer", cfg)
         assert isinstance(agent, ReviewerAgent)
 
+    def test_create_specialized_reviewers_by_name(self):
+        from academic_pe.agents.factory import create_agent
+        from academic_pe.agents.writer import ReviewerAgent
+
+        config = AgentConfig(role="EvidenceReviewer", provider="mock", model="mock", temperature=0, system_prompt="Review evidence.")
+        assert isinstance(create_agent("evidence_reviewer", config), ReviewerAgent)
+        config = AgentConfig(role="EditorialReviewer", provider="mock", model="mock", temperature=0, system_prompt="Review prose.")
+        assert isinstance(create_agent("editorial_reviewer", config), ReviewerAgent)
+
     def test_create_researcher_by_name(self):
         from academic_pe.agents.researcher import ResearcherAgent
         cfg = AgentConfig(

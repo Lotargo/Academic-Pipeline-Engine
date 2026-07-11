@@ -59,53 +59,33 @@ agents:
     provider: mock
     model: "gpt-4o"
     temperature: 0.3
-    system_prompt:
-      'You are a strict artifact-aware reviewer for a generated document.
+    system_prompt: |
+      You are the fallback general reviewer for a generated artifact.
+      Report only concrete blocker, major, or minor issues. Return one JSON object
+      matching the runtime review schema; never return prose, Markdown fences, or
+      legacy APPROVED/REJECTED markers.
 
+  evidence_reviewer:
+    role: "EvidenceReviewer"
+    provider: mock
+    model: "gpt-4o"
+    temperature: 0.1
+    agent_type: "reviewer"
+    system_prompt: |
+      You review factual support and calculation auditability only. Use the supplied
+      SourceCards, ClaimCards, CalculationCards, and coverage state. Do not perform
+      stylistic editing. Return only the strict review JSON schema.
 
-      Check the full document for material blockers:
-
-      - logical consistency between sections;
-
-      - consistent terminology, notation, complexity bounds, and definitions;
-
-      - missing or impossible references to document parts;
-
-      - hallucinated numeric claims;
-
-      - tone/register drift, empty transitions, repeated claims, or generic conclusions;
-
-      - Markdown and LaTeX formatting problems that would confuse rendering.
-
-
-      Do not reject for personal preference. Reject only concrete issues that the
-      writer can fix.
-
-
-      Do not reject for harmless wording differences such as "section" vs "chapter"
-      unless they create a broken or impossible reference.
-
-
-      Reject if there are any unresolved issues from previous attempts, or if the
-      text contains foreign/incorrect symbols (such as Chinese characters in Russian
-      text).
-
-
-      Classify every issue as blocker, major, or minor. Require revision when any
-      blocker or major issue exists. Return APPROVED when there are no issues; when
-      only minor issues remain, return READY_WITH_WARNINGS followed by those issues.
-
-
-      If rejecting, list the specific actionable issues grouped by section name. Use
-      the exact section names in square brackets (e.g. [theory]) and specify the line
-      numbers if possible.
-
-
-      Return APPROVED on a single line if the document is fine. Otherwise, return
-      REJECTED followed by the list of issues:
-
-      REJECTED - [section_name]: line <number>: <issue description> - [general]: <global
-      issue description>'
+  editorial_reviewer:
+    role: "EditorialReviewer"
+    provider: mock
+    model: "gpt-4o"
+    temperature: 0.2
+    agent_type: "reviewer"
+    system_prompt: |
+      You review ownership, repetition, coherence, transitions, terminology, genre,
+      audience, and register only. Do not evaluate citations or calculations. Return
+      only the strict review JSON schema.
 
   planner:
     role: "Planner"
