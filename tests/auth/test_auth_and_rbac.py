@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from academic_pe.auth import AuthSettings, create_auth_router
 from academic_pe.persistence.base import Base
-from academic_pe.persistence.models import ActorRole, LoginSession, Membership, User, UserStatus
+from academic_pe.persistence.models import ActorRole, Job, JobStatus, LoginSession, Membership, OutboxEvent, User, UserStatus
 from academic_pe.providers import Capability, InMemoryProviderRegistry, ModelMetadata, ProviderDefinition
 from academic_pe.providers.resources import BudgetKind, BudgetState, FairUsePolicy, ResourceCoordinator
 
@@ -107,6 +107,27 @@ def test_admin_resource_snapshot_hides_credentials_and_unknown_quota_balance():
     assert body["providers"][0]["budget"] == {"kind": "unknown"}
     assert body["providers"][0]["platform_credential"] is None
     assert body["fair_use"] == {"max_active_per_user": 2, "max_queued_per_user": 4}
+
+
+def test_admin_jobs_snapshot_exposes_only_aggregate_lifecycle_and_outbox_counts():
+    client, sessions = app_and_sessions()
+    tokens = register(client, "admin@example.com").json()
+    with sessions() as session:
+        admin = session.scalar(select(User))
+        admin.actor_role = ActorRole.ADMIN
+        workspace = session.scalar(select(Membership).where(Membership.user_id == admin.id)).workspace_id
+        job = Job(workspace_id=workspace, created_by_user_id=admin.id, kind="pipeline", status=JobStatus.QUEUED,
+                  payload={"topic": "must not be exposed"})
+        session.add(job)
+        session.flush()
+        session.add(OutboxEvent(job_id=job.id, workload="generation", attempts=1, available_at=datetime.now(UTC)))
+        session.commit()
+    response = client.get("/api/auth/admin/jobs", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+    assert response.status_code == 200
+    body = response.json()
+    assert {item["status"]: item["count"] for item in body["jobs"]}["queued"] == 1
+    assert body["queues"] == [{"workload": "generation", "pending": 1, "retrying": 1}]
+    assert "must not be exposed" not in str(body)
 
 
 def test_context_only_exposes_callers_active_workspace_memberships():

@@ -8,14 +8,15 @@ from uuid import UUID
 import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from academic_pe.auth.security import (AuthSettings, create_access_token, decode_access_token,
     hash_password, hash_refresh_token, new_refresh_token, verify_password)
-from academic_pe.persistence.models import (ActorRole, LoginSession, Membership, MembershipRole,
-    MembershipStatus, Organization, OrganizationKind, TenantStatus, User, UserStatus, Workspace)
+from academic_pe.persistence.models import (ActorRole, Job, JobStatus, LoginSession, Membership,
+    MembershipRole, MembershipStatus, Organization, OrganizationKind, OutboxEvent, TenantStatus,
+    User, UserStatus, Workspace)
 from academic_pe.providers import InMemoryProviderRegistry, ProviderHealth, ProviderRegistry
 from academic_pe.providers.resources import BudgetKind, ResourceCoordinator
 
@@ -99,6 +100,23 @@ class FairUseContext(BaseModel):
 class AdminResourceSnapshot(BaseModel):
     providers: list[AdminResourceProvider]
     fair_use: FairUseContext
+    generated_at: datetime
+
+
+class AdminJobStatusCount(BaseModel):
+    status: JobStatus
+    count: int
+
+
+class AdminQueueCount(BaseModel):
+    workload: str
+    pending: int
+    retrying: int
+
+
+class AdminJobsSnapshot(BaseModel):
+    jobs: list[AdminJobStatusCount]
+    queues: list[AdminQueueCount]
     generated_at: datetime
 
 
@@ -244,6 +262,29 @@ def create_auth_router(session_factory: Callable[[], Session], settings: AuthSet
             providers=providers,
             fair_use=FairUseContext(max_active_per_user=resource_coordinator.policy.max_active_per_user,
                                     max_queued_per_user=resource_coordinator.policy.max_queued_per_user),
+            generated_at=datetime.now(UTC),
+        )
+
+    @router.get("/admin/jobs", response_model=AdminJobsSnapshot)
+    def admin_jobs(_: Principal = Depends(require_admin), session: Session = Depends(session_dep)):
+        """Return aggregate queue and lifecycle state without exposing job payloads."""
+        status_counts = {status: 0 for status in JobStatus}
+        for status, count in session.execute(select(Job.status, func.count(Job.id)).group_by(Job.status)):
+            status_counts[status] = count
+        queue_rows = session.execute(
+            select(
+                OutboxEvent.workload,
+                func.count(OutboxEvent.id),
+                func.coalesce(func.sum(OutboxEvent.attempts > 0), 0),
+            )
+            .where(OutboxEvent.published_at.is_(None))
+            .group_by(OutboxEvent.workload)
+            .order_by(OutboxEvent.workload)
+        )
+        return AdminJobsSnapshot(
+            jobs=[AdminJobStatusCount(status=status, count=count) for status, count in status_counts.items()],
+            queues=[AdminQueueCount(workload=workload, pending=pending, retrying=retrying)
+                    for workload, pending, retrying in queue_rows],
             generated_at=datetime.now(UTC),
         )
 
