@@ -27,6 +27,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_APE_RUNTIME_PROFILE=service
 
 # Install pnpm
 RUN npm install -g pnpm

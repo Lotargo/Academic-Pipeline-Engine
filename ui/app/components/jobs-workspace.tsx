@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { Ban, CheckCircle2, CircleAlert, Clock3, Loader2, Radio, RefreshCw, Send, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
+import { createEditorJob, jobRequest } from "@/lib/job-client"
 import { activeJob, type Job, type JobEvent, type JobStatus } from "@/lib/job-contract"
 
 const rememberedJob = "ape.active-job"
@@ -16,13 +19,9 @@ const statusLabel: Record<JobStatus, string> = { pending: "Подготовка"
 const statusIcon: Record<JobStatus, typeof Clock3> = { pending: Clock3, queued: Clock3, running: Loader2, succeeded: CheckCircle2, failed: XCircle, cancelled: Ban }
 
 function message(error: unknown) { return error instanceof Error ? error.message : "Не удалось выполнить запрос." }
-async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...init?.headers }, cache: "no-store" })
-  if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.detail || "Сервис jobs временно недоступен.") }
-  return response.json() as Promise<T>
-}
 
 export function JobsWorkspace() {
+  const searchParams = useSearchParams()
   const [jobs, setJobs] = useState<Job[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [topic, setTopic] = useState("")
@@ -32,19 +31,20 @@ export function JobsWorkspace() {
   const [error, setError] = useState<string | null>(null)
   const [transport, setTransport] = useState<"loading" | "live" | "polling">("loading")
   const lastEvent = useRef<string | null>(null)
+  const requestedJobId = searchParams.get("job")
   const selected = jobs.find(job => job.id === selectedId) ?? null
 
   const upsert = useCallback((job: Job) => setJobs(previous => [job, ...previous.filter(item => item.id !== job.id)]), [])
   const load = useCallback(async (id?: string | null) => {
     try {
-      if (id) { const job = await json<Job>(`/api/jobs/${id}`); upsert(job); setSelectedId(job.id); return job }
-      const data = await json<{ jobs: Job[] }>("/api/jobs")
+      if (id) { const job = await jobRequest<Job>(`/api/jobs/${id}`); upsert(job); setSelectedId(job.id); return job }
+      const data = await jobRequest<{ jobs: Job[] }>("/api/jobs")
       setJobs(data.jobs); const saved = sessionStorage.getItem(rememberedJob); const initial = data.jobs.find(job => job.id === saved) ?? data.jobs.find(activeJob) ?? data.jobs[0]
       setSelectedId(initial?.id ?? null); return initial
     } catch (cause) { setError(message(cause)); return undefined }
   }, [upsert])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load(requestedJobId) }, [load, requestedJobId])
   useEffect(() => { if (selected && activeJob(selected)) sessionStorage.setItem(rememberedJob, selected.id); else if (selected) sessionStorage.removeItem(rememberedJob) }, [selected])
 
   useEffect(() => {
@@ -69,11 +69,11 @@ export function JobsWorkspace() {
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!topic.trim()) return; setCreating(true); setError(null)
-    try { const job = await json<Job>("/api/jobs", { method: "POST", body: JSON.stringify({ kind: "pipeline", topic: topic.trim(), instructions: instructions.trim() || undefined }) }); upsert(job); setSelectedId(job.id); setTopic(""); setInstructions("") } catch (cause) { setError(message(cause)) } finally { setCreating(false) }
+    try { const job = await createEditorJob(topic, instructions); upsert(job); setSelectedId(job.id); setTopic(""); setInstructions("") } catch (cause) { setError(message(cause)) } finally { setCreating(false) }
   }
   async function cancel() {
     if (!selected) return; setCancelling(true); setError(null)
-    try { upsert(await json<Job>(`/api/jobs/${selected.id}/cancel`, { method: "POST" })) } catch (cause) { setError(message(cause)) } finally { setCancelling(false) }
+    try { upsert(await jobRequest<Job>(`/api/jobs/${selected.id}/cancel`, { method: "POST" })) } catch (cause) { setError(message(cause)) } finally { setCancelling(false) }
   }
 
   return <section className="mx-auto max-w-6xl space-y-6">
@@ -91,5 +91,5 @@ function JobStatusBadge({ status }: { status: JobStatus }) { const Icon = status
 function JobDetails({ job, cancelling, onCancel }: { job: Job | null; cancelling: boolean; onCancel: () => void }) {
   if (!job) return <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Выберите задание, чтобы открыть его статус.</CardContent></Card>
   const cancellationRequested = Boolean(job.cancel_requested_at)
-  return <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>{job.topic}</CardTitle><CardDescription className="mt-1 font-mono">{job.id}</CardDescription></div><JobStatusBadge status={job.status} /></div></CardHeader><CardContent className="space-y-5"><div><div className="mb-2 flex justify-between text-sm"><span>{job.current_stage ? `Этап: ${job.current_stage}` : "Этап ещё не начат"}</span><span className="font-mono">{job.progress}%</span></div><Progress value={job.progress} aria-label={`Прогресс: ${job.progress}%`} /></div>{job.stages.length > 0 && <ol className="space-y-2">{job.stages.map(stage => <li key={stage.name} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm"><span>{stage.name}</span><span className="font-mono text-muted-foreground">{stage.progress}% · {stage.status}</span></li>)}</ol>}{job.error_message && <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{job.error_message}</p>}{activeJob(job) && <div className="flex flex-wrap items-center gap-3 border-t pt-4">{cancellationRequested ? <p className="text-sm text-muted-foreground">Отмена запрошена. Worker завершит текущую безопасную операцию и подтвердит статус.</p> : <Button variant="destructive" onClick={onCancel} disabled={cancelling}>{cancelling && <Loader2 className="animate-spin" />}Запросить отмену</Button>}</div>}</CardContent></Card>
+  return <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>{job.topic}</CardTitle><CardDescription className="mt-1 font-mono">{job.id}</CardDescription></div><JobStatusBadge status={job.status} /></div></CardHeader><CardContent className="space-y-5"><div><div className="mb-2 flex justify-between text-sm"><span>{job.current_stage ? `Этап: ${job.current_stage}` : "Этап ещё не начат"}</span><span className="font-mono">{job.progress}%</span></div><Progress value={job.progress} aria-label={`Прогресс: ${job.progress}%`} /></div>{job.stages.length > 0 && <ol className="space-y-2">{job.stages.map(stage => <li key={stage.name} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm"><span>{stage.name}</span><span className="font-mono text-muted-foreground">{stage.progress}% · {stage.status}</span></li>)}</ol>}{job.error_message && <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{job.error_message}</p>}<div className="flex flex-wrap gap-2 border-t pt-4"><Button asChild variant="outline" size="sm"><Link href={`/?job=${encodeURIComponent(job.id)}`}>Открыть в редакторе</Link></Button>{activeJob(job) && (cancellationRequested ? <p className="self-center text-sm text-muted-foreground">Отмена запрошена. Worker завершит текущую безопасную операцию и подтвердит статус.</p> : <Button variant="destructive" onClick={onCancel} disabled={cancelling}>{cancelling && <Loader2 className="animate-spin" />}Запросить отмену</Button>)}</div></CardContent></Card>
 }

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from academic_pe.api_models import Attachment, ContinuationSource
 from academic_pe.jobs.lifecycle import JobLifecycleRepository
 from academic_pe.persistence.models import (Job, JobEvent, JobStage, JobStatus,
     Membership, MembershipStatus, TenantStatus, Workspace)
@@ -23,12 +24,24 @@ class JobCreateRequest(BaseModel):
     kind: str = "pipeline"
     topic: str = Field(min_length=1, max_length=500)
     instructions: str | None = Field(default=None, max_length=20_000)
+    editor_options: "JobEditorOptions | None" = None
+
+
+class JobEditorOptions(BaseModel):
+    """Portable editor settings persisted with a service job, never global UI state."""
+    academic_mode: bool = False
+    author: str | None = Field(default=None, max_length=200)
+    continuation_source: ContinuationSource | None = None
+    artifact_override: str | None = Field(default=None, max_length=100)
+    web_search_enabled: bool = False
+    attachments: list[Attachment] = Field(default_factory=list)
 
 
 def _job_payload(job: Job, stages: list[JobStage]) -> dict[str, Any]:
     return {
         "id": str(job.id), "kind": job.kind, "topic": job.payload.get("topic", ""),
         "instructions": job.payload.get("instructions"), "status": job.status.value,
+        "editor_options": job.payload.get("editor_options"),
         "current_stage": job.current_stage, "progress": job.progress,
         "active_attempt": job.active_attempt,
         "cancel_requested_at": job.cancel_requested_at.isoformat() if job.cancel_requested_at else None,
@@ -74,8 +87,10 @@ def create_jobs_router(session_factory: Callable[[], Session], principal_depende
         if body.kind != "pipeline":
             raise HTTPException(status_code=422, detail="unsupported job kind")
         workspace = workspace_for_current(current, session)
-        job = create_job_with_outbox(session, workspace.id, current.user_id, body.kind,
-                                     {"topic": body.topic.strip(), "instructions": body.instructions}, Workload.GENERATION)
+        payload = {"topic": body.topic.strip(), "instructions": body.instructions}
+        if body.editor_options is not None:
+            payload["editor_options"] = body.editor_options.model_dump(mode="json", exclude_none=True)
+        job = create_job_with_outbox(session, workspace.id, current.user_id, body.kind, payload, Workload.GENERATION)
         session.add(JobEvent(job_id=job.id, event_type="job.created", data={"status": JobStatus.PENDING.value}))
         session.commit()
         return snapshot(session, job)

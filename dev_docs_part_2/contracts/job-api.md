@@ -7,7 +7,9 @@ Bearer access token; backend определяет workspace из membership, а 
 ## HTTP
 
 - `POST /api/jobs` принимает `{ "kind": "pipeline", "topic": string,
-  "instructions"?: string }`, возвращает `201` и job snapshot.
+  "instructions"?: string, "editor_options"?: EditorOptions }`, возвращает
+  `201` и job snapshot. Backend сохраняет `editor_options` в payload job;
+  клиент не передаёт `workspace_id` и не задаёт progress.
 - `GET /api/jobs?active=true` возвращает `{ "jobs": Job[] }`, newest first.
 - `GET /api/jobs/{job_id}` возвращает job snapshot с `stages`.
 - `POST /api/jobs/{job_id}/cancel` возвращает `202` и актуальный snapshot.
@@ -24,11 +26,18 @@ Bearer access token; backend определяет workspace из membership, а 
 ```ts
 type Job = {
   id: string; kind: "pipeline"; topic: string; instructions?: string
+  editor_options?: EditorOptions
   status: JobStatus; current_stage: string | null; progress: number
   active_attempt: number; cancel_requested_at: string | null
   error_code: string | null; error_message: string | null
   created_at: string; updated_at: string
   stages: Array<{ name: string; status: string; progress: number }>
+}
+type EditorOptions = {
+  academic_mode?: boolean; author?: string
+  continuation_source?: ContinuationSource
+  artifact_override?: string; web_search_enabled?: boolean
+  attachments?: Attachment[]
 }
 type JobEvent = { id: string; type: string; created_at: string; job: Job }
 ```

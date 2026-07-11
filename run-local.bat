@@ -12,6 +12,6 @@ if errorlevel 1 (%APE_PYTHON% -m pip install -e . || exit /b 1)
 start "Academic PE Backend (local)" cmd /k "%APE_PYTHON% -m uvicorn academic_pe.server:app --reload --host 127.0.0.1 --port 8000"
 pushd ui
 where pnpm >nul 2>nul
-if not errorlevel 1 (start "Academic PE Frontend (local)" cmd /k "pnpm run dev") else (start "Academic PE Frontend (local)" cmd /k "npm run dev")
+if not errorlevel 1 (start "Academic PE Frontend (local)" cmd /k "set NEXT_PUBLIC_APE_RUNTIME_PROFILE=local&& pnpm run dev") else (start "Academic PE Frontend (local)" cmd /k "set NEXT_PUBLIC_APE_RUNTIME_PROFILE=local&& npm run dev")
 popd
 echo Local-first UI is starting: http://localhost:3000

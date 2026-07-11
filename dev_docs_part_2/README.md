@@ -75,7 +75,7 @@ Core-pipeline задача отмечается завершённой толь�
 - [ ] **FE-07** — [Support and Contact](frontend/FE-07-support-and-contact/PLAN.md) · [TODO](frontend/FE-07-support-and-contact/TODO.md)
 - [x] **FE-08** — [Frontend Security](frontend/FE-08-frontend-security/PLAN.md) · [TODO](frontend/FE-08-frontend-security/TODO.md)
 - [ ] **FE-09** — [Workspace Settings and Modes](frontend/FE-09-workspace-settings-and-modes/PLAN.md) · [TODO](frontend/FE-09-workspace-settings-and-modes/TODO.md)
-- [ ] **FE-10** — [Main Editor and Unified Jobs](frontend/FE-10-main-editor-and-unified-jobs/PLAN.md) · [TODO](frontend/FE-10-main-editor-and-unified-jobs/TODO.md)
+- [x] **FE-10** — [Main Editor and Unified Jobs](frontend/FE-10-main-editor-and-unified-jobs/PLAN.md) · [TODO](frontend/FE-10-main-editor-and-unified-jobs/TODO.md)
 - [ ] **FE-11** — [Frontend Lint Quality](frontend/FE-11-frontend-lint-quality/PLAN.md) · [TODO](frontend/FE-11-frontend-lint-quality/TODO.md)
 
 ## Backend additions

@@ -22,7 +22,7 @@ docker exec "$container" pg_isready -U ape -d ape >/dev/null || { echo "PostgreS
 "$python_bin" -m alembic upgrade head
 "$python_bin" -m uvicorn academic_pe.server:app --reload --host 127.0.0.1 --port 8000 &
 backend_pid=$!
-(cd ui && { command -v pnpm >/dev/null && pnpm run dev || npm run dev; }) &
+(cd ui && export NEXT_PUBLIC_APE_RUNTIME_PROFILE=service; { command -v pnpm >/dev/null && pnpm run dev || npm run dev; }) &
 frontend_pid=$!
 trap 'kill "$backend_pid" "$frontend_pid" 2>/dev/null || true' EXIT INT TERM
 echo "service-dev: http://localhost:3000 (authenticated mode)"

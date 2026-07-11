@@ -56,7 +56,7 @@ echo Starting service-dev backend and frontend in separate windows...
 start "Academic PE Backend (service-dev)" cmd /k "set APE_DATABASE_SYNC_URL=%APE_DATABASE_SYNC_URL%&& set APE_DATABASE_ASYNC_URL=%APE_DATABASE_ASYNC_URL%&& set APE_AUTH_JWT_SECRET=%APE_AUTH_JWT_SECRET%&& %APE_PYTHON% -m uvicorn academic_pe.server:app --reload --host 127.0.0.1 --port 8000"
 pushd ui
 where pnpm >nul 2>nul
-if not errorlevel 1 (start "Academic PE Frontend (service-dev)" cmd /k "pnpm run dev") else (start "Academic PE Frontend (service-dev)" cmd /k "npm run dev")
+if not errorlevel 1 (start "Academic PE Frontend (service-dev)" cmd /k "set NEXT_PUBLIC_APE_RUNTIME_PROFILE=service&& pnpm run dev") else (start "Academic PE Frontend (service-dev)" cmd /k "set NEXT_PUBLIC_APE_RUNTIME_PROFILE=service&& npm run dev")
 popd
 
 echo.

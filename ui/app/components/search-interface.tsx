@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useTheme } from "next-themes"
 import { messages, normalizeLanguage, type Messages, type UiLanguage } from "@/lib/i18n"
+import { startEditorRun } from "@/lib/editor-adapter"
 
 const ARTIFACT_OVERRIDE_OPTIONS = [
   { value: "", label: "Auto-Detect" },
@@ -638,29 +639,15 @@ export function Search() {
     })
     
     try {
-      const res = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic,
-          instructions,
-          academic_mode: academicMode,
-          artifact_override: artifactOverride || undefined,
-          author: nickname.trim() || undefined,
-          continuation_source: continuationSource
-            ? {
-                ...continuationSource,
-                intent_override: continuationIntentOverride || undefined,
-              }
-            : undefined,
-          web_search_enabled: webSearchEnabled,
-          attachments: activeAttachments.length > 0 ? activeAttachments : undefined,
-        })
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.detail || "Failed to start pipeline")
-      }
+      const started = await startEditorRun({ topic, instructions, editorOptions: {
+        academic_mode: academicMode,
+        artifact_override: artifactOverride || undefined,
+        author: nickname.trim() || undefined,
+        continuation_source: continuationSource ? { ...continuationSource, intent_override: continuationIntentOverride || undefined } : undefined,
+        web_search_enabled: webSearchEnabled,
+        attachments: activeAttachments.length > 0 ? activeAttachments : undefined,
+      } })
+      if (started.profile !== "local") throw new Error("Legacy editor is available only in local profile")
       const serverStatus = await fetchStatus()
       if (!serverStatus || serverStatus.status !== "RUNNING") {
         setStatus((prev: any) => ({

@@ -33,11 +33,27 @@ def test_job_api_creates_lists_cancels_and_hides_foreign_jobs():
     one_headers = {"Authorization": f"Bearer {one['access_token']}"}
     two_headers = {"Authorization": f"Bearer {two['access_token']}"}
 
-    created = client.post("/api/jobs", headers=one_headers, json={"kind": "pipeline", "topic": "Tenant-safe topic"})
+    created = client.post("/api/jobs", headers=one_headers, json={
+        "kind": "pipeline", "topic": "Tenant-safe topic",
+        "editor_options": {
+            "academic_mode": True,
+            "author": "Ada Lovelace",
+            "artifact_override": "technical_readme",
+            "web_search_enabled": True,
+            "attachments": [],
+        },
+    })
     assert created.status_code == 201
     job = created.json()
     assert job["status"] == "pending"
     assert job["topic"] == "Tenant-safe topic"
+    assert job["editor_options"] == {
+        "academic_mode": True,
+        "author": "Ada Lovelace",
+        "artifact_override": "technical_readme",
+        "web_search_enabled": True,
+        "attachments": [],
+    }
 
     listed = client.get("/api/jobs?active=true", headers=one_headers)
     assert listed.status_code == 200

@@ -1,10 +1,8 @@
-"use client"
-import { Search } from "./components/search-interface"
+import { ServiceEditor } from "@/app/components/service-editor"
+import { Search } from "@/app/components/search-interface"
+import { editorRuntimeProfile } from "@/lib/editor-adapter"
 
 export default function Home() {
-  return (
-    <div className="flex h-screen w-full">
-      <Search />
-    </div>
-  )
+  if (editorRuntimeProfile() === "service") return <ServiceEditor />
+  return <div className="flex h-screen w-full"><Search /></div>
 }
