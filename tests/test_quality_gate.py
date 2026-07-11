@@ -220,6 +220,26 @@ class TestIntegrityGates:
         assert not result.passed
         assert "prompt/internal marker" in result.issues[0]
 
+    @pytest.mark.parametrize(
+        "marker",
+        [
+            "[Active Artifact Contract]",
+            "[Active Agent Contract]",
+            "[Active System Prompt And Contract]",
+            "[Active Document Template Manifest]",
+            "[Template Review Rubric]",
+            "[GREP TOOL AVAILABLE]",
+            "[Grep Call Turn 2]",
+            "Grep tool matches: Section 'body', line 1",
+            ">>>>>>>",
+        ],
+    )
+    def test_prompt_leakage_rejects_runtime_protocol_markers(self, marker):
+        result = check_prompt_leakage({"body": f"Final prose.\n{marker}"}, _full_cfg())
+
+        assert not result.passed
+        assert any("prompt/internal marker" in issue for issue in result.issues)
+
     def test_run_all_blocks_export_gate_for_unresolved_placeholder(self):
         result = run_all(
             {"body": "The final analysis is incomplete: [TODO add validated result]."},

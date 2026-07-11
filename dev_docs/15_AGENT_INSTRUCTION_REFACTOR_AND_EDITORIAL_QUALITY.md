@@ -16,8 +16,10 @@
   Reviewer использует severity-based решение.
 - Regression: `test_config`, `test_prompt_manifest_resolver`,
   `test_prompt_enhance`, `test_orchestrator` — 88 passed.
-- Следующий пакет: P0.6--P0.8 (patch-only self-critique, компиляция SectionBrief
-  вместо raw section instructions, leakage/protocol regression gates).
+- P0.8 выполнен: deterministic leakage gate блокирует runtime contract,
+  self-critique, GREP и REPLACE protocol markers; профильная проверка — 50 passed.
+- Следующий пакет: P0.6--P0.7 (patch-only self-critique и компиляция
+  SectionBrief вместо raw section instructions).
 
 Документ продолжает решения из заметок №13 и №14. Он фиксирует проблемы текущих system prompts, task templates, template manifests, agent adapters и self-critique, а также предлагает новую схему компиляции инструкций.
 

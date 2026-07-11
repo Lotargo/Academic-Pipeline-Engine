@@ -117,9 +117,16 @@ _PLACEHOLDER_RE = re.compile(
 )
 _PROMPT_LEAK_PATTERNS = (
     re.compile(r"\bUSE_GREP\s*:", re.IGNORECASE),
+    re.compile(r"\bGrep tool (?:matches|result|error)\s*:", re.IGNORECASE),
     re.compile(r"\bNO_CHANGES\b", re.IGNORECASE),
     re.compile(r"<<<<<<<\s*REPLACE", re.IGNORECASE),
-    re.compile(r"\[(?:Document Plan|Context Data|Original Task|Draft Output|Grep Call Turn)\]", re.IGNORECASE),
+    re.compile(r"^>>>>>>>\s*$", re.IGNORECASE),
+    re.compile(
+        r"\[(?:Active Artifact Contract|Active Agent Contract|Active System Prompt And Contract|"
+        r"Active Document Template Manifest|Template Review Rubric|GREP TOOL AVAILABLE|Document Plan|"
+        r"Context Data|Original Task|Draft Output|Grep Call Turn(?:\s+\d+)?)\]",
+        re.IGNORECASE,
+    ),
     re.compile(r"^\s*(?:USE_GREP|REPLACE|SEARCH/REPLACE)\s*$", re.IGNORECASE),
     re.compile(r"без ссылки на несуществующ|строго в тексте", re.IGNORECASE),
 )
