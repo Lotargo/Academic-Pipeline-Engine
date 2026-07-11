@@ -11,6 +11,7 @@
     "test:jobs": "node --test tests/jobs-api.mjs",
     "test:history": "node --test tests/history-contract.mjs",
     "test:providers": "node --test tests/provider-settings-contract.mjs",
+    "test:admin": "node --test tests/admin-layout.mjs",
     "start": "next start"
   },
   "dependencies": {

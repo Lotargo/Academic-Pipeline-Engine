@@ -7,7 +7,7 @@
 
 ## Tasks
 
-- [ ] `FE-06-T001` Создать admin-only layout и navigation.
+- [x] `FE-06-T001` Создать admin-only layout и navigation.
 - [ ] `FE-06-T002` Реализовать users/roles views.
 - [ ] `FE-06-T003` Реализовать provider/model/global resource views.
 - [ ] `FE-06-T004` Реализовать jobs/queues monitoring.

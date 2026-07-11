@@ -24,3 +24,18 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
   if (!ready) return <main className="grid min-h-svh place-items-center" aria-live="polite"><div className="flex items-center gap-3 text-muted-foreground"><Loader2 className="size-5 animate-spin"/>Восстанавливаем сессию…</div></main>
   return <CabinetSessionContext.Provider value={session}>{children}</CabinetSessionContext.Provider>
 }
+
+export function AdminGate({ children }: { children: React.ReactNode }) {
+  const session = useCabinetSession()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (session && session.role !== "admin") router.replace("/cabinet")
+  }, [router, session])
+
+  if (!session || session.role !== "admin") {
+    return <main className="grid min-h-svh place-items-center" aria-live="polite"><div className="flex items-center gap-3 text-muted-foreground"><Loader2 className="size-5 animate-spin"/>Проверяем права администратора…</div></main>
+  }
+
+  return <>{children}</>
+}
