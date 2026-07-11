@@ -7,6 +7,7 @@
     "build": "node scripts/build.cjs",
     "dev": "node scripts/dev.cjs",
     "lint": "eslint .",
+    "lint:baseline": "eslint . --format json | node scripts/lint-baseline.cjs",
     "test:auth": "node --test tests/auth-pages.mjs",
     "test:jobs": "node --test tests/jobs-api.mjs",
     "test:history": "node --test tests/history-contract.mjs",

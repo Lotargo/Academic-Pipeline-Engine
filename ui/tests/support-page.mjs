@@ -12,11 +12,13 @@ test("support page offers voluntary amounts without paid entitlements", async ()
   assert.doesNotMatch(source, /premium|priority support|paid plan/i)
 })
 
-test("support page protects external payment and contact links", async () => {
+test("support page submits voluntary support to YooMoney without credentials", async () => {
   const source = await readFile(new URL("app/components/support-page.tsx", root), "utf8")
-  assert.match(source, /url\.protocol === "https:"/)
+  assert.match(source, /action="https:\/\/yoomoney\.ru\/quickpay\/confirm"/)
+  assert.match(source, /name="receiver"/)
+  assert.match(source, /name="quickpay" value="donation"/)
+  assert.match(source, /name="sum" value=\{selectedAmount\}/)
   assert.match(source, /target="_blank" rel="noopener noreferrer"/)
-  assert.match(source, /QR-код СБП/)
   assert.match(source, /Telegram/)
 })
 
@@ -27,6 +29,8 @@ test("support is a public route and credentials are not configured in source", a
     readFile(new URL(".env.example", root), "utf8"),
   ])
   assert.match(gate, /pathname === "\/support"/)
-  assert.match(page, /NEXT_PUBLIC_SUPPORT_SBP_URL_TEMPLATE/)
+  assert.match(page, /NEXT_PUBLIC_SUPPORT_YOOMONEY_RECEIVER/)
+  assert.match(config, /NEXT_PUBLIC_SUPPORT_YOOMONEY_RECEIVER/)
+  assert.doesNotMatch(config, /CLIENT_SECRET|OAUTH_TOKEN/i)
   assert.match(config, /Never put API keys here/)
 })

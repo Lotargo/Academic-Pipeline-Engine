@@ -9,12 +9,14 @@
 
 ## Baseline (2026-07-11)
 
-`npm run lint` проходит без errors и сообщает 159 warnings:
+`pnpm lint:baseline` сравнивает машинно-читаемый baseline с текущим запуском
+ESLint и завершается с ошибкой при новых errors или при росте любой категории.
+На 2026-07-11 baseline содержит 161 warning:
 
 - 102 `@typescript-eslint/no-explicit-any`;
 - 22 `@typescript-eslint/no-unused-vars`;
-- 16 `react-hooks/set-state-in-effect`;
-- 5 `react-hooks/exhaustive-deps`;
+- 17 `react-hooks/set-state-in-effect`;
+- 6 `react-hooks/exhaustive-deps`;
 - 5 `react/no-unescaped-entities`;
 - 4 `react-hooks/immutability`;
 - 3 `@next/next/no-img-element`;
@@ -26,7 +28,7 @@
 
 ## Tasks
 
-- [ ] `FE-11-T001` Сохранить машиночитаемый baseline lint и проверку отсутствия новых errors.
+- [x] `FE-11-T001` Сохранить машиночитаемый baseline lint и проверку отсутствия новых errors.
 - [ ] `FE-11-T002` Устранить high-risk warnings hooks в компонентах, затрагиваемых текущими feature-задачами.
 - [ ] `FE-11-T003` Заменить `any` на контрактные типы в выбранном связанном UI-пакете.
 - [ ] `FE-11-T004` Исправить `exhaustive-deps`, immutability, purity и unused-code warnings по компонентам.
