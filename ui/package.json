@@ -13,6 +13,7 @@
     "test:providers": "node --test tests/provider-settings-contract.mjs",
     "test:admin": "node --test tests/admin-layout.mjs",
     "test:admin-invite": "node --test tests/admin-invite-flow.mjs",
+    "test:support": "node --test tests/support-page.mjs",
     "start": "next start"
   },
   "dependencies": {
