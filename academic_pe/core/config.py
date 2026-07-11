@@ -106,12 +106,18 @@ class PromptLeakageGateConfig(BaseModel):
     enabled: bool = True
 
 
+class EvidenceGateConfig(BaseModel):
+    enabled: bool = True
+    require_ledger_urls: bool = True
+
+
 class QualityGateConfig(BaseModel):
     volume: VolumeGateConfig = VolumeGateConfig()
     latex: LatexGateConfig = LatexGateConfig()
     markdown: MarkdownGateConfig = MarkdownGateConfig()
     unicode_hygiene: UnicodeHygieneGateConfig = UnicodeHygieneGateConfig()
     prompt_leakage: PromptLeakageGateConfig = PromptLeakageGateConfig()
+    evidence: EvidenceGateConfig = EvidenceGateConfig()
 
 
 class ExportQAConfig(BaseModel):

@@ -590,6 +590,7 @@ class Orchestrator:
                         "volume": self._config.quality_gate.volume.enabled,
                         "latex": self._config.quality_gate.latex.enabled,
                         "markdown": self._config.quality_gate.markdown.enabled,
+                        "evidence": self._config.quality_gate.evidence.enabled,
                     }
                 }, ensure_ascii=False),
                 created_at=datetime.now().isoformat()
@@ -739,12 +740,12 @@ class Orchestrator:
 
     def _document_memory(self, current_section_name: str = "", with_line_numbers: bool = False) -> str:
         parts: List[str] = []
-        source_cards = self._document_ledger.source_cards_context()
-        if source_cards:
+        evidence_context = self._document_ledger.writer_context()
+        if evidence_context:
             parts.append(
-                "[Verified Source Cards]\n"
-                + source_cards
-                + "\nUse only these source IDs/URLs for external claims; do not invent sources."
+                "[Verified Evidence Ledger]\n"
+                + evidence_context
+                + "\nUse only these source IDs/URLs for external claims; do not invent sources or claims."
             )
         continuation_context = self._continuation_context()
         if continuation_context:
@@ -1409,6 +1410,7 @@ class Orchestrator:
                     self.context,
                     self._config.quality_gate,
                     document_state=self._runtime_metadata().get("document_state"),
+                    ledger=self._document_ledger,
                 )
                 drift_issues = self._contract_drift_issues()
                 self._log_quality_evaluations(qg_result, drift_issues)
@@ -1674,6 +1676,7 @@ class Orchestrator:
                 self.context,
                 self._config.quality_gate,
                 document_state=self._runtime_metadata().get("document_state"),
+                ledger=self._document_ledger,
             )
             drift_issues = self._contract_drift_issues()
             self._log_quality_evaluations(qg_result, drift_issues)

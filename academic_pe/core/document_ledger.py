@@ -124,6 +124,30 @@ class DocumentLedger(BaseModel):
             lines.append("")
         return "\n".join(lines).strip()
 
+    def writer_context(self) -> str:
+        """Render the verified evidence records the Writer is allowed to cite."""
+        parts: list[str] = []
+        source_cards = self.source_cards_context()
+        if source_cards:
+            parts.append("[Source Cards]\n" + source_cards)
+
+        if self.claims:
+            claim_lines: list[str] = []
+            for claim in self.claims:
+                source_ids = ", ".join(claim.source_ids) or "none"
+                claim_lines.extend(
+                    [
+                        f"[{claim.claim_id}] status={claim.status}; sources={source_ids}",
+                        f"Claim: {claim.text}",
+                    ]
+                )
+                if claim.section_owner:
+                    claim_lines.append(f"Section owner: {claim.section_owner}")
+                claim_lines.append("")
+            parts.append("[Claim Cards]\n" + "\n".join(claim_lines).strip())
+
+        return "\n\n".join(parts)
+
 
 def ledger_from_references(entries: Iterable[object]) -> DocumentLedger:
     ledger = DocumentLedger()

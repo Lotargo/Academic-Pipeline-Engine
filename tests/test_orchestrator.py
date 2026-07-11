@@ -49,6 +49,30 @@ def test_initial_state():
     assert orch.state == PipelineState.INIT
 
 
+def test_document_memory_exposes_verified_source_and_claim_cards_to_writer():
+    config = _make_config()
+    llm = MockProvider()
+    writer = DefaultAgent(config.agents["writer"], llm)
+    orch = Orchestrator(writer=writer, config=config)
+    source = orch._document_ledger.register_source(
+        title="Official evidence",
+        url="https://example.test/evidence",
+    )
+    orch._document_ledger.register_claim(
+        text="The evidence supports the baseline.",
+        source_ids=[source.source_id],
+        status="supported",
+        section_owner="theory",
+    )
+
+    memory = orch._document_memory("theory")
+
+    assert "[Verified Evidence Ledger]" in memory
+    assert "[SRC-001] Official evidence" in memory
+    assert "[CLAIM-001] status=supported; sources=SRC-001" in memory
+    assert "The evidence supports the baseline." in memory
+
+
 def test_transition_to_drafting():
     config = _make_config()
     llm = MockProvider()

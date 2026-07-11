@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from academic_pe.core.config import QualityGateConfig
+from academic_pe.core.document_ledger import DocumentLedger
 
 
 @dataclass
@@ -168,6 +169,61 @@ def check_prompt_leakage(context: Dict[str, str], cfg: QualityGateConfig) -> Gat
     return GateResult(passed=not issues, issues=issues)
 
 
+_LEDGER_REFERENCE_RE = re.compile(r"\[(?P<kind>SRC|CLAIM)-(?P<number>\d{3,})\]")
+_URL_RE = re.compile(r"https?://[^\s<>\]\[),;]+", re.IGNORECASE)
+
+
+def check_evidence_integrity(
+    context: Mapping[str, str],
+    cfg: QualityGateConfig,
+    ledger: DocumentLedger | Mapping[str, Any] | None = None,
+) -> GateResult:
+    """Reject source/claim references and URLs that are not present in the ledger."""
+    gate_cfg = getattr(cfg, "evidence", None)
+    if gate_cfg is not None and not gate_cfg.enabled:
+        return GateResult(passed=True)
+    resolved_ledger = _coerce_document_ledger(ledger)
+    if resolved_ledger is None:
+        return GateResult(passed=True)
+
+    known_source_ids = {source.source_id for source in resolved_ledger.sources}
+    known_claim_ids = {claim.claim_id for claim in resolved_ledger.claims}
+    known_urls = {_normalize_url(source.url) for source in resolved_ledger.sources if source.url}
+    issues: List[str] = []
+
+    for section_name, text in context.items():
+        for line_no, line in enumerate((text or "").splitlines(), 1):
+            for match in _LEDGER_REFERENCE_RE.finditer(line):
+                reference = match.group(0)
+                known_ids = known_source_ids if match.group("kind") == "SRC" else known_claim_ids
+                if reference[1:-1] not in known_ids:
+                    issues.append(
+                        f"Section '{section_name}' references unknown ledger card {reference} at line {line_no}."
+                    )
+            if getattr(gate_cfg, "require_ledger_urls", True) and known_urls:
+                for url_match in _URL_RE.finditer(line):
+                    url = _normalize_url(url_match.group(0))
+                    if url not in known_urls:
+                        issues.append(
+                            f"Section '{section_name}' contains URL not registered in Source Ledger at line {line_no}: "
+                            f"{url}"
+                        )
+    return GateResult(passed=not issues, issues=_dedupe(issues))
+
+
+def _coerce_document_ledger(ledger: DocumentLedger | Mapping[str, Any] | None) -> DocumentLedger | None:
+    if ledger is None or isinstance(ledger, DocumentLedger):
+        return ledger
+    try:
+        return DocumentLedger.model_validate(ledger)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_url(url: str) -> str:
+    return str(url).strip().rstrip("/.").casefold()
+
+
 def _invalid_unicode_character(line: str) -> str | None:
     for character in line:
         if character == "\ufffd":
@@ -260,6 +316,7 @@ def run_all(
     context: Dict[str, str],
     cfg: QualityGateConfig,
     document_state: Optional[Mapping[str, Any]] = None,
+    ledger: DocumentLedger | Mapping[str, Any] | None = None,
 ) -> GateResult:
     filtered_context = {k: v for k, v in context.items() if k != "document_plan"}
     combined: List[str] = []
@@ -273,6 +330,9 @@ def run_all(
         result = check_fn(filtered_context, cfg)
         if not result.passed:
             combined.extend(result.issues)
+    evidence_result = check_evidence_integrity(filtered_context, cfg, ledger)
+    if not evidence_result.passed:
+        combined.extend(evidence_result.issues)
     global_structure_result = check_global_structure(filtered_context)
     if not global_structure_result.passed:
         combined.extend(global_structure_result.issues)

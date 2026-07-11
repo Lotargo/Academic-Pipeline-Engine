@@ -2,6 +2,7 @@ import pytest
 
 from academic_pe.core.quality_gate import (
     check_continuation_integrity,
+    check_evidence_integrity,
     check_latex,
     check_prompt_leakage,
     check_unicode_hygiene,
@@ -9,6 +10,7 @@ from academic_pe.core.quality_gate import (
     run_all,
 )
 from academic_pe.core.config import QualityGateConfig, VolumeGateConfig, LatexGateConfig
+from academic_pe.core.document_ledger import DocumentLedger
 
 
 def _full_cfg(volume_enabled=True, latex_enabled=True, min_chars=200):
@@ -234,6 +236,35 @@ class TestIntegrityGates:
 
         assert not result.passed
         assert any("Duplicate table label '1'" in issue for issue in result.issues)
+
+    def test_evidence_gate_rejects_unknown_cards_and_urls(self):
+        ledger = DocumentLedger()
+        ledger.register_source(title="Registered source", url="https://example.test/registered")
+        result = check_evidence_integrity(
+            {"body": "See [SRC-999] at https://example.test/invented."},
+            _full_cfg(),
+            ledger,
+        )
+
+        assert not result.passed
+        assert any("unknown ledger card [SRC-999]" in issue for issue in result.issues)
+        assert any("not registered in Source Ledger" in issue for issue in result.issues)
+
+    def test_evidence_gate_accepts_registered_cards_and_urls(self):
+        ledger = DocumentLedger()
+        source = ledger.register_source(title="Registered source", url="https://example.test/registered/")
+        claim = ledger.register_claim(
+            text="The registered result is supported.",
+            source_ids=[source.source_id],
+            status="supported",
+        )
+        result = run_all(
+            {"body": f"Evidence: [{source.source_id}] [{claim.claim_id}] https://example.test/registered."},
+            _full_cfg(min_chars=10),
+            ledger=ledger,
+        )
+
+        assert result.passed
 
 
 class TestContinuationIntegrityCheck:

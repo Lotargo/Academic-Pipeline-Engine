@@ -37,6 +37,10 @@ def test_supported_claim_requires_known_source_and_renders_safe_writer_context()
     assert claim.claim_id == "CLAIM-001"
     assert "[SRC-001] Official statistic" in ledger.source_cards_context()
     assert "The indicator increased" not in ledger.source_cards_context()
+    writer_context = ledger.writer_context()
+    assert "[Source Cards]" in writer_context
+    assert "[CLAIM-001] status=supported; sources=SRC-001" in writer_context
+    assert "The indicator increased by 10%." in writer_context
 
     with pytest.raises(ValidationError, match="unknown source IDs"):
         ledger.register_claim(
