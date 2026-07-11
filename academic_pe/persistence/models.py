@@ -84,6 +84,11 @@ class CredentialStatus(str, Enum):
     DELETED = "deleted"
 
 
+class WorkspaceCleanupStatus(str, Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+
+
 def enum_type(enum: type[Enum], name: str) -> SqlEnum:
     return SqlEnum(
         enum,
@@ -222,6 +227,31 @@ class Membership(TimestampMixin, Base):
         default=MembershipStatus.ACTIVE,
         nullable=False,
     )
+
+
+class WorkspaceCleanupRequest(Base):
+    """An auditable, idempotent confirmation record for workspace data cleanup."""
+
+    __tablename__ = "workspace_cleanup_requests"
+    __table_args__ = (Index("ix_workspace_cleanup_requests_workspace", "workspace_id", "created_at"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    workspace_id: Mapped[UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False
+    )
+    requested_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    confirmation_token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    status: Mapped[WorkspaceCleanupStatus] = mapped_column(
+        enum_type(WorkspaceCleanupStatus, "workspace_cleanup_status"),
+        default=WorkspaceCleanupStatus.PENDING,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Job(TimestampMixin, Base):

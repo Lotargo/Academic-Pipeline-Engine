@@ -1878,6 +1878,10 @@ def delete_history_item(metadata_id: str):
 
 @app.post("/api/history/reset")
 def hard_reset():
+    # This is a legacy local-first maintenance operation. Service workspaces use
+    # the authenticated, tenant-scoped cleanup API instead.
+    if os.getenv("APE_DATABASE_SYNC_URL"):
+        raise HTTPException(status_code=404, detail="history reset is unavailable in service mode")
     # 1. Clear database tables
     try:
         with registry_store._connection() as conn:

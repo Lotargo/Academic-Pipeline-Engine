@@ -92,7 +92,7 @@ Core-pipeline задача отмечается завершённой толь�
 
 ## Backend additions
 
-- [ ] **BE-12** — [Workspace Data Deletion](backend/BE-12-workspace-data-deletion/PLAN.md) · [TODO](backend/BE-12-workspace-data-deletion/TODO.md)
+- [x] **BE-12** — [Workspace Data Deletion](backend/BE-12-workspace-data-deletion/PLAN.md) · [TODO](backend/BE-12-workspace-data-deletion/TODO.md)
 
 ## Core pipeline and document quality
 

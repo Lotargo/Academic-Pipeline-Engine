@@ -10,10 +10,10 @@
 
 ## Tasks
 
-- [ ] `BE-12-T001` Зафиксировать delete/confirmation API contract и audit model.
-- [ ] `BE-12-T002` Заменить service-доступ к legacy global reset на scoped service.
-- [ ] `BE-12-T003` Реализовать tenant-scoped cleanup jobs, metadata и artifacts.
-- [ ] `BE-12-T004` Реализовать object-storage cleanup по workspace prefix.
-- [ ] `BE-12-T005` Добавить owner/membership, cross-tenant и retry tests.
-- [ ] `BE-12-T006` Документировать различия local и service reset.
-- [ ] `BE-12-T007` Создать walkthrough-отчёт.
+- [x] `BE-12-T001` Зафиксировать delete/confirmation API contract и audit model.
+- [x] `BE-12-T002` Заменить service-доступ к legacy global reset на scoped service.
+- [x] `BE-12-T003` Реализовать tenant-scoped cleanup jobs, metadata и artifacts.
+- [x] `BE-12-T004` Реализовать object-storage cleanup по workspace prefix.
+- [x] `BE-12-T005` Добавить owner/membership, cross-tenant и retry tests.
+- [x] `BE-12-T006` Документировать различия local и service reset.
+- [x] `BE-12-T007` Создать walkthrough-отчёт.
