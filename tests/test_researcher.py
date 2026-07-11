@@ -86,6 +86,29 @@ def test_researcher_agent_curates_findings_with_llm_for_real_provider(mock_run_p
     assert "Raw finding with https://example.com" in provider.calls[0][1]
 
 
+@patch("academic_pe.agents.researcher.load_research_findings", return_value="Raw findings")
+@patch("academic_pe.agents.researcher.run_researcher_pool")
+def test_researcher_agent_exposes_structured_curation_claims(mock_run_pool, mock_load):
+    class StructuredProvider:
+        def generate(self, *args, **kwargs):
+            return json.dumps({
+                "notes": "Use the official report.",
+                "claims": [{
+                    "text": "The baseline increased.",
+                    "source_urls": ["https://example.com/report"],
+                    "status": "supported",
+                    "section_owner": "analysis",
+                }],
+            })
+
+    cfg = AgentConfig(role="Researcher", provider="zen", model="research", temperature=0.0, system_prompt="Researcher")
+    agent = ResearcherAgent(cfg, StructuredProvider())
+
+    assert agent.run_research(["query"], TEMP_RUN_DIR) == "Use the official report."
+    assert agent.last_curation is not None
+    assert agent.last_curation.claims[0].source_urls == ["https://example.com/report"]
+
+
 @patch("requests.get")
 def test_search_and_crawl(mock_get):
     # Mock DuckDuckGo response HTML

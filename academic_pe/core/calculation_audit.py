@@ -63,12 +63,57 @@ class CalculationLedger(BaseModel):
         return self
 
     def register(self, entry: CalculationEntry | Mapping[str, Any]) -> CalculationEntry:
-        candidate = entry if isinstance(entry, CalculationEntry) else CalculationEntry.model_validate(entry)
-        if any(existing.calculation_id == candidate.calculation_id for existing in self.entries):
-            raise ValueError(f"Calculation ID already registered: {candidate.calculation_id}")
-        self.entries.append(candidate)
-        self._validate_entries()
-        return candidate
+        return self.register_many([entry])[0]
+
+    def register_many(
+        self,
+        entries: list[CalculationEntry | Mapping[str, Any]],
+    ) -> list[CalculationEntry]:
+        """Atomically register calculation records, including forward dependencies."""
+        candidates = [
+            entry if isinstance(entry, CalculationEntry) else CalculationEntry.model_validate(entry)
+            for entry in entries
+        ]
+        candidate_ids = [entry.calculation_id for entry in candidates]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            raise ValueError("Calculation ledger batch contains duplicate calculation IDs")
+
+        existing_ids = {entry.calculation_id for entry in self.entries}
+        duplicates = existing_ids.intersection(candidate_ids)
+        if duplicates:
+            raise ValueError(f"Calculation ID already registered: {sorted(duplicates)[0]}")
+
+        combined = [*self.entries, *candidates]
+        CalculationLedger(entries=combined)
+        self.entries = combined
+        return candidates
+
+    def upsert_many_for_section(
+        self,
+        section_owner: str,
+        entries: list[CalculationEntry | Mapping[str, Any]],
+    ) -> list[CalculationEntry]:
+        """Replace only same-section records with matching IDs after a section revision."""
+        candidates = [
+            entry if isinstance(entry, CalculationEntry) else CalculationEntry.model_validate(entry)
+            for entry in entries
+        ]
+        if any(entry.section_owner != section_owner for entry in candidates):
+            raise ValueError("Calculation entry owner does not match the section being updated")
+        candidate_ids = [entry.calculation_id for entry in candidates]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            raise ValueError("Calculation ledger batch contains duplicate calculation IDs")
+        for existing in self.entries:
+            if existing.calculation_id in candidate_ids and existing.section_owner != section_owner:
+                raise ValueError(
+                    f"Calculation ID {existing.calculation_id} belongs to section {existing.section_owner!r}"
+                )
+        combined = [
+            entry for entry in self.entries if entry.calculation_id not in set(candidate_ids)
+        ] + candidates
+        CalculationLedger(entries=combined)
+        self.entries = combined
+        return candidates
 
 
 @dataclass(frozen=True)

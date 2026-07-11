@@ -636,6 +636,52 @@ class Orchestrator:
         """Register a deterministic calculation before the quality gate runs."""
         return self._calculation_ledger.register(entry)
 
+    def _record_sandbox_calculations(
+        self,
+        entries: list[CalculationEntry],
+        section_name: str,
+    ) -> None:
+        invalid_owners = [entry.calculation_id for entry in entries if entry.section_owner != section_name]
+        if invalid_owners:
+            raise PipelineError(
+                "Sandbox calculation entries must belong to their generated section: "
+                + ", ".join(invalid_owners)
+            )
+        if entries:
+            self._calculation_ledger.upsert_many_for_section(section_name, entries)
+
+    def _execute_sandbox_for_section(self, content: str, section_name: str) -> str:
+        from academic_pe.core.sandbox import execute_sandbox_blocks_with_metadata
+
+        result = execute_sandbox_blocks_with_metadata(content)
+        self._record_sandbox_calculations(result.calculation_entries, section_name)
+        return result.text
+
+    def _register_curated_research_claims(self) -> None:
+        curation = getattr(self._researcher, "last_curation", None)
+        if curation is None:
+            return
+        sources_by_url = {
+            (source.url or "").rstrip("/"): source.source_id
+            for source in self._document_ledger.sources
+            if source.url
+        }
+        for claim in curation.claims:
+            source_ids = [
+                sources_by_url[url.rstrip("/")]
+                for url in claim.source_urls
+                if url.rstrip("/") in sources_by_url
+            ]
+            status = claim.status if source_ids else "unsupported"
+            if status not in {"supported", "assumption", "disputed", "unsupported"}:
+                status = "unsupported"
+            self._document_ledger.register_claim(
+                text=claim.text,
+                source_ids=source_ids,
+                status=status,
+                section_owner=claim.section_owner,
+            )
+
     def on_enter(self, callback: HookFn) -> None:
         self._hooks["on_enter"].append(callback)
 
@@ -1296,6 +1342,7 @@ class Orchestrator:
                                             reliability="unverified",
                                             notes=[f"query={query_text}"] if query_text else [],
                                         )
+                        self._register_curated_research_claims()
                     except Exception as e:
                         logger.warning("Best-effort research log registration failed: %s", e)
 
@@ -1369,8 +1416,7 @@ class Orchestrator:
 
                         if self._sandbox_enabled():
                             try:
-                                from academic_pe.core.sandbox import execute_sandbox_blocks
-                                draft_content = execute_sandbox_blocks(draft_content)
+                                draft_content = self._execute_sandbox_for_section(draft_content, section.name)
                                 break
                             except Exception as exc:
                                 from academic_pe.core.sandbox import SandboxExecutionError
@@ -1520,8 +1566,7 @@ class Orchestrator:
                                 self._config.pipeline.sections,
                             )
                             if self._sandbox_enabled():
-                                from academic_pe.core.sandbox import execute_sandbox_blocks
-                                revised_content = execute_sandbox_blocks(revised_content)
+                                revised_content = self._execute_sandbox_for_section(revised_content, section.name)
                         except Exception as exc:
                             logger.warning(
                                 "Patch revision failed for section %s: %s. Falling back to full-section revision. Raw patch preview: %r",
@@ -1582,8 +1627,7 @@ class Orchestrator:
 
                                 if self._sandbox_enabled():
                                     try:
-                                        from academic_pe.core.sandbox import execute_sandbox_blocks
-                                        revised_content = execute_sandbox_blocks(revised_content)
+                                        revised_content = self._execute_sandbox_for_section(revised_content, section.name)
                                         break
                                     except Exception as e_exc:
                                         from academic_pe.core.sandbox import SandboxExecutionError
@@ -1673,8 +1717,7 @@ class Orchestrator:
                                         continue
                                     if self._sandbox_enabled():
                                         try:
-                                            from academic_pe.core.sandbox import execute_sandbox_blocks
-                                            response = execute_sandbox_blocks(response)
+                                            response = self._execute_sandbox_for_section(response, section.name)
                                         except Exception as exc:
                                             logger.warning("Sandbox run failed during self-verification for %s: %s", section.name, exc)
                                     if target_language == "ru" and not has_cyrillic(response):

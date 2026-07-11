@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import Dict, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from academic_pe.agents.base import BaseAgent, StreamCallback
 from academic_pe.core.llm import _call_provider_generate
@@ -10,16 +13,42 @@ from academic_pe.core.researcher import load_research_findings, run_researcher_p
 logger = logging.getLogger(__name__)
 
 
+class CuratedClaim(BaseModel):
+    """A researcher claim whose evidence must resolve to a crawled source URL."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1)
+    source_urls: list[str] = Field(default_factory=list)
+    status: str = "unsupported"
+    section_owner: Optional[str] = None
+
+
+class ResearchCuration(BaseModel):
+    """Structured researcher output safe for the document evidence ledger."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    notes: str = ""
+    claims: list[CuratedClaim] = Field(default_factory=list)
+
+
 class ResearcherAgent(BaseAgent):
     """Source-research agent used by the Planning phase."""
 
     def run_research(self, queries: list[str], run_dir: str) -> str:
+        self.last_curation: Optional[ResearchCuration] = None
         clean_queries = [q.strip() for q in queries if str(q).strip()]
         if not clean_queries:
             return ""
         run_researcher_pool(clean_queries, run_dir)
         findings = load_research_findings(run_dir)
-        return self._curate_findings(clean_queries, findings)
+        curated = self._curate_findings(clean_queries, findings)
+        curation = _parse_research_curation(curated)
+        if curation is not None:
+            self.last_curation = curation
+            return curation.notes
+        return curated
 
     def _curate_findings(self, queries: list[str], findings: str) -> str:
         if not findings.strip():
@@ -30,7 +59,10 @@ class ResearcherAgent(BaseAgent):
 
         task = (
             "Curate the raw web research findings for a planning agent.\n"
-            "Return compact, source-grounded notes only. Preserve source titles and URLs exactly. "
+            "Return a JSON object only, with keys 'notes' and 'claims'. 'notes' is compact, "
+            "source-grounded planning context. Each claim must contain text, source_urls, status "
+            "(supported, assumption, disputed, or unsupported), and optional section_owner. "
+            "Use only source_urls present in Raw Findings; do not invent URLs. Preserve source titles and URLs exactly. "
             "Group findings by query when useful. Extract concrete facts, dates, definitions, statistics, "
             "names, and competing viewpoints that directly help the requested artifact. "
             "Prefer primary, official, standards, documentation, peer-reviewed, institutional, or reputable news sources. "
@@ -68,3 +100,13 @@ class ResearcherAgent(BaseAgent):
         if on_delta and findings:
             on_delta(findings)
         return findings
+
+
+def _parse_research_curation(value: str) -> Optional[ResearchCuration]:
+    raw = value.strip()
+    if raw.startswith("```json") and raw.endswith("```"):
+        raw = raw[len("```json"): -3].strip()
+    try:
+        return ResearchCuration.model_validate(json.loads(raw))
+    except (TypeError, ValueError):
+        return None

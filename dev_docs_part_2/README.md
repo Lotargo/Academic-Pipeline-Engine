@@ -128,8 +128,12 @@ Core-pipeline задача отмечается завершённой толь�
 - `FE-09`: его явные зависимости `FE-02`, `FE-05` и `BE-12` завершены.
 - `FE-11`: baseline ESLint является контролируемым техническим долгом и не
   блокирует исправления выбранного связанного UI-пакета.
-- `CORE-13`, этапы A--D: `FE-10` завершён; можно реализовывать integrity
-  gates, ledgers, Source/Calculation Cards, assembly и validation.
+- `CORE-13`, этап D: этапы A--C завершены, включая integrity gates,
+  Source/Calculation Cards, передачу расчётов из sandbox в ledger и structured
+  curation Researcher для claim-карточек.
+  Следующий пакет — `ASSEMBLING`/`VALIDATING`: расширить FSM, добавить
+  assembly pass, coverage matrix и structured reviewer payload. `CORE-13`
+  остаётся незавершённой до прохождения этапов D--E и его критериев приёмки.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.

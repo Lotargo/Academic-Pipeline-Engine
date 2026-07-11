@@ -3,6 +3,7 @@ import pytest
 from academic_pe.core.sandbox import (
     SandboxExecutionError,
     execute_sandbox_blocks,
+    execute_sandbox_blocks_with_metadata,
     run_code_in_sandbox,
 )
 from academic_pe.core.orchestrator import Orchestrator, PipelineState, PipelineError
@@ -97,6 +98,39 @@ raise ValueError("oops")
     assert "ValueError: oops" in exc.value.stderr
 
 
+def test_sandbox_collects_calculation_ledger_output_without_rendering_it():
+    result = execute_sandbox_blocks_with_metadata(
+        '''Result: 60 RUB
+```python-run
+import json
+print("CALCULATION_LEDGER_JSON:" + json.dumps({"entries": [{
+    "calculation_id": "CALC-001",
+    "expression": "revenue - costs",
+    "inputs": {
+        "revenue": {"value": 150, "unit": "RUB", "source": "SRC-001"},
+        "costs": {"value": 90, "unit": "RUB", "source": "SRC-002"}
+    },
+    "expected_result": {"value": 60, "unit": "RUB"},
+    "section_owner": "finance"
+}]}))
+```
+'''
+    )
+
+    assert "CALCULATION_LEDGER_JSON" not in result.text
+    assert result.calculation_entries[0].calculation_id == "CALC-001"
+    assert result.calculation_entries[0].expected_result.value == 60
+
+
+def test_sandbox_rejects_malformed_calculation_ledger_output():
+    text = '''```python-run
+print("CALCULATION_LEDGER_JSON:{bad json}")
+```'''
+
+    with pytest.raises(SandboxExecutionError, match="Invalid CALCULATION_LEDGER_JSON"):
+        execute_sandbox_blocks_with_metadata(text)
+
+
 def test_orchestrator_integration_academic_mode():
     class SandboxMockProvider(MockProvider):
         def generate(self, system_prompt, user_prompt, model, temperature, on_delta=None):
@@ -139,6 +173,28 @@ print(np.sum([10, 20]))
     assert "theory" in orch.context
     assert "30" in orch.context["theory"]
     assert "python-run" not in orch.context["theory"]
+
+
+def test_orchestrator_records_sandbox_calculations_for_their_section():
+    config = AppConfig(
+        agents={"writer": AgentConfig(role="Writer", model="mock", temperature=0.0, system_prompt="Writer")},
+        pipeline=PipelineConfig(sections=[SectionPrompt(name="finance", topic="Finance", instruction="Calculate.")]),
+    )
+    orch = Orchestrator(writer=DefaultAgent(config.agents["writer"], MockProvider()), config=config)
+    content = '''```python-run
+import json
+print("CALCULATION_LEDGER_JSON:" + json.dumps({"entries": [{
+    "calculation_id": "CALC-001", "expression": "income - expense",
+    "inputs": {"income": {"value": 8, "unit": "RUB"}, "expense": {"value": 3, "unit": "RUB"}},
+    "expected_result": {"value": 5, "unit": "RUB"}, "section_owner": "finance"
+}]}))
+print("Net result: 5 RUB")
+```'''
+
+    rendered = orch._execute_sandbox_for_section(content, "finance")
+
+    assert rendered == "Net result: 5 RUB"
+    assert orch.calculation_ledger.entries[0].calculation_id == "CALC-001"
 
 
 def test_orchestrator_integration_self_correction():

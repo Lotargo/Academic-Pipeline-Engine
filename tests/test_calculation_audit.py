@@ -107,3 +107,24 @@ def test_calculation_ledger_rejects_duplicate_or_unknown_dependencies():
 
     with pytest.raises(ValueError, match="unknown calculations"):
         CalculationLedger(entries=[entry])
+
+
+def test_calculation_ledger_registers_forward_dependency_batch_and_updates_section_record():
+    base = _entry()
+    scenario = CalculationEntry(
+        calculation_id="CALC-002",
+        expression="calc_001 * multiplier",
+        inputs={"multiplier": Quantity(value=0.5, unit="%")},
+        expected_result=Quantity(value=30.0, unit="RUB"),
+        section_owner="financial_model",
+        depends_on=["CALC-001"],
+    )
+    ledger = CalculationLedger()
+
+    ledger.register_many([scenario, base])
+    ledger.upsert_many_for_section(
+        "financial_model",
+        [_entry(expected_result=Quantity(value=60.0, unit="RUB"))],
+    )
+
+    assert [entry.calculation_id for entry in ledger.entries] == ["CALC-002", "CALC-001"]

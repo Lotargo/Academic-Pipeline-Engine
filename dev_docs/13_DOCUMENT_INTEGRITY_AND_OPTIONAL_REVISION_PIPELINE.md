@@ -14,10 +14,13 @@
 - `CalculationLedger` с безопасным детерминированным пересчётом выражений,
   проверкой единиц, зависимостей сценариев и значений, отмеченных
   `[CALC-…]`, в итоговом тексте.
+- sandbox принимает однострочный `CALCULATION_LEDGER_JSON` transport payload,
+  сохраняет его вне экспортируемого текста и атомарно обновляет расчёты
+  соответствующей секции; Researcher принимает structured curation с claims
+  только для URL, уже зарегистрированных в SourceCard.
 
-Следующий пакет: завершить интеграцию расчётного ledger со структурированным
-output sandbox/Researcher, затем перейти к этапу D — `ASSEMBLING`/
-`VALIDATING`, coverage matrix и structured reviewer payload. Не отмечать
+Следующий пакет: этап D — `ASSEMBLING`/`VALIDATING`, coverage matrix и
+structured reviewer payload. Не отмечать
 `CORE-13` завершённой до прохождения всех этапов A--E и критериев из раздела
 11.
 

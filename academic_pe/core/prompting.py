@@ -52,7 +52,8 @@ The code inside this block will be executed in a sandbox. It MUST:
 4. Use `print()` to output a standard Markdown image tag referencing the saved image, e.g.:
    print("![Description of the plot]({{ output_dir | default('exports') }}/plot_{{ section.name }}.png)")
 This output tag will automatically embed the figure in the final Word document.
-Ensure your code is clean, executable, and does not print any other text besides the Markdown image tag.
+Ensure your code is clean and executable, and does not print any document text besides the Markdown image tag.
+If this sandbox block also produces a material calculation used in the section, emit one single-line machine-readable record with `print("CALCULATION_LEDGER_JSON:" + json.dumps({"entries": [...]}, ensure_ascii=False))`. Import `json`; each entry must include calculation_id (`CALC-001` format), expression, inputs (`value`, `unit`, optional `source`), expected_result, and section_owner equal to `{{ section.name }}`. This transport line is stored as internal audit data and is not rendered in the document.
 {% endif %}
 
 """

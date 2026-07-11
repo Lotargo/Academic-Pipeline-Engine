@@ -13,6 +13,8 @@ from academic_pe.manifests import ArtifactManifestResolver
 from academic_pe.manifests.models import ArtifactManifest, ArtifactModeOverlay
 from typing import Dict
 
+from academic_pe.agents.researcher import CuratedClaim, ResearchCuration
+
 
 class FakeResearcher(DefaultAgent):
     def __init__(self, config, llm, findings: str = "Research findings"):
@@ -71,6 +73,37 @@ def test_document_memory_exposes_verified_source_and_claim_cards_to_writer():
     assert "[SRC-001] Official evidence" in memory
     assert "[CLAIM-001] status=supported; sources=SRC-001" in memory
     assert "The evidence supports the baseline." in memory
+
+
+def test_orchestrator_registers_curated_claims_only_for_known_research_urls():
+    config = _make_config()
+    researcher = FakeResearcher(config.agents["writer"], MockProvider())
+    researcher.last_curation = ResearchCuration(
+        claims=[
+            CuratedClaim(
+                text="Known source claim.",
+                source_urls=["https://example.test/report"],
+                status="supported",
+                section_owner="theory",
+            ),
+            CuratedClaim(
+                text="Unknown source claim.",
+                source_urls=["https://unknown.test/report"],
+                status="supported",
+            ),
+        ]
+    )
+    orch = Orchestrator(
+        writer=DefaultAgent(config.agents["writer"], MockProvider()),
+        researcher=researcher,
+        config=config,
+    )
+    source = orch._document_ledger.register_source(title="Report", url="https://example.test/report")
+
+    orch._register_curated_research_claims()
+
+    assert orch._document_ledger.claims[0].source_ids == [source.source_id]
+    assert orch._document_ledger.claims[1].status == "unsupported"
 
 
 def test_transition_to_drafting():
