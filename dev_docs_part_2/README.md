@@ -10,7 +10,7 @@
 
 # 1. Цель
 
-Part 2 включает многопользовательскую модель, отдельные frontend/API/workers, PostgreSQL, очередь задач, object storage, защищённое хранение credentials, admin panel, глобальные AI/OCR-ресурсы, BYOK и Docker deployment.
+Part 2 включает многопользовательскую модель, отдельные frontend/API/workers, Supabase/PostgreSQL, очередь задач, object storage, защищённое хранение credentials, admin panel, глобальные AI/OCR-ресурсы, BYOK и Docker deployment.
 
 Платных статусов и преимуществ за пожертвования нет. Local-first режим сохраняется через адаптеры.
 
@@ -76,7 +76,80 @@ Part 2 включает многопользовательскую модель,
 
 ---
 
-# 3. Правила чтения
+# 3. Обязательный переход к Supabase и provider-only auth
+
+Этот раздел имеет приоритет над завершёнными legacy-композициями авторизации и должен учитываться при выборе следующих задач.
+
+## Статус существующей авторизации
+
+- `BE-03` и `FE-01` завершены по старому контракту с собственными email/password, JWT и refresh sessions.
+- Эти композиции не переоткрываются и не считаются финальной production-авторизацией.
+- Переход на Supabase Auth оформляется отдельными backend/frontend/platform-композициями с новыми ID, собственными `PLAN.md`, `TODO.md` и walkthrough.
+- До создания этих композиций агент не удаляет legacy auth и не смешивает два источника identity в одной незадокументированной реализации.
+
+## Целевая модель окружений
+
+Используются три различных runtime profile:
+
+1. `local` — прежний автономный local-first режим: SQLite, local storage, local dispatcher, без обязательного Supabase.
+2. `service-dev` — разработка многопользовательского сервиса: локальный Supabase stack через Supabase CLI/Docker, локальные migrations и seed data.
+3. `service-prod` — production: Supabase Cloud для PostgreSQL/Auth и stateless frontend/API/workers на Render и/или Vercel.
+
+Обычный standalone PostgreSQL в Docker не является целевым `service-dev`, если он не входит в локальный Supabase stack. SQLAlchemy и Alembic сохраняются для прикладной схемы, но схема Supabase Auth не изменяется вручную.
+
+## Целевая модель входа
+
+Для первого публичного запуска применяется provider-only auth:
+
+- Google OAuth;
+- Яндекс OAuth через поддерживаемый Supabase custom OAuth/OIDC flow;
+- без SMS и регистрации по телефону;
+- без публичной email/password регистрации;
+- без отдельной ручной email verification;
+- без password reset flow.
+
+Пользователь приложения определяется стабильным внутренним `user_id`. Внешние identities связываются по `(provider, provider_subject)`, а не только по email. Привязка второго провайдера выполняется из уже авторизованного аккаунта.
+
+## Что разрешено до первого публичного деплоя
+
+До получения стабильного публичного URL разрешено и требуется:
+
+- подготовить кнопки Google и Яндекс;
+- подготовить `/auth/callback`, loading, cancel, denied, provider-error и session-restore states;
+- реализовать auth adapter/interface, чтобы mock и Supabase implementations заменялись без переписывания UI;
+- проверить frontend и backend contracts на моках;
+- проверить создание прикладного user/workspace после успешной mock identity;
+- оставить provider secrets и production redirects незаполненными;
+- явно помечать OAuth как mock/stub и не заявлять, что реальный внешний вход завершён.
+
+Реальный OAuth на localhost допускается как необязательный smoke test, если приложения Google/Яндекс уже зарегистрированы с локальными callback URI. Он не является условием продолжения frontend/backend работ до деплоя.
+
+## Deployment gate для реального OAuth
+
+Полноценная provider-авторизация завершается только после первого публичного деплоя и получения стабильного HTTPS URL. Собственный домен для этого не обязателен:
+
+- Render выдаёт публичный `*.onrender.com`;
+- Vercel выдаёт публичный `*.vercel.app`;
+- один стабильный production URL выбирается как canonical frontend URL.
+
+После появления URL обязательны следующие шаги:
+
+1. Зафиксировать production frontend URL и API URL.
+2. Настроить Supabase Cloud `SITE_URL` и точный allow-list redirect URL для `/auth/callback`.
+3. Различать два уровня callback:
+   - provider redirect URI ведёт в Supabase Auth `/auth/v1/callback`;
+   - application redirect URL ведёт из Supabase в frontend `/auth/callback`.
+4. Зарегистрировать или обновить приложения Google и Яндекс с точными production callback URI.
+5. Добавить client IDs/secrets только в защищённые environment variables.
+6. Заменить mock auth adapter на Supabase implementation.
+7. Выполнить реальные E2E-сценарии для Google, Яндекс, cancel/deny, повторного входа, logout, session restore и identity linking.
+8. Не отмечать provider-auth композиции завершёнными, пока реальные E2E-проверки на deployment URL не пройдены.
+
+Preview URL не становится canonical production URL автоматически. Wildcard redirects разрешены только для preview/dev, а production использует точный URL.
+
+---
+
+# 4. Правила чтения
 
 Для одной композиции читаются только:
 
@@ -96,7 +169,7 @@ root README + один PLAN + один TODO + явные зависимости
 
 ---
 
-# 4. Формат работы
+# 5. Формат работы
 
 Каждая композиция содержит:
 
@@ -123,10 +196,10 @@ Contracts создаются только для интерфейсов межд
 
 ---
 
-# 5. Инварианты
+# 6. Инварианты
 
 1. Frontend, backend и platform декомпозируются отдельно.
-2. PostgreSQL хранит многопользовательское состояние.
+2. Supabase PostgreSQL хранит многопользовательское production-состояние.
 3. Object storage хранит постоянные файлы.
 4. Production API и workers являются stateless.
 5. Очередь не является базой данных.
@@ -137,19 +210,25 @@ Contracts создаются только для интерфейсов межд
 10. Не вводятся платные планы, Kafka, OGM или graph database без нового решения.
 11. Не используется обход upstream-лимитов.
 12. Local-first adapters сохраняются до проверки миграции.
+13. `local`, `service-dev` и `service-prod` не смешиваются неявными environment defaults.
+14. Supabase Auth является целевым source of truth для service identity; FastAPI отвечает за прикладной RBAC и tenant authorization.
+15. Provider-only auth не считается завершённым по mock UI или unit tests без реального deployment E2E.
+16. FE-01 остаётся завершённой legacy-композицией и не доказывает готовность production OAuth.
+17. Отсутствие собственного домена не блокирует запуск: используется стабильный HTTPS URL Render/Vercel.
 
 ---
 
-# 6. Рабочий алгоритм
+# 7. Рабочий алгоритм
 
 1. Открыть этот файл.
-2. Найти доступную композицию с `[ ]`.
-3. Проверить её `Depends on`.
-4. Выбрать связанный пакет незавершённых задач в `TODO.md`.
-5. Прочитать только `Required context`.
-6. Выполнить задачу и тесты.
-7. Обновить локальный TODO и создать walkthrough.
-8. При полном завершении отметить композицию `[x]` в этом индексе.
+2. Проверить обязательные архитектурные переходы и deployment gates.
+3. Найти доступную композицию с `[ ]`.
+4. Проверить её `Depends on`.
+5. Выбрать связанный пакет незавершённых задач в `TODO.md`.
+6. Прочитать только `Required context`.
+7. Выполнить задачу и тесты.
+8. Обновить локальный TODO и создать walkthrough.
+9. При полном завершении отметить композицию `[x]` в этом индексе.
 
 Этот порядок обязателен для людей и AI-агентов.
 
