@@ -41,6 +41,19 @@ class Principal(BaseModel):
     role: ActorRole
 
 
+class WorkspaceContext(BaseModel):
+    id: UUID
+    name: str
+    role: MembershipRole
+
+
+class UserContext(BaseModel):
+    user_id: UUID
+    email: str
+    role: ActorRole
+    workspaces: list[WorkspaceContext]
+
+
 def create_auth_router(session_factory: Callable[[], Session], settings: AuthSettings) -> APIRouter:
     router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -126,6 +139,30 @@ def create_auth_router(session_factory: Callable[[], Session], settings: AuthSet
         if current.role != ActorRole.ADMIN:
             raise HTTPException(status_code=403, detail="admin role required")
         return current
+
+    @router.get("/context", response_model=UserContext)
+    def context(current: Principal = Depends(principal), session: Session = Depends(session_dep)):
+        """Return only the caller's active workspace memberships for the cabinet."""
+        user = session.get(User, current.user_id)
+        memberships = session.execute(
+            select(Membership, Workspace)
+            .join(Workspace, Workspace.id == Membership.workspace_id)
+            .where(
+                Membership.user_id == current.user_id,
+                Membership.status == MembershipStatus.ACTIVE,
+                Workspace.status == TenantStatus.ACTIVE,
+            )
+            .order_by(Workspace.created_at)
+        ).all()
+        return UserContext(
+            user_id=current.user_id,
+            email=user.email,
+            role=current.role,
+            workspaces=[
+                WorkspaceContext(id=workspace.id, name=workspace.name, role=membership.membership_role)
+                for membership, workspace in memberships
+            ],
+        )
 
     def require_workspace(workspace_id: UUID, current: Principal = Depends(principal), session: Session = Depends(session_dep)) -> Membership:
         membership = session.scalar(select(Membership).join(Workspace).where(

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import type { AuthAction, Credentials, TokenPair } from "@/lib/auth-contract"
+import type { AuthAction, Credentials, SessionContext, TokenPair } from "@/lib/auth-contract"
 import { publicAuthError } from "@/lib/auth-contract"
 
 export const REFRESH_COOKIE = "ape_refresh"
@@ -16,12 +16,19 @@ export async function backendAuth(path: string, body: unknown) {
   })
 }
 
-export function sessionResponse(tokens: TokenPair, status = 200) {
-  const response = NextResponse.json({ authenticated: true }, { status })
+export function sessionResponse(tokens: TokenPair, status = 200, context?: SessionContext) {
+  const response = NextResponse.json(context ? { authenticated: true, context } : { authenticated: true }, { status })
   const secure = process.env.NODE_ENV === "production"
   response.cookies.set(REFRESH_COOKIE, tokens.refresh_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 30 })
   response.cookies.set(ACCESS_COOKIE, tokens.access_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 60 * 15 })
   return response
+}
+
+export async function backendContext(accessToken: string) {
+  return fetch(`${backendUrl()}/api/auth/context`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  })
 }
 
 export function clearSession(response: NextResponse) {

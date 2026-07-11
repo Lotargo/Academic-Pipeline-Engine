@@ -11,6 +11,24 @@ export interface TokenPair {
   token_type: "bearer"
 }
 
+export interface WorkspaceContext {
+  id: string
+  name: string
+  role: "owner" | "member"
+}
+
+export interface SessionContext {
+  user_id: string
+  email: string
+  role: "user" | "admin" | "service"
+  workspaces: WorkspaceContext[]
+}
+
+export interface SessionPayload {
+  authenticated: true
+  context: SessionContext
+}
+
 export interface AuthErrorPayload {
   code: "invalid_credentials" | "account_blocked" | "email_unavailable" | "validation_error" | "service_unavailable"
   message: string

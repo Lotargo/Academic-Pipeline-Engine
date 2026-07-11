@@ -27,3 +27,11 @@ test("session restore rejects a missing protected cookie", async () => {
   assert.equal(response.status, 401)
   assert.deepEqual(await response.json(), { authenticated: false, reason: "missing" })
 })
+
+test("cabinet waits for session confirmation before exposing workspace data", async () => {
+  const response = await fetch(`${base}/cabinet`)
+  const html = await response.text()
+  assert.equal(response.status, 200)
+  assert.match(html, /Восстанавливаем сессию/)
+  assert.doesNotMatch(html, /Провайдеры/)
+})

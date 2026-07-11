@@ -71,6 +71,19 @@ def test_user_cannot_escalate_or_cross_tenant_boundary():
     assert client.get(f"/workspaces/{foreign}", headers=headers).status_code == 404
 
 
+def test_context_only_exposes_callers_active_workspace_memberships():
+    client, _ = app_and_sessions()
+    one = register(client, "one@example.com").json()
+    register(client, "two@example.com")
+    context = client.get("/api/auth/context", headers={"Authorization": f"Bearer {one['access_token']}"})
+    assert context.status_code == 200
+    body = context.json()
+    assert body["email"] == "one@example.com"
+    assert body["role"] == "user"
+    assert len(body["workspaces"]) == 1
+    assert body["workspaces"][0]["name"] == "Personal"
+
+
 def test_block_and_token_version_revoke_access():
     client, sessions = app_and_sessions()
     tokens = register(client).json()

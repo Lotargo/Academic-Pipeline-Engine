@@ -29,7 +29,7 @@ export function AuthForm({ action, initialReason }: { action: AuthAction, initia
     try {
       const response = await fetch(`/api/auth/${action}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: data.get("email"), password: data.get("password") }) })
       if (!response.ok) { setError(await response.json()); return }
-      router.replace("/"); router.refresh()
+      router.replace("/cabinet"); router.refresh()
     } catch { setError({ code: "service_unavailable", message: "Нет связи с сервисом. Проверьте подключение и повторите попытку." }) }
     finally { setPending(false) }
   }
