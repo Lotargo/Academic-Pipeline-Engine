@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from academic_pe.core.config import QualityGateConfig
+from academic_pe.core.calculation_audit import CalculationLedger, audit_calculations
 from academic_pe.core.document_ledger import DocumentLedger
 
 
@@ -211,6 +212,22 @@ def check_evidence_integrity(
     return GateResult(passed=not issues, issues=_dedupe(issues))
 
 
+def check_calculation_integrity(
+    context: Mapping[str, str],
+    cfg: QualityGateConfig,
+    ledger: CalculationLedger | Mapping[str, Any] | None = None,
+) -> GateResult:
+    gate_cfg = getattr(cfg, "calculation", None)
+    if gate_cfg is not None and not gate_cfg.enabled:
+        return GateResult(passed=True)
+    result = audit_calculations(
+        ledger,
+        context=context,
+        tolerance=getattr(gate_cfg, "tolerance", 1e-6),
+    )
+    return GateResult(passed=result.passed, issues=result.issues)
+
+
 def _coerce_document_ledger(ledger: DocumentLedger | Mapping[str, Any] | None) -> DocumentLedger | None:
     if ledger is None or isinstance(ledger, DocumentLedger):
         return ledger
@@ -317,6 +334,7 @@ def run_all(
     cfg: QualityGateConfig,
     document_state: Optional[Mapping[str, Any]] = None,
     ledger: DocumentLedger | Mapping[str, Any] | None = None,
+    calculation_ledger: CalculationLedger | Mapping[str, Any] | None = None,
 ) -> GateResult:
     filtered_context = {k: v for k, v in context.items() if k != "document_plan"}
     combined: List[str] = []
@@ -333,6 +351,9 @@ def run_all(
     evidence_result = check_evidence_integrity(filtered_context, cfg, ledger)
     if not evidence_result.passed:
         combined.extend(evidence_result.issues)
+    calculation_result = check_calculation_integrity(filtered_context, cfg, calculation_ledger)
+    if not calculation_result.passed:
+        combined.extend(calculation_result.issues)
     global_structure_result = check_global_structure(filtered_context)
     if not global_structure_result.passed:
         combined.extend(global_structure_result.issues)

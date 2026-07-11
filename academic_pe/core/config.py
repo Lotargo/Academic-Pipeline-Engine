@@ -111,6 +111,11 @@ class EvidenceGateConfig(BaseModel):
     require_ledger_urls: bool = True
 
 
+class CalculationGateConfig(BaseModel):
+    enabled: bool = True
+    tolerance: float = Field(default=1e-6, ge=0.0)
+
+
 class QualityGateConfig(BaseModel):
     volume: VolumeGateConfig = VolumeGateConfig()
     latex: LatexGateConfig = LatexGateConfig()
@@ -118,6 +123,7 @@ class QualityGateConfig(BaseModel):
     unicode_hygiene: UnicodeHygieneGateConfig = UnicodeHygieneGateConfig()
     prompt_leakage: PromptLeakageGateConfig = PromptLeakageGateConfig()
     evidence: EvidenceGateConfig = EvidenceGateConfig()
+    calculation: CalculationGateConfig = CalculationGateConfig()
 
 
 class ExportQAConfig(BaseModel):

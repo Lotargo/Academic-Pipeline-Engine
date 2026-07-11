@@ -26,6 +26,8 @@ def test_load_config():
     assert config.retry.max_retries == 3
     assert config.retry.base_delay == 1.0
     assert config.retry.max_delay == 30.0
+    assert config.quality_gate.calculation.enabled is True
+    assert config.quality_gate.calculation.tolerance == 1e-6
 
 
 def test_config_has_circuit_breaker():

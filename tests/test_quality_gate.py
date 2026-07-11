@@ -11,6 +11,7 @@ from academic_pe.core.quality_gate import (
 )
 from academic_pe.core.config import QualityGateConfig, VolumeGateConfig, LatexGateConfig
 from academic_pe.core.document_ledger import DocumentLedger
+from academic_pe.core.calculation_audit import CalculationEntry, CalculationLedger, Quantity
 
 
 def _full_cfg(volume_enabled=True, latex_enabled=True, min_chars=200):
@@ -265,6 +266,31 @@ class TestIntegrityGates:
         )
 
         assert result.passed
+
+    def test_run_all_rejects_failed_calculation_audit(self):
+        calculations = CalculationLedger(
+            entries=[
+                CalculationEntry(
+                    calculation_id="CALC-001",
+                    expression="income - cost",
+                    inputs={
+                        "income": Quantity(value=100.0, unit="RUB"),
+                        "cost": Quantity(value=30.0, unit="RUB"),
+                    },
+                    expected_result=Quantity(value=80.0, unit="RUB"),
+                    section_owner="finance",
+                )
+            ]
+        )
+
+        result = run_all(
+            {"finance": "The calculation is [CALC-001]."},
+            _full_cfg(min_chars=10),
+            calculation_ledger=calculations,
+        )
+
+        assert not result.passed
+        assert any("result mismatch" in issue for issue in result.issues)
 
 
 class TestContinuationIntegrityCheck:

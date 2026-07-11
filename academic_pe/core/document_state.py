@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from academic_pe.core.calculation_audit import CalculationLedger
 from academic_pe.core.continuation import is_terminal_section_name
 from academic_pe.core.document_ledger import DocumentLedger, ledger_from_references
 from academic_pe.core.document_structure import (
@@ -91,6 +92,7 @@ class DocumentState(BaseModel):
     heading_tree: List[HeadingNode] = Field(default_factory=list)
     reference_registry: List[ReferenceEntry] = Field(default_factory=list)
     ledger: DocumentLedger = Field(default_factory=DocumentLedger)
+    calculation_ledger: CalculationLedger = Field(default_factory=CalculationLedger)
     structural_labels: List[StructuralLabel] = Field(default_factory=list)
     style_profile: StyleProfile = Field(default_factory=StyleProfile)
     continuity_dossier: ContinuityDossier = Field(default_factory=ContinuityDossier)

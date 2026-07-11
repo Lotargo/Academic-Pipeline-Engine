@@ -16,6 +16,7 @@ from academic_pe.core.config import AppConfig, TemplateMode, load_config, Sectio
 from academic_pe.core.continuation import detect_terminal_sections, infer_continuation_intent
 from academic_pe.core.document_structure import HeadingPolicy, SemanticRole, is_renderable_section, renderable_sections
 from academic_pe.core.document_state import extract_document_state
+from academic_pe.core.calculation_audit import CalculationEntry, CalculationLedger
 from academic_pe.core.document_ledger import DocumentLedger
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import language_instruction, resolve_output_language
@@ -396,6 +397,11 @@ class Orchestrator:
             if continuation_source
             else DocumentLedger()
         )
+        self._calculation_ledger = (
+            extract_document_state(continuation_source).calculation_ledger
+            if continuation_source
+            else CalculationLedger()
+        )
         for item in self.reference_materials:
             if not isinstance(item, dict):
                 continue
@@ -620,6 +626,15 @@ class Orchestrator:
     @property
     def previous_state(self) -> Optional[PipelineState]:
         return self._state_history[-1] if self._state_history else None
+
+    @property
+    def calculation_ledger(self) -> CalculationLedger:
+        """Expose registered calculations for integrations that produce numeric evidence."""
+        return self._calculation_ledger
+
+    def register_calculation(self, entry: CalculationEntry | Mapping[str, Any]) -> CalculationEntry:
+        """Register a deterministic calculation before the quality gate runs."""
+        return self._calculation_ledger.register(entry)
 
     def on_enter(self, callback: HookFn) -> None:
         self._hooks["on_enter"].append(callback)
@@ -1411,6 +1426,7 @@ class Orchestrator:
                     self._config.quality_gate,
                     document_state=self._runtime_metadata().get("document_state"),
                     ledger=self._document_ledger,
+                    calculation_ledger=self._calculation_ledger,
                 )
                 drift_issues = self._contract_drift_issues()
                 self._log_quality_evaluations(qg_result, drift_issues)
@@ -1677,6 +1693,7 @@ class Orchestrator:
                 self._config.quality_gate,
                 document_state=self._runtime_metadata().get("document_state"),
                 ledger=self._document_ledger,
+                calculation_ledger=self._calculation_ledger,
             )
             drift_issues = self._contract_drift_issues()
             self._log_quality_evaluations(qg_result, drift_issues)

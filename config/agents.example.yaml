@@ -208,6 +208,16 @@ quality_gate:
     enabled: true # validates $...$ and $$...$$ brace balance
   markdown:
     enabled: true # rejects raw fenced-code delimiters in final section text
+  unicode_hygiene:
+    enabled: true # rejects damaged or non-exportable Unicode characters
+  prompt_leakage:
+    enabled: true # rejects internal prompts, protocol markers, and placeholders
+  evidence:
+    enabled: true
+    require_ledger_urls: true
+  calculation:
+    enabled: true
+    tolerance: 1.0e-6
 
 # ---------------------------------------------------------------------------
 # Export QA
