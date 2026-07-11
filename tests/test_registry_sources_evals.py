@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 
 from academic_pe.core.orchestrator import Orchestrator, create_orchestrator_from_config
-from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, SectionPrompt, QualityGateConfig, VolumeGateConfig, LatexGateConfig
+from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, SectionPrompt, QualityGateConfig, VolumeGateConfig, LatexGateConfig, PromptLeakageGateConfig
 from academic_pe.core.llm import MockProvider
 from academic_pe.agents.base import DefaultAgent
 from academic_pe.agents.researcher import ResearcherAgent
@@ -43,6 +43,7 @@ def _make_config(output_dir: str) -> AppConfig:
         quality_gate=QualityGateConfig(
             volume=VolumeGateConfig(enabled=True, min_chars=1),
             latex=LatexGateConfig(enabled=False),
+            prompt_leakage=PromptLeakageGateConfig(enabled=False),
         ),
         pipeline=PipelineConfig(
             output_dir=output_dir,

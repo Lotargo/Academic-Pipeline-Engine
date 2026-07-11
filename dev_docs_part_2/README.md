@@ -115,7 +115,69 @@ Core-pipeline задача отмечается завершённой толь�
 
 - [ ] **PL-01** — [Docker](platform/PL-01-docker/PLAN.md) · [TODO](platform/PL-01-docker/TODO.md)
 - [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
-- [ ] **PL-03** — [Observability](platform/PL-03-observability/PLAN.md) · [TODO](platform/PL-03-observability/TODO.md)
+- [ ] **PL-03** — [Observability](platform/PL-03-observability-and-audit/PLAN.md) · [TODO](platform/PL-03-observability-and-audit/TODO.md)
+
+## Актуальная карта выполнения и блокировок (2026-07-11)
+
+`[ ]` означает только «не завершено». Он не означает автоматически, что всю
+композицию нельзя начинать. Перед началом работы следует различать доступные
+пакеты, зависимые пакеты и внешние deployment-gates.
+
+### Можно начинать сейчас
+
+- `FE-09`: его явные зависимости `FE-02`, `FE-05` и `BE-12` завершены.
+- `FE-11`: baseline ESLint является контролируемым техническим долгом и не
+  блокирует исправления выбранного связанного UI-пакета.
+- `CORE-13`, этапы A--D: `FE-10` завершён; можно реализовывать integrity
+  gates, ledgers, Source/Calculation Cards, assembly и validation.
+- `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
+  broker, healthchecks, non-root runtime и production process matrix; это
+  объём самой композиции, а не внешняя блокировка.
+- `PL-03`, базовый слой: его backend-зависимости завершены, поэтому можно
+  определить event schema, correlation IDs, safe health endpoints, audit,
+  redaction и их тесты.
+
+### Нельзя завершить до снятия зависимостей
+
+- `FE-06` зависит от `PL-03`. Audit/health views и их e2e-проверки нельзя
+  считать готовыми, пока нет schema audit-событий, correlation IDs и безопасных
+  health/metrics endpoints.
+- `CORE-15` выполняется после фундамента `CORE-13`: role-scoped
+  `InstructionCompiler`, `SectionBrief` и специализированные reviewers должны
+  опираться на DocumentState, ledgers, SourceCards и coverage matrix.
+- `CORE-14` выполняется после `InstructionCompiler` из `CORE-15`. Реальные
+  интеграционные проверки также требуют точных model IDs и секретов Qdrant,
+  Jina и LangSearch; их нельзя угадывать или записывать в репозиторий.
+- Optional revision flow из `CORE-13` завершается только после стабилизации
+  routing и instruction bundles из `CORE-14`/`CORE-15`.
+- `PL-02` нельзя завершить до `PL-01` и выбора/подключения production
+  adapters: Supabase PostgreSQL/Auth, S3-compatible object storage, RabbitMQ
+  и KMS/Vault. Для реального деплоя дополнительно нужны доступ к Render,
+  защищённые secrets и выбранный canonical HTTPS URL.
+- `PL-03` можно реализовывать поэтапно, но нельзя финально зафиксировать как
+  production observability до завершения `CORE-13`--`CORE-15`: telemetry должна
+  учитывать routing path, active provider, fallback depth, selected skills,
+  instruction bundle version и revision count.
+
+### Отдельный gate для production OAuth
+
+Legacy `BE-03` и `FE-01` не доказывают готовность provider-only auth. Реальный
+Google/Яндекс OAuth блокируется не локальной разработкой, а отсутствием
+production deployment context: отдельные Supabase-auth композиции, стабильный
+HTTPS frontend/API URL, Supabase `SITE_URL` и redirect allow-list,
+зарегистрированные provider applications, secrets в защищённом окружении и
+реальные e2e-сценарии на deployment URL. До этого разрешены только mock/stub
+adapter и локальные contract tests; нельзя заявлять, что внешний вход готов.
+
+### Практический порядок
+
+1. Выполнять фундамент `CORE-13` (этапы A--D); независимо от него допустимы
+   `FE-09`, выбранные пакеты `FE-11`, `PL-01` и базовый `PL-03`.
+2. После фундамента завершить `CORE-15`, затем `CORE-14`.
+3. Вернуться к optional revision flow `CORE-13`, завершить production-часть
+   `PL-03` и зависимый `FE-06`.
+4. После выбора внешней инфраструктуры и получения deployment access выполнить
+   `PL-02` и production OAuth e2e-gate.
 
 ---
 

@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 
 
 from academic_pe.core.orchestrator import Orchestrator, PipelineState, InvalidTransitionError, PipelineError, create_orchestrator_from_config
-from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig, SectionPrompt, TemplateMode, LanguagePolicy
+from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, QualityGateConfig, VolumeGateConfig, LatexGateConfig, PromptLeakageGateConfig, SectionPrompt, TemplateMode, LanguagePolicy
 from academic_pe.core.llm import MockProvider
 from academic_pe.agents.base import DefaultAgent
 from academic_pe.core.template_library import TemplateLibrary
@@ -36,6 +36,7 @@ def _make_config() -> AppConfig:
         quality_gate=QualityGateConfig(
             volume=VolumeGateConfig(enabled=False),
             latex=LatexGateConfig(enabled=False),
+            prompt_leakage=PromptLeakageGateConfig(enabled=False),
         ),
     )
 
@@ -190,10 +191,11 @@ def test_create_orchestrator_from_config_applies_fixed_template_and_manifest():
             template_mode=TemplateMode.fixed,
             template_id="technical_note",
         ),
-        quality_gate=QualityGateConfig(
-            volume=VolumeGateConfig(enabled=False),
-            latex=LatexGateConfig(enabled=False),
-        ),
+            quality_gate=QualityGateConfig(
+                volume=VolumeGateConfig(enabled=False),
+                latex=LatexGateConfig(enabled=False),
+                prompt_leakage=PromptLeakageGateConfig(enabled=False),
+            ),
     )
 
     orch = create_orchestrator_from_config(
@@ -420,6 +422,7 @@ def test_reviewer_loop_approves():
         quality_gate=QualityGateConfig(
             volume=VolumeGateConfig(enabled=False),
             latex=LatexGateConfig(enabled=False),
+            prompt_leakage=PromptLeakageGateConfig(enabled=False),
         ),
     )
     llm = MockProvider()
@@ -1490,6 +1493,8 @@ def test_strip_markdown_fences():
     assert normalize_generated_text('Alpha вЂ” beta в†’ gamma вЂњquotedвЂќ') == 'Alpha - beta -> gamma "quoted"'
     assert normalize_generated_text("Alpha \u2014 beta \u2192 gamma \u201cquoted\u201d") == 'Alpha - beta -> gamma "quoted"'
     assert normalize_generated_text("1\u202f000\u00a0chars") == "1 000 chars"
+    assert normalize_generated_text("В рамках раздела") == "В рамках раздела"
+    assert normalize_generated_text("\ufeffCafe\u0301") == "Café"
 
 
 def test_quality_gate_automated_rejection_in_loop():

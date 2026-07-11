@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -101,6 +102,93 @@ def check_markdown_artifacts(context: Dict[str, str], cfg: QualityGateConfig) ->
     return GateResult(passed=len(issues) == 0, issues=issues)
 
 
+_MOJIBAKE_MARKERS = (
+    "вЂ",
+    "в†",
+    "тА",
+    "тЖ",
+)
+_PLACEHOLDER_RE = re.compile(
+    r"\[(?:placeholder|insert|todo|tbd|контекст(?:ные данные)?|вставьте)[^\]]*\]"
+    r"|<(?:insert|placeholder|todo|tbd)[^>]*>",
+    re.IGNORECASE,
+)
+_PROMPT_LEAK_PATTERNS = (
+    re.compile(r"\bUSE_GREP\s*:", re.IGNORECASE),
+    re.compile(r"\bNO_CHANGES\b", re.IGNORECASE),
+    re.compile(r"<<<<<<<\s*REPLACE", re.IGNORECASE),
+    re.compile(r"\[(?:Document Plan|Context Data|Original Task|Draft Output|Grep Call Turn)\]", re.IGNORECASE),
+    re.compile(r"^\s*(?:USE_GREP|REPLACE|SEARCH/REPLACE)\s*$", re.IGNORECASE),
+    re.compile(r"без ссылки на несуществующ|строго в тексте", re.IGNORECASE),
+)
+
+
+def check_unicode_hygiene(context: Dict[str, str], cfg: QualityGateConfig) -> GateResult:
+    gate_cfg = getattr(cfg, "unicode_hygiene", None)
+    if gate_cfg is not None and not gate_cfg.enabled:
+        return GateResult(passed=True)
+
+    issues: List[str] = []
+    for name, text in context.items():
+        for line_no, line in enumerate((text or "").splitlines(), 1):
+            marker = next((value for value in _MOJIBAKE_MARKERS if value in line), None)
+            if marker:
+                issues.append(
+                    f"Section '{name}' contains a likely Unicode/mojibake marker at line {line_no}: "
+                    f"{marker!r}. Repair the text before export."
+                )
+            invalid_character = _invalid_unicode_character(line)
+            if invalid_character:
+                issues.append(
+                    f"Section '{name}' contains {invalid_character} at line {line_no}. "
+                    "Repair the text before export."
+                )
+    return GateResult(passed=not issues, issues=issues)
+
+
+def check_prompt_leakage(context: Dict[str, str], cfg: QualityGateConfig) -> GateResult:
+    gate_cfg = getattr(cfg, "prompt_leakage", None)
+    if gate_cfg is not None and not gate_cfg.enabled:
+        return GateResult(passed=True)
+
+    issues: List[str] = []
+    for name, text in context.items():
+        for line_no, line in enumerate((text or "").splitlines(), 1):
+            protocol = next((match for pattern in _PROMPT_LEAK_PATTERNS if (match := pattern.search(line))), None)
+            if protocol:
+                issues.append(
+                    f"Section '{name}' exposes prompt/internal marker at line {line_no}: {protocol.group(0)!r}"
+                )
+            placeholder = _PLACEHOLDER_RE.search(line)
+            if placeholder:
+                issues.append(
+                    f"Section '{name}' contains unresolved placeholder at line {line_no}: "
+                    f"{placeholder.group(0)!r}"
+                )
+    return GateResult(passed=not issues, issues=issues)
+
+
+def _invalid_unicode_character(line: str) -> str | None:
+    for character in line:
+        if character == "\ufffd":
+            return "Unicode replacement character U+FFFD"
+        if character == "\ufeff":
+            return "byte-order mark U+FEFF"
+        if character == "\u00ad":
+            return "soft hyphen U+00AD"
+        codepoint = ord(character)
+        if 0xE000 <= codepoint <= 0xF8FF or 0xF0000 <= codepoint <= 0xFFFFD or 0x100000 <= codepoint <= 0x10FFFD:
+            return f"private-use character U+{codepoint:04X}"
+        if unicodedata.category(character) == "Cc" and character not in "\t\r\n":
+            return f"control character U+{codepoint:04X}"
+    return None
+
+
+def check_global_structure(context: Mapping[str, str]) -> GateResult:
+    issues = _duplicate_structural_label_issues(context)
+    return GateResult(passed=not issues, issues=issues)
+
+
 _WRAPPER_FENCE_LANGS = {"", "markdown", "md", "text", "code", "latex", "html"}
 _ARTIFACT_FENCE_LANGS = {"markdown", "md", "text", "code", "latex", "html"}
 
@@ -179,10 +267,15 @@ def run_all(
         ("volume", check_volume),
         ("latex", check_latex),
         ("markdown", check_markdown_artifacts),
+        ("unicode_hygiene", check_unicode_hygiene),
+        ("prompt_leakage", check_prompt_leakage),
     ]:
         result = check_fn(filtered_context, cfg)
         if not result.passed:
             combined.extend(result.issues)
+    global_structure_result = check_global_structure(filtered_context)
+    if not global_structure_result.passed:
+        combined.extend(global_structure_result.issues)
     continuation_result = check_continuation_integrity(filtered_context, document_state)
     if not continuation_result.passed:
         combined.extend(continuation_result.issues)

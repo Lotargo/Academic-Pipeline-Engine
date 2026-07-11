@@ -1,4 +1,13 @@
-from academic_pe.core.quality_gate import check_continuation_integrity, check_volume, check_latex, run_all
+import pytest
+
+from academic_pe.core.quality_gate import (
+    check_continuation_integrity,
+    check_latex,
+    check_prompt_leakage,
+    check_unicode_hygiene,
+    check_volume,
+    run_all,
+)
 from academic_pe.core.config import QualityGateConfig, VolumeGateConfig, LatexGateConfig
 
 
@@ -171,6 +180,60 @@ class TestMarkdownCheck:
         )
 
         assert result.passed
+
+
+class TestIntegrityGates:
+    def test_unicode_hygiene_rejects_replacement_character(self):
+        result = check_unicode_hygiene({"body": "Clean text \ufffd with damaged byte."}, _full_cfg())
+
+        assert not result.passed
+        assert "replacement character" in result.issues[0]
+
+    @pytest.mark.parametrize("character", ["\ufeff", "\u00ad", "\ue000", "\x01"])
+    def test_unicode_hygiene_rejects_non_exportable_characters(self, character):
+        result = check_unicode_hygiene({"body": f"Text{character}with hidden character."}, _full_cfg())
+
+        assert not result.passed
+        assert "Repair the text before export" in result.issues[0]
+
+    def test_unicode_hygiene_accepts_valid_russian_text(self):
+        result = check_unicode_hygiene({"body": "В рамках данного раздела приведён анализ."}, _full_cfg())
+
+        assert result.passed
+
+    def test_prompt_leakage_rejects_protocol_marker_and_placeholder(self):
+        result = check_prompt_leakage(
+            {"body": "Draft text.\nUSE_GREP\n[контекст раздела 1]"},
+            _full_cfg(),
+        )
+
+        assert not result.passed
+        assert any("prompt/internal marker" in issue for issue in result.issues)
+        assert any("unresolved placeholder" in issue for issue in result.issues)
+
+    def test_prompt_leakage_rejects_internal_context_marker(self):
+        result = check_prompt_leakage({"body": "[Document Plan]\nPrivate outline."}, _full_cfg())
+
+        assert not result.passed
+        assert "prompt/internal marker" in result.issues[0]
+
+    def test_run_all_blocks_export_gate_for_unresolved_placeholder(self):
+        result = run_all(
+            {"body": "The final analysis is incomplete: [TODO add validated result]."},
+            _full_cfg(min_chars=10),
+        )
+
+        assert not result.passed
+        assert any("unresolved placeholder" in issue for issue in result.issues)
+
+    def test_run_all_rejects_global_duplicate_labels_without_document_state(self):
+        result = run_all(
+            {"first": "Table 1 contains baseline values.", "second": "Table 1 contains updated values."},
+            _full_cfg(min_chars=10),
+        )
+
+        assert not result.passed
+        assert any("Duplicate table label '1'" in issue for issue in result.issues)
 
 
 class TestContinuationIntegrityCheck:

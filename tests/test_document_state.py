@@ -47,6 +47,9 @@ def test_extract_document_state_from_continuation_source():
     assert state.terminal_sections == ["references", "appendix_a"]
     assert state.headings == ["Analysis", "References", "Appendix A"]
     assert state.runtime_manifest["resolved_manifest"]["id"] == "academic_report"
+    assert [(source.source_id, source.title) for source in state.ledger.sources] == [
+        ("SRC-001", "1. Existing source."),
+    ]
 
 
 def test_extract_document_state_ignores_document_plan_context():
@@ -120,3 +123,7 @@ def test_extract_document_state_builds_heading_tree_style_and_dossier():
     ]
     assert state.continuity_dossier.current_stopping_point == "The next step must continue from this point."
     assert state.continuity_dossier.reference_summary == "2 reference(s), style=numbered"
+    assert [(source.source_id, source.source_type) for source in state.ledger.sources] == [
+        ("SRC-001", "continuation_reference"),
+        ("SRC-002", "continuation_reference"),
+    ]

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from academic_pe.core.continuation import is_terminal_section_name
+from academic_pe.core.document_ledger import DocumentLedger, ledger_from_references
 from academic_pe.core.document_structure import (
     HeadingPolicy,
     SemanticRole,
@@ -89,6 +90,7 @@ class DocumentState(BaseModel):
     headings: List[str] = Field(default_factory=list)
     heading_tree: List[HeadingNode] = Field(default_factory=list)
     reference_registry: List[ReferenceEntry] = Field(default_factory=list)
+    ledger: DocumentLedger = Field(default_factory=DocumentLedger)
     structural_labels: List[StructuralLabel] = Field(default_factory=list)
     style_profile: StyleProfile = Field(default_factory=StyleProfile)
     continuity_dossier: ContinuityDossier = Field(default_factory=ContinuityDossier)
@@ -124,6 +126,7 @@ def extract_document_state(continuation_source: Optional[Dict[str, Any]]) -> Doc
     terminal_sections = [section.name for section in sections if section.is_terminal]
     heading_tree = _extract_heading_tree(sections)
     reference_registry = _extract_reference_registry(sections)
+    ledger = ledger_from_references(reference_registry)
     structural_labels = _extract_structural_labels(sections)
     style_profile = _extract_style_profile(sections, heading_tree, reference_registry)
     return DocumentState(
@@ -133,6 +136,7 @@ def extract_document_state(continuation_source: Optional[Dict[str, Any]]) -> Doc
         headings=[section.title for section in sections],
         heading_tree=heading_tree,
         reference_registry=reference_registry,
+        ledger=ledger,
         structural_labels=structural_labels,
         style_profile=style_profile,
         continuity_dossier=_build_continuity_dossier(

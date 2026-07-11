@@ -8,6 +8,7 @@ import hashlib
 import re
 import signal
 import threading
+import unicodedata
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Protocol
 
@@ -15,6 +16,7 @@ from academic_pe.core.config import AppConfig, TemplateMode, load_config, Sectio
 from academic_pe.core.continuation import detect_terminal_sections, infer_continuation_intent
 from academic_pe.core.document_structure import HeadingPolicy, SemanticRole, is_renderable_section, renderable_sections
 from academic_pe.core.document_state import extract_document_state
+from academic_pe.core.document_ledger import DocumentLedger
 from academic_pe.agents.base import BaseAgent
 from academic_pe.core.language import language_instruction, resolve_output_language
 from academic_pe.core.prompting import DEFAULT_DRAFT_TEMPLATE, DEFAULT_MERGE_OPERATION_TEMPLATE, DEFAULT_PATCH_REVISION_TEMPLATE, DEFAULT_PLAN_TEMPLATE, DEFAULT_REVIEW_TEMPLATE, DEFAULT_REVISION_TEMPLATE, DEFAULT_VERIFY_TEMPLATE, render_template
@@ -112,10 +114,6 @@ _COMMON_MOJIBAKE_REPLACEMENTS = {
     "вЂ¦": "...",
     "вЂў": "-",
     "в†’": "->",
-    "В ": " ",
-    "В\xa0": " ",
-    "В«": '"',
-    "В»": '"',
     "тАФ": " - ",
     "тАУ": "-",
     "тАС": "-",
@@ -176,7 +174,7 @@ def strip_markdown_fences(text: str) -> str:
 def normalize_generated_text(text: str) -> str:
     if not text:
         return ""
-    normalized = text
+    normalized = unicodedata.normalize("NFC", text).replace("\ufeff", "")
     for bad, replacement in sorted(_COMMON_MOJIBAKE_REPLACEMENTS.items(), key=lambda item: len(item[0]), reverse=True):
         normalized = normalized.replace(bad, replacement)
     normalized = re.sub(r"[ \t]{2,}", " ", normalized)
@@ -393,6 +391,22 @@ class Orchestrator:
         self.web_search_enabled = web_search_enabled
         self.continuation_source = continuation_source
         self.search_findings = ""
+        self._document_ledger = (
+            extract_document_state(continuation_source).ledger
+            if continuation_source
+            else DocumentLedger()
+        )
+        for item in self.reference_materials:
+            if not isinstance(item, dict):
+                continue
+            filename = str(item.get("filename") or item.get("title") or "").strip()
+            if filename:
+                self._document_ledger.register_source(
+                    title=filename,
+                    url=item.get("url"),
+                    source_type="reference_material",
+                    reliability="user_provided",
+                )
         self._registry_store = registry_store or NoopRegistryStore()
 
         # Resolve run_id
@@ -725,6 +739,13 @@ class Orchestrator:
 
     def _document_memory(self, current_section_name: str = "", with_line_numbers: bool = False) -> str:
         parts: List[str] = []
+        source_cards = self._document_ledger.source_cards_context()
+        if source_cards:
+            parts.append(
+                "[Verified Source Cards]\n"
+                + source_cards
+                + "\nUse only these source IDs/URLs for external claims; do not invent sources."
+            )
         continuation_context = self._continuation_context()
         if continuation_context:
             parts.append("[Continuation Source]\n" + continuation_context)
@@ -1252,6 +1273,13 @@ class Orchestrator:
                                             self._registry_store.add_source(source_record)
                                         except Exception as e:
                                             logger.warning("Failed to register web research source: %s", e)
+                                        self._document_ledger.register_source(
+                                            title=title or url,
+                                            url=url or None,
+                                            source_type="web",
+                                            reliability="unverified",
+                                            notes=[f"query={query_text}"] if query_text else [],
+                                        )
                     except Exception as e:
                         logger.warning("Best-effort research log registration failed: %s", e)
 

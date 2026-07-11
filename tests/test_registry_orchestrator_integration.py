@@ -2,7 +2,7 @@ import os
 import tempfile
 import pytest
 from academic_pe.core.orchestrator import Orchestrator
-from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, SectionPrompt, QualityGateConfig, VolumeGateConfig, LatexGateConfig
+from academic_pe.core.config import AppConfig, AgentConfig, PipelineConfig, SectionPrompt, QualityGateConfig, VolumeGateConfig, LatexGateConfig, PromptLeakageGateConfig
 from academic_pe.core.llm import MockProvider
 from academic_pe.agents.base import DefaultAgent
 from academic_pe.core.registry import SQLiteRegistryStore
@@ -26,6 +26,7 @@ def _make_config() -> AppConfig:
         quality_gate=QualityGateConfig(
             volume=VolumeGateConfig(enabled=False),
             latex=LatexGateConfig(enabled=False),
+            prompt_leakage=PromptLeakageGateConfig(enabled=False),
         ),
         pipeline=PipelineConfig(
             sections=[

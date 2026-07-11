@@ -98,10 +98,20 @@ class MarkdownGateConfig(BaseModel):
     enabled: bool = True
 
 
+class UnicodeHygieneGateConfig(BaseModel):
+    enabled: bool = True
+
+
+class PromptLeakageGateConfig(BaseModel):
+    enabled: bool = True
+
+
 class QualityGateConfig(BaseModel):
     volume: VolumeGateConfig = VolumeGateConfig()
     latex: LatexGateConfig = LatexGateConfig()
     markdown: MarkdownGateConfig = MarkdownGateConfig()
+    unicode_hygiene: UnicodeHygieneGateConfig = UnicodeHygieneGateConfig()
+    prompt_leakage: PromptLeakageGateConfig = PromptLeakageGateConfig()
 
 
 class ExportQAConfig(BaseModel):
