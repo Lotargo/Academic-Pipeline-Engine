@@ -15,10 +15,12 @@ from academic_pe.routing import (
     RetrievalCard,
     RoutingEntityType,
     RoutingFallbackPolicy,
+    RoutingEngine,
     RoutingProviderReadiness,
     RoutingQuery,
     RoutingRetrievalPath,
     VectorRepresentation,
+    cloud_inference_record,
 )
 from academic_pe.core.secrets import SecretResolver
 
@@ -27,9 +29,17 @@ def _run(awaitable):
     return asyncio.run(awaitable)
 
 
-def _card(*, entity_id="evidence", version=1, tenant_id=None, active=True, readiness=None):
+def _card(
+    *,
+    entity_id="evidence",
+    entity_type=RoutingEntityType.SKILL,
+    version=1,
+    tenant_id=None,
+    active=True,
+    readiness=None,
+):
     return RetrievalCard(
-        entity_type=RoutingEntityType.SKILL,
+        entity_type=entity_type,
         entity_id=entity_id,
         version=version,
         title="Evidence comparison",
@@ -95,6 +105,33 @@ def test_qdrant_vector_record_requires_matching_named_vector_readiness():
         vectors={VectorRepresentation.DENSE_E5: [0.1, 0.2]},
     ).to_point()
     assert point["vector"] == {"dense_e5": [0.1, 0.2]}
+
+
+def test_projection_builds_cloud_inference_documents_only_from_verified_model_ids():
+    config = ProviderInfrastructureConfig.from_yaml()
+    record = cloud_inference_record(_card(), config)
+    point = record.to_point()
+
+    assert point["payload"]["card"]["vector_readiness"] == {
+        "dense_jina": False,
+        "dense_e5": True,
+        "sparse_bm25": True,
+        "late_colbert": True,
+    }
+    assert point["vector"] == {
+        "dense_e5": {
+            "text": _card().embedding_text(),
+            "model": "intfloat/multilingual-e5-small",
+        },
+        "sparse_bm25": {
+            "text": _card().embedding_text(),
+            "model": "qdrant/bm25",
+        },
+        "late_colbert": {
+            "text": _card().embedding_text(),
+            "model": "answerdotai/answerai-colbert-small-v1",
+        },
+    }
 
 
 def test_qdrant_search_never_requests_another_tenant_scope_and_keeps_override_rules():
@@ -228,6 +265,128 @@ def test_qdrant_distinguishes_unavailable_and_configuration_errors():
 
     with pytest.raises(QdrantRoutingIndexError, match="HTTP 401"):
         _run(_index(invalid).search(RoutingQuery(text="compare evidence")))
+
+
+def test_qdrant_semantic_search_fuses_e5_bm25_reranks_colbert_and_exposes_evidence():
+    report = _card(
+        entity_id="report",
+        entity_type=RoutingEntityType.ARTIFACT,
+        readiness={representation: True for representation in VectorRepresentation},
+    )
+    plan = _card(
+        entity_id="plan_document",
+        entity_type=RoutingEntityType.ARTIFACT,
+        readiness={representation: True for representation in VectorRepresentation},
+    )
+    requests = []
+
+    def point(card, score):
+        return {
+            "id": card.card_key,
+            "score": score,
+            "payload": {"card": card.model_dump(mode="json"), "scope": "global"},
+        }
+
+    def handler(request):
+        body = json.loads(request.content)
+        requests.append((request.url.path, body))
+        if request.url.path.endswith("/points/scroll"):
+            return httpx.Response(200, json={"status": "ok", "result": {
+                "points": [{"id": card.card_key, "payload": {"card": card.model_dump(mode="json"), "scope": "global"}} for card in (report, plan)],
+            }})
+        using = body["using"]
+        if using == "dense_e5":
+            points = [point(report, 0.91), point(plan, 0.72)]
+        elif using == "sparse_bm25":
+            points = [point(plan, 8.5), point(report, 2.1)]
+        else:
+            assert using == "late_colbert"
+            assert set(body["filter"]["must"][-1]["has_id"]) == {report.card_key, plan.card_key}
+            points = [point(plan, 11.0), point(report, 7.0)]
+        return httpx.Response(200, json={"status": "ok", "result": {"points": points}})
+
+    index = QdrantRoutingIndex(
+        url="https://qdrant.example.test",
+        collection_name="routing_knowledge",
+        api_key="test-key",
+        cloud_inference_enabled=True,
+        e5_model_id="intfloat/multilingual-e5-small",
+        bm25_model_id="qdrant/bm25",
+        colbert_model_id="answerdotai/answerai-colbert-small-v1",
+        transport=httpx.MockTransport(handler),
+    )
+    results = _run(index.search(RoutingQuery(
+        text="compare evidence",
+        entity_types={RoutingEntityType.ARTIFACT},
+        top_k=2,
+    )))
+
+    assert [item.card.entity_id for item in results] == ["plan_document", "report"]
+    assert {item.channel.value for item in results[0].channel_evidence}.issuperset({
+        "qdrant_e5", "qdrant_bm25", "colbert", "rrf", "lexical_rules",
+    })
+    query_bodies = [body for path, body in requests if path.endswith("/points/query")]
+    assert {body["query"]["model"] for body in query_bodies} == {
+        "intfloat/multilingual-e5-small", "qdrant/bm25", "answerdotai/answerai-colbert-small-v1",
+    }
+    for body in query_bodies:
+        assert {condition["key"] for condition in body["filter"]["must"] if "key" in condition} >= {
+            "scope", "entity_type", "active",
+        }
+    decision = _run(RoutingEngine(index).decide(RoutingQuery(
+        text="compare evidence",
+        entity_types={RoutingEntityType.ARTIFACT},
+        top_k=2,
+    )))
+    _run(index.aclose())
+    assert decision.selected_artifact_id == "plan_document"
+    assert decision.active_retrieval_path == "e5_bm25_colbert"
+    assert decision.fallback_depth == 1
+    assert {item.channel.value for item in decision.channel_evidence}.issuperset({
+        "qdrant_e5", "qdrant_bm25", "colbert", "rrf",
+    })
+
+
+def test_qdrant_semantic_search_never_queries_another_tenant_scope():
+    tenant_a = uuid4()
+    tenant_b = uuid4()
+    readiness = {representation: True for representation in VectorRepresentation}
+    global_card = _card(version=2, readiness=readiness)
+    tenant_card = _card(version=1, tenant_id=tenant_a, readiness=readiness)
+    seen_scopes = []
+
+    def point(card, score, scope):
+        return {"id": card.card_key, "score": score, "payload": {
+            "card": card.model_dump(mode="json"), "scope": scope,
+        }}
+
+    def handler(request):
+        body = json.loads(request.content)
+        scope = body["filter"]["must"][0]["match"]["value"]
+        seen_scopes.append(scope)
+        cards = {"global": [global_card], f"tenant:{tenant_a}": [tenant_card]}[scope]
+        if request.url.path.endswith("/points/scroll"):
+            return httpx.Response(200, json={"status": "ok", "result": {
+                "points": [{"id": card.card_key, "payload": {"card": card.model_dump(mode="json"), "scope": scope}} for card in cards],
+            }})
+        return httpx.Response(200, json={"status": "ok", "result": {"points": [
+            point(card, 0.9, scope) for card in cards
+        ]}})
+
+    index = QdrantRoutingIndex(
+        url="https://qdrant.example.test",
+        collection_name="routing_knowledge",
+        cloud_inference_enabled=True,
+        e5_model_id="intfloat/multilingual-e5-small",
+        bm25_model_id="qdrant/bm25",
+        colbert_model_id="answerdotai/answerai-colbert-small-v1",
+        transport=httpx.MockTransport(handler),
+    )
+    results = _run(index.search(RoutingQuery(text="compare evidence", tenant_id=tenant_a)))
+    _run(index.aclose())
+
+    assert set(seen_scopes) == {"global", f"tenant:{tenant_a}"}
+    assert [(item.card.version, item.card.tenant_id) for item in results] == [(1, tenant_a)]
 
 
 def test_fallback_policy_requires_all_active_cards_for_each_vector_channel():

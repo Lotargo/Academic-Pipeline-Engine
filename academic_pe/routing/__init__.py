@@ -1,4 +1,13 @@
 from academic_pe.routing.models import ArtifactCandidate, ConfidenceBand, RoutingDecision
+from academic_pe.routing.evidence import RoutingChannelEvidence, RoutingEvidenceChannel
+from academic_pe.routing.calibration import ConfidenceObservation, RoutingConfidenceCalibrator
+from academic_pe.routing.engine import RoutingEngine
+from academic_pe.routing.projection import (
+    RoutingProjectionReport,
+    canonical_routing_cards,
+    cloud_inference_record,
+    reindex_canonical_routing_cards,
+)
 from academic_pe.routing.config import ProviderInfrastructureConfig
 from academic_pe.routing.cards import (
     RetrievalCard,
@@ -45,6 +54,7 @@ from academic_pe.routing.skills import (
 __all__ = [
     "ArtifactCandidate",
     "ConfidenceBand",
+    "ConfidenceObservation",
     "GraphEdgeType",
     "GraphNodeType",
     "InMemoryRoutingIndex",
@@ -60,6 +70,11 @@ __all__ = [
     "RetrievalProviderError",
     "RerankResult",
     "RoutingDecision",
+    "RoutingChannelEvidence",
+    "RoutingConfidenceCalibrator",
+    "RoutingEngine",
+    "RoutingEvidenceChannel",
+    "RoutingProjectionReport",
     "RoutingEntityType",
     "RoutingIndex",
     "RoutingIndexHealth",
@@ -75,5 +90,8 @@ __all__ = [
     "VectorRepresentation",
     "WebSearchHit",
     "artifact_retrieval_cards",
+    "canonical_routing_cards",
+    "cloud_inference_record",
+    "reindex_canonical_routing_cards",
     "skill_retrieval_cards",
 ]

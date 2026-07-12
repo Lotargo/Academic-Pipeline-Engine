@@ -2,9 +2,11 @@
 
 ## Статус
 
-Реализация начата; этапы 1--4 и Cloud/provider foundations этапов 5--7
-выполнены. Semantic Qdrant search в основном routing path, rank fusion,
-ColBERT second-stage query и confidence calibration ещё не реализованы.
+Реализация продолжается; foundations этапов 1--7, semantic Qdrant path,
+rank fusion, ColBERT second-stage rerank и воспроизводимый routing benchmark
+выполнены. `RoutingEngine` публикует фактические channel evidence в
+`RoutingDecision`. Итоговая production-калибровка остаётся зависящей от
+расширенного размеченного набора, а не от одного малого smoke corpus.
 
 ### Checkpoint (2026-07-13)
 
@@ -60,13 +62,35 @@ ColBERT second-stage query и confidence calibration ещё не реализо�
   rerank. `ResearcherAgent` использует LangSearch -> Jina rerank -> top URLs ->
   existing fetch/read stage; при provider error сохраняется legacy DuckDuckGo
   fallback, а при ошибке Jina — порядок LangSearch.
-- Live smoke: LangSearch search, Jina embeddings/rerank, Qdrant Cloud
-  inference upload с E5/BM25/ColBERT и E5 query прошли.
-- Regression: целевой provider/routing contract срез — 35 passed; итоговый
-  полный Python suite — 658 passed, 3 skipped.
-- Следующий пакет: подключить semantic Qdrant query, RRF/graph penalties и
-  ColBERT second-stage rerank к `RoutingIndex.search`, затем собрать benchmark
-  и откалибровать confidence. Local-first fallback остаётся обязательным.
+- Добавлен `RoutingEngine`: он преобразует результаты index adapter-а в
+  artifact candidates и переносит неизменённые фактические channel evidence
+  (ranks, raw provider score, normalised RRF contribution и graph penalties)
+  в `RoutingDecision`; raw provider scores не суммируются напрямую.
+- `QdrantRoutingIndex.search()` сначала получает безопасную visibility
+  projection, затем выполняет отдельные Cloud Inference запросы E5 и BM25 с
+  `scope`, `entity_type`, `active` и, для rerank, `has_id` filters. Он сливает
+  channel ranks через RRF, применяет negative/graph penalties и передаёт только
+  RRF top-k в ColBERT. Tenant query обращается лишь к `global` и своему
+  `tenant:<uuid>` scope; tenant override вытесняет global card до fusion.
+- При remote outage optional `fallback_index` возвращает local evidence; при
+  неполной vector readiness используется local rules. Поэтому cloud path не
+  является источником истины и не блокирует local-first generation.
+- Добавлены `cloud_inference_record()`, идемпотентный
+  `scripts/reindex_routing_knowledge.py` и canonical projection. Live reindex
+  загрузил 13 artifact/skill cards в `routing_knowledge`; live query вернул
+  `qdrant_e5`, `qdrant_bm25`, `colbert`, `rrf` и lexical evidence.
+- Добавлены `config/routing_benchmark.yaml`, async benchmark и
+  `scripts/run_core14_routing_benchmark.py [--qdrant]`. Calibrator использует
+  serializable isotonic PAVA mapping; Brier score считается leave-one-out, а
+  не in-sample. Live 12-case run: path `e5_bm25_colbert` во всех 12 cases,
+  artifact top-1 `0.833333`, top-3 `0.916667`, holdout Brier `0.083333`.
+  Средняя Cloud Inference latency была около 4.1 s и является baseline для
+  последующих latency-оптимизаций, а не постоянным SLA.
+- Regression: полный Python suite — 664 passed, 3 skipped.
+- Следующий пакет для полного закрытия CORE-14: расширить размеченный
+  русско-/англо-/mixed evaluation corpus и зафиксировать holdout-calibration
+  profile перед включением его как runtime default. Local-first fallback
+  остаётся обязательным.
 
 Документ продолжает решения из документа №13 и фиксирует обсуждение механизма уверенности, режима skills, графовой составляющей, гибридного поиска, Qdrant Cloud, Jina AI, LangSearch, реранкинга, резервных провайдеров, Airflow и хранения секретов.
 

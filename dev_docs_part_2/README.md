@@ -139,23 +139,21 @@ Core-pipeline задача отмечается завершённой толь�
   незавершённой и не отмечается `[x]` до стабилизации `CORE-15` и `CORE-14`,
   после которых optional revision flow должен пройти итоговую интеграционную
   приёмку.
-- `CORE-14`, checkpoint (2026-07-13): foundation этапы 1--3 выполнены — добавлены
-  universal SecretResolver, typed provider config, `RoutingDecision`,
-  расширенный `SkillManifest`, `SkillPlan` и валидируемый typed DAG. Этап 4 и
-  локальная часть этапа 5 также выполнены: manifests имеют bilingual retrieval
-  profiles, а adapter-neutral `RoutingIndex` и `InMemoryRoutingIndex` покрывают
-  versioning, inactive state, filters и tenant isolation. Offline-safe cloud
-  фундамент этапов 5--7 также готов: `QdrantRoutingIndex` использует
-  deterministic UUID, payload cards и отдельные global/tenant scopes;
-  `QdrantRoutingRecord` запрещает readiness без реально переданных named
-  vectors; `RoutingFallbackPolicy` детерминированно выбирает Jina+BM25,
-  E5+BM25, BM25+local rules или local rules only. `routing_knowledge` создана
-  с E5/BM25/ColBERT named representations и tenant filter indexes; live smoke
-  LangSearch, Jina embeddings/rerank и Qdrant Cloud upload/query прошёл с
-  cleanup временного point. `ResearcherAgent` теперь использует LangSearch и
-  Jina reranker с safe legacy fallback. Незавершённый объём CORE-14 — semantic
-  query/fusion в публичном routing path, benchmark и confidence calibration;
-  локальный pipeline от cloud providers не зависит.
+- `CORE-14`, checkpoint (2026-07-13): foundation этапы 1--7 и semantic package
+  выполнены: `QdrantRoutingIndex.search()` делает tenant-safe E5/BM25 Cloud
+  Inference queries, RRF fusion, negative/typed-graph penalties и optional
+  ColBERT rerank только для fused top-k. `RoutingEngine` переносит реальные
+  ranks, raw scores и normalised contributions каналов в `RoutingDecision`, а
+  remote outage делегируется optional local fallback index. Добавлены canonical
+  cloud projection/reindex script; live reindex загрузил 13 cards в
+  `routing_knowledge`, а live query вернул E5, BM25, ColBERT и RRF evidence.
+  Созданы versioned local/live benchmark path и isotonic PAVA calibrator с
+  holdout Brier evaluation; live 12-case baseline: top-1 0.833333, top-3
+  0.916667, holdout Brier 0.083333, mean Cloud latency около 4.1 s. Полный
+  Python suite: 664 passed, 3 skipped. `CORE-14` пока остаётся `[ ]`: до
+  финального закрытия требуется расширенный русско-/англо-/mixed labelled
+  corpus и фиксация holdout-calibration profile как runtime default; local
+  pipeline от cloud providers по-прежнему не зависит.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.
@@ -168,9 +166,10 @@ Core-pipeline задача отмечается завершённой толь�
 - `FE-06` зависит от `PL-03`. Audit/health views и их e2e-проверки нельзя
   считать готовыми, пока нет schema audit-событий, correlation IDs и безопасных
   health/metrics endpoints.
-- `CORE-14` нельзя завершить до подключения semantic Qdrant query, rank fusion,
-  graph penalties и confidence calibration к публичному routing path. Базовые
-  cloud integration smoke уже пройдены с защищёнными секретами.
+- `CORE-14` нельзя финально завершить до расширения labelled benchmark corpus
+  и фиксации holdout-calibration profile. Semantic Qdrant query, RRF, graph
+  penalties, ColBERT second stage и live cloud baseline уже реализованы;
+  local-first fallback остаётся обязательным.
 - Optional revision flow из `CORE-13` завершается только после стабилизации
   routing и instruction bundles из `CORE-14`/`CORE-15`.
 - `PL-02` нельзя завершить до `PL-01` и выбора/подключения production

@@ -4,6 +4,8 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from academic_pe.routing.evidence import RoutingChannelEvidence
+
 
 class ConfidenceBand(str, Enum):
     DIRECT = "direct"
@@ -20,6 +22,7 @@ class ArtifactCandidate(BaseModel):
     matched_cues: list[str] = Field(default_factory=list)
     negative_cues: list[str] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
+    channel_evidence: list[RoutingChannelEvidence] = Field(default_factory=list)
 
 
 class RoutingDecision(BaseModel):
@@ -36,6 +39,9 @@ class RoutingDecision(BaseModel):
     skill_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
     conflict_score: float = Field(default=0.0, ge=0.0, le=1.0)
     channel_agreement: float = Field(default=0.0, ge=0.0, le=1.0)
+    channel_evidence: list[RoutingChannelEvidence] = Field(default_factory=list)
+    calibrated_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    calibration_version: str | None = None
     fallback_depth: int = Field(default=3, ge=0, le=3)
     active_retrieval_path: str = Field(default="local_rules_only", min_length=1)
     confidence_band: ConfidenceBand = ConfidenceBand.PLANNER_REQUIRED
@@ -69,6 +75,9 @@ class RoutingDecision(BaseModel):
         channel_agreement: float = 1.0,
         fallback_depth: int = 3,
         active_retrieval_path: str = "local_rules_only",
+        channel_evidence: list[RoutingChannelEvidence] | None = None,
+        calibrated_confidence: float | None = None,
+        calibration_version: str | None = None,
         reasons: list[str] | None = None,
         ambiguity_notes: list[str] | None = None,
         explicit_override: bool = False,
@@ -79,13 +88,20 @@ class RoutingDecision(BaseModel):
         margin = round(top_score - runner_up, 6)
         selected = selected_artifact_id or (ranked[0].artifact_id if ranked else None)
 
+        confidence_signal = calibrated_confidence if calibrated_confidence is not None else top_score
         if explicit_override:
             band = ConfidenceBand.DIRECT
-        elif selected is None or fallback_depth >= 3 or conflict_score >= 0.5 or skill_coverage < 0.5:
+        elif (
+            selected is None
+            or fallback_depth >= 3
+            or conflict_score >= 0.5
+            or skill_coverage < 0.5
+            or (calibrated_confidence is not None and confidence_signal < 0.50)
+        ):
             band = ConfidenceBand.PLANNER_REQUIRED
         elif margin < 0.15 or channel_agreement < 0.5:
             band = ConfidenceBand.PLANNER_REQUIRED
-        elif margin < 0.30:
+        elif margin < 0.30 or (calibrated_confidence is not None and confidence_signal < 0.70):
             band = ConfidenceBand.PLANNER_RECOMMENDED
         elif fallback_depth > 0:
             band = ConfidenceBand.DIRECT_WITH_FALLBACK
@@ -102,6 +118,9 @@ class RoutingDecision(BaseModel):
             skill_coverage=skill_coverage,
             conflict_score=conflict_score,
             channel_agreement=channel_agreement,
+            channel_evidence=channel_evidence or [],
+            calibrated_confidence=calibrated_confidence,
+            calibration_version=calibration_version,
             fallback_depth=fallback_depth,
             active_retrieval_path=active_retrieval_path,
             confidence_band=band,

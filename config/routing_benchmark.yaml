@@ -1,0 +1,50 @@
+schema_version: 1
+cases:
+  - case_id: report_en
+    text: "Create an analytical report with findings, evidence and supporting data."
+    expected_artifact_id: report
+    planner_required: true
+  - case_id: report_ru
+    text: "Подготовь аналитический отчёт с выводами, данными и подтверждающими источниками."
+    expected_artifact_id: report
+    planner_required: true
+  - case_id: academic_paper_en
+    text: "Draft a scientific research paper with methodology, citations and discussion."
+    expected_artifact_id: academic_paper
+    planner_required: true
+  - case_id: academic_paper_ru
+    text: "Напиши научную статью: методология исследования, источники и обсуждение результатов."
+    expected_artifact_id: academic_paper
+    planner_required: true
+  - case_id: plan_en
+    text: "Prepare a sprint roadmap with milestones, tasks and delivery plan."
+    expected_artifact_id: plan_document
+    planner_required: true
+  - case_id: plan_ru
+    text: "Составь план проекта с этапами, задачами и контрольными точками."
+    expected_artifact_id: plan_document
+    planner_required: true
+  - case_id: technical_readme
+    text: "Write README documentation with installation, configuration and API usage."
+    expected_artifact_id: technical_readme
+    planner_required: true
+  - case_id: creative_poem
+    text: "Напиши стихотворение в трёх строфах о северном лете."
+    expected_artifact_id: creative_poem
+    planner_required: true
+  - case_id: creative_story
+    text: "Create a short fictional fairy tale with a clear narrative."
+    expected_artifact_id: creative_story
+    planner_required: true
+  - case_id: school_essay
+    text: "Напиши школьное сочинение для 8 класса о роли дружбы."
+    expected_artifact_id: school_essay
+    planner_required: true
+  - case_id: negative_not_story
+    text: "Write a report with findings and evidence, not a fictional story."
+    expected_artifact_id: report
+    planner_required: true
+  - case_id: ambiguous_ood
+    text: "Help me with a document about the future."
+    expected_artifact_id: unknown_freeform
+    planner_required: true

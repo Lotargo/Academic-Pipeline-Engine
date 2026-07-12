@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from asyncio import gather
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -11,11 +12,18 @@ import httpx
 from academic_pe.core.secrets import SecretResolver
 from academic_pe.routing.cards import RetrievalCard, RoutingEntityType, VectorRepresentation
 from academic_pe.routing.config import ProviderInfrastructureConfig
+from academic_pe.routing.evidence import RoutingChannelEvidence, RoutingEvidenceChannel
+from academic_pe.routing.fallback import RoutingFallbackPolicy, RoutingProviderReadiness, RoutingRetrievalPath
 from academic_pe.routing.index import (
     InMemoryRoutingIndex,
+    RoutingIndex,
     RoutingIndexHealth,
     RoutingQuery,
     RoutingSearchResult,
+    _matched_phrases,
+    _tokens,
+    scored_routing_result,
+    visible_routing_cards,
 )
 
 
@@ -75,6 +83,8 @@ class QdrantRoutingRecord:
             for representation, ready in self.card.vector_readiness.items()
             if ready
         }
+
+
         if actual != expected:
             raise ValueError(
                 "vector_readiness must exactly match vectors supplied to QdrantRoutingRecord"
@@ -91,13 +101,24 @@ class QdrantRoutingRecord:
         }
 
 
-class QdrantRoutingIndex:
-    """Optional Qdrant projection with the same safe visibility rules as local search.
+@dataclass(frozen=True)
+class _QdrantChannelHit:
+    card: RetrievalCard
+    point_id: str
+    scope: str
+    channel: RoutingEvidenceChannel
+    raw_score: float
+    rank: int
 
-    A card-only projection remains searchable through the deterministic local
-    scoring layer.  Semantic Qdrant queries are intentionally not enabled until
-    exact model IDs and validated embeddings are available; this keeps local
-    generation independent of Qdrant inference.
+
+class QdrantRoutingIndex:
+    """Optional Qdrant projection with a deterministic local-safe fallback.
+
+    Cloud vectors are a retrieval projection, never the source of truth.  The
+    adapter first enforces local version/tenant visibility rules, then queries
+    only the active global and caller tenant scopes.  E5 and BM25 are fused by
+    rank rather than by their incomparable raw scores; ColBERT receives only
+    the resulting top candidates as a second-stage reranker.
     """
 
     def __init__(
@@ -109,6 +130,14 @@ class QdrantRoutingIndex:
         timeout_seconds: int = 15,
         max_scroll_pages: int = 8,
         collection_schema: QdrantCollectionSchema | None = None,
+        cloud_inference_enabled: bool = False,
+        e5_model_id: str | None = None,
+        bm25_model_id: str | None = None,
+        colbert_model_id: str | None = None,
+        candidate_top_k: int = 20,
+        rerank_top_k: int = 8,
+        rrf_k: int = 60,
+        fallback_index: RoutingIndex | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         normalized_url = url.strip().rstrip("/")
@@ -120,6 +149,12 @@ class QdrantRoutingIndex:
             raise ValueError("timeout_seconds must be at least one second")
         if max_scroll_pages < 1:
             raise ValueError("max_scroll_pages must be at least one")
+        if candidate_top_k < 1 or rerank_top_k < 1:
+            raise ValueError("routing candidate and rerank limits must be positive")
+        if rerank_top_k > candidate_top_k:
+            raise ValueError("rerank_top_k cannot exceed candidate_top_k")
+        if rrf_k < 1:
+            raise ValueError("rrf_k must be positive")
 
         self._url = normalized_url
         self._collection_name = collection_name
@@ -127,6 +162,14 @@ class QdrantRoutingIndex:
         self._timeout_seconds = timeout_seconds
         self._max_scroll_pages = max_scroll_pages
         self._collection_schema = collection_schema or QdrantCollectionSchema()
+        self._cloud_inference_enabled = cloud_inference_enabled
+        self._e5_model_id = _clean_model_id(e5_model_id)
+        self._bm25_model_id = _clean_model_id(bm25_model_id)
+        self._colbert_model_id = _clean_model_id(colbert_model_id)
+        self._candidate_top_k = candidate_top_k
+        self._rerank_top_k = rerank_top_k
+        self._rrf_k = rrf_k
+        self._fallback_index = fallback_index
         self._transport = transport
         self._client: httpx.AsyncClient | None = None
 
@@ -153,6 +196,12 @@ class QdrantRoutingIndex:
                 dense_e5_size=settings.multilingual_dense_vector_size,
                 late_colbert_size=settings.late_interaction_vector_size,
             ),
+            cloud_inference_enabled=settings.cloud_inference_enabled,
+            e5_model_id=settings.multilingual_dense_model_id,
+            bm25_model_id=settings.sparse_model_id,
+            colbert_model_id=settings.late_interaction_model_id,
+            candidate_top_k=configuration.routing.candidate_top_k,
+            rerank_top_k=configuration.routing.rerank_top_k,
             transport=transport,
         )
 
@@ -225,15 +274,39 @@ class QdrantRoutingIndex:
         )
 
     async def search(self, query: RoutingQuery) -> list[RoutingSearchResult]:
-        cards: list[RetrievalCard] = []
-        for scope in _visible_scopes(query.tenant_id):
-            cards.extend(await self._scroll_scope(scope, query))
+        try:
+            cards: list[RetrievalCard] = []
+            for scope in _visible_scopes(query.tenant_id):
+                cards.extend(await self._scroll_scope(scope, query))
+        except QdrantRoutingIndexUnavailable as exc:
+            return await self._fallback_or_raise(query, exc)
 
-        # This mirrors the local adapter's latest-version, inactive-tombstone,
-        # tenant-override and penalty semantics until vector queries are enabled.
         local_projection = InMemoryRoutingIndex()
         await local_projection.upsert(cards)
-        return await local_projection.search(query)
+        visible_cards = visible_routing_cards(cards, query)
+        if not visible_cards:
+            return []
+
+        choice = RoutingFallbackPolicy().select(RoutingProviderReadiness.from_cards(
+            visible_cards,
+            qdrant_healthy=self._semantic_query_enabled(),
+            jina_healthy=False,
+        ))
+        if choice.active_retrieval_path is RoutingRetrievalPath.LOCAL_RULES_ONLY:
+            return await local_projection.search(query)
+
+        try:
+            results = await self._semantic_search(
+                query,
+                visible_cards,
+                use_e5=choice.active_retrieval_path is RoutingRetrievalPath.E5_BM25,
+                use_colbert=choice.active_retrieval_path is RoutingRetrievalPath.E5_BM25,
+            )
+        except QdrantRoutingIndexUnavailable as exc:
+            return await self._fallback_or_raise(query, exc)
+        # A readiness mismatch can leave a projection without vector points.
+        # Preserve the local path instead of making routing silently empty.
+        return results or await local_projection.search(query)
 
     async def healthcheck(self) -> RoutingIndexHealth:
         try:
@@ -294,6 +367,215 @@ class QdrantRoutingIndex:
                 raise QdrantRoutingIndexError("Qdrant scroll response has invalid page offset")
             offset = next_offset
         raise QdrantRoutingIndexError("Qdrant scroll page limit exceeded for routing projection")
+
+    async def _semantic_search(
+        self,
+        query: RoutingQuery,
+        visible_cards: Sequence[RetrievalCard],
+        *,
+        use_e5: bool,
+        use_colbert: bool,
+    ) -> list[RoutingSearchResult]:
+        channel_models: list[tuple[RoutingEvidenceChannel, VectorRepresentation, str]] = []
+        if use_e5:
+            if not self._e5_model_id:
+                raise QdrantRoutingIndexError("E5 routing model is not configured")
+            channel_models.append((
+                RoutingEvidenceChannel.QDRANT_E5,
+                VectorRepresentation.DENSE_E5,
+                self._e5_model_id,
+            ))
+        if not self._bm25_model_id:
+            raise QdrantRoutingIndexError("BM25 routing model is not configured")
+        channel_models.append((
+            RoutingEvidenceChannel.QDRANT_BM25,
+            VectorRepresentation.SPARSE_BM25,
+            self._bm25_model_id,
+        ))
+
+        scopes = _visible_scopes(query.tenant_id)
+        requests = [
+            self._query_channel(scope, query, channel, representation, model_id)
+            for scope in scopes
+            for channel, representation, model_id in channel_models
+        ]
+        grouped_hits = await gather(*requests)
+        allowed_card_keys = {card.card_key for card in visible_cards}
+        hits_by_card: dict[str, dict[RoutingEvidenceChannel, _QdrantChannelHit]] = {}
+        for channel_hits in grouped_hits:
+            for hit in channel_hits:
+                if hit.card.card_key in allowed_card_keys:
+                    hits_by_card.setdefault(hit.card.card_key, {})[hit.channel] = hit
+        if not hits_by_card:
+            return []
+        self._assign_global_channel_ranks(hits_by_card)
+
+        if use_colbert and self._colbert_model_id and all(
+            card.vector_readiness[VectorRepresentation.LATE_COLBERT]
+            for card in visible_cards
+        ):
+            try:
+                colbert_hits = await self._colbert_rerank(query, hits_by_card)
+            except QdrantRoutingIndexUnavailable:
+                colbert_hits = []
+            for hit in colbert_hits:
+                if hit.card.card_key in hits_by_card:
+                    hits_by_card[hit.card.card_key][hit.channel] = hit
+            self._assign_global_channel_ranks(hits_by_card)
+
+        available_channels = {
+            channel
+            for channel_hits in hits_by_card.values()
+            for channel in channel_hits
+        }
+        maximum_rrf = len(available_channels) / (self._rrf_k + 1)
+        results: list[RoutingSearchResult] = []
+        for card_key, channel_hits in hits_by_card.items():
+            rrf_raw = sum(self._rrf(hit.rank) for hit in channel_hits.values())
+            fused_score = rrf_raw / maximum_rrf if maximum_rrf else 0.0
+            card = next(card for card in visible_cards if card.card_key == card_key)
+            matched_terms = sorted(_tokens(query.text).intersection(_tokens(card.embedding_text())))
+            positive = _matched_phrases(query.text, card.positive_examples)
+            negative = _matched_phrases(query.text, card.negative_examples)
+            channel_evidence = [
+                RoutingChannelEvidence(
+                    channel=hit.channel,
+                    raw_score=round(hit.raw_score, 6),
+                    contribution=round(self._rrf(hit.rank) / maximum_rrf, 6),
+                    rank=hit.rank,
+                    details=[f"scope={hit.scope}", f"using={_representation_for_channel(hit.channel).value}"],
+                )
+                for hit in sorted(channel_hits.values(), key=lambda item: item.channel.value)
+            ]
+            channel_evidence.append(RoutingChannelEvidence(
+                channel=RoutingEvidenceChannel.RRF,
+                raw_score=round(rrf_raw, 8),
+                contribution=round(fused_score, 6),
+                details=[f"{len(channel_hits)} rank channel(s)", f"rrf_k={self._rrf_k}"],
+            ))
+            if matched_terms or positive or negative:
+                lexical_score = min(1.0, len(matched_terms) / max(1, len(_tokens(query.text))))
+                channel_evidence.append(RoutingChannelEvidence(
+                    channel=RoutingEvidenceChannel.LEXICAL_RULES,
+                    raw_score=round(lexical_score, 6),
+                    contribution=0.0,
+                    details=[f"{len(matched_terms)} lexical term(s)", *positive, *negative],
+                ))
+            result = scored_routing_result(
+                query=query,
+                card=card,
+                base_score=fused_score,
+                channel_evidence=channel_evidence,
+                matched_terms=matched_terms,
+                matched_positive_examples=positive,
+                matched_negative_examples=negative,
+            )
+            if result.score > 0:
+                results.append(result)
+        results.sort(key=lambda item: (-item.score, item.card.entity_type.value, item.card.entity_id))
+        return results[:query.top_k]
+
+    async def _query_channel(
+        self,
+        scope: str,
+        query: RoutingQuery,
+        channel: RoutingEvidenceChannel,
+        representation: VectorRepresentation,
+        model_id: str,
+        *,
+        point_ids: Sequence[str] | None = None,
+    ) -> list[_QdrantChannelHit]:
+        body = {
+            "query": {"text": query.text, "model": model_id},
+            "using": representation.value,
+            "filter": _query_filter(scope, query, point_ids=point_ids),
+            "limit": self._candidate_top_k if point_ids is None else len(point_ids),
+            "with_payload": True,
+            "with_vector": False,
+        }
+        payload = await self._request(
+            "POST",
+            f"/collections/{self._collection_name}/points/query",
+            json=body,
+        )
+        hits: list[_QdrantChannelHit] = []
+        for rank, point in enumerate(_query_result_points(payload), start=1):
+            card = _card_from_point(point, scope)
+            score = point.get("score") if isinstance(point, Mapping) else None
+            if not isinstance(score, (int, float)):
+                raise QdrantRoutingIndexError("Qdrant query point has no numeric score")
+            point_id = point.get("id") if isinstance(point, Mapping) else None
+            if not isinstance(point_id, (str, int)):
+                raise QdrantRoutingIndexError("Qdrant query point has no supported id")
+            hits.append(_QdrantChannelHit(
+                card=card,
+                point_id=str(point_id),
+                scope=scope,
+                channel=channel,
+                raw_score=float(score),
+                rank=rank,
+            ))
+        return hits
+
+    async def _colbert_rerank(
+        self,
+        query: RoutingQuery,
+        hits_by_card: Mapping[str, Mapping[RoutingEvidenceChannel, _QdrantChannelHit]],
+    ) -> list[_QdrantChannelHit]:
+        if not self._colbert_model_id:
+            return []
+        top_cards = sorted(
+            hits_by_card.values(),
+            key=lambda channel_hits: (-sum(self._rrf(hit.rank) for hit in channel_hits.values()), next(iter(channel_hits.values())).card.card_key),
+        )[:self._rerank_top_k]
+        point_ids_by_scope: dict[str, list[str]] = {}
+        for channel_hits in top_cards:
+            hit = next(iter(channel_hits.values()))
+            point_ids_by_scope.setdefault(hit.scope, []).append(hit.point_id)
+        requests = [
+            self._query_channel(
+                scope,
+                query,
+                RoutingEvidenceChannel.COLBERT,
+                VectorRepresentation.LATE_COLBERT,
+                self._colbert_model_id,
+                point_ids=point_ids,
+            )
+            for scope, point_ids in point_ids_by_scope.items()
+        ]
+        results = await gather(*requests)
+        return [hit for scope_hits in results for hit in scope_hits]
+
+    def _assign_global_channel_ranks(
+        self,
+        hits_by_card: dict[str, dict[RoutingEvidenceChannel, _QdrantChannelHit]],
+    ) -> None:
+        for channel in RoutingEvidenceChannel:
+            channel_hits = [hits[channel] for hits in hits_by_card.values() if channel in hits]
+            for rank, hit in enumerate(sorted(channel_hits, key=lambda item: (-item.raw_score, item.card.card_key)), start=1):
+                hits_by_card[hit.card.card_key][channel] = _QdrantChannelHit(
+                    card=hit.card,
+                    point_id=hit.point_id,
+                    scope=hit.scope,
+                    channel=hit.channel,
+                    raw_score=hit.raw_score,
+                    rank=rank,
+                )
+
+    def _rrf(self, rank: int) -> float:
+        return 1.0 / (self._rrf_k + rank)
+
+    def _semantic_query_enabled(self) -> bool:
+        return bool(self._cloud_inference_enabled and self._e5_model_id and self._bm25_model_id)
+
+    async def _fallback_or_raise(
+        self,
+        query: RoutingQuery,
+        error: QdrantRoutingIndexUnavailable,
+    ) -> list[RoutingSearchResult]:
+        if self._fallback_index is not None:
+            return await self._fallback_index.search(query)
+        raise error
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         response = await self._request_response(method, path, **kwargs)
@@ -396,6 +678,48 @@ def _scope_filter(scope: str, entity_types: set[RoutingEntityType]) -> dict[str,
         entity_type = next(iter(entity_types))
         must.append({"key": "entity_type", "match": {"value": entity_type.value}})
     return {"must": must}
+
+
+def _query_filter(
+    scope: str,
+    query: RoutingQuery,
+    *,
+    point_ids: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    filter_payload = _scope_filter(scope, query.entity_types)
+    must = filter_payload["must"]
+    if not query.include_inactive:
+        must.append({"key": "active", "match": {"value": True}})
+    if point_ids:
+        must.append({"has_id": list(point_ids)})
+    return filter_payload
+
+
+def _query_result_points(payload: Any) -> list[Mapping[str, Any]]:
+    if not isinstance(payload, Mapping):
+        raise QdrantRoutingIndexError("Qdrant query response is not an object")
+    result = payload.get("result")
+    points = result.get("points") if isinstance(result, Mapping) else result
+    if not isinstance(points, list) or not all(isinstance(point, Mapping) for point in points):
+        raise QdrantRoutingIndexError("Qdrant query response has invalid points")
+    return list(points)
+
+
+def _representation_for_channel(channel: RoutingEvidenceChannel) -> VectorRepresentation:
+    representations = {
+        RoutingEvidenceChannel.QDRANT_E5: VectorRepresentation.DENSE_E5,
+        RoutingEvidenceChannel.QDRANT_BM25: VectorRepresentation.SPARSE_BM25,
+        RoutingEvidenceChannel.COLBERT: VectorRepresentation.LATE_COLBERT,
+    }
+    try:
+        return representations[channel]
+    except KeyError as exc:
+        raise ValueError(f"routing channel has no Qdrant representation: {channel.value}") from exc
+
+
+def _clean_model_id(value: str | None) -> str | None:
+    cleaned = value.strip() if isinstance(value, str) else ""
+    return cleaned or None
 
 
 def _card_from_point(point: Any, expected_scope: str) -> RetrievalCard:
