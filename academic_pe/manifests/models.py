@@ -5,6 +5,18 @@ from typing import Any, Dict, List
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class ArtifactRetrievalProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(..., min_length=1)
+    descriptions: Dict[str, List[str]] = Field(default_factory=dict)
+    positive_examples: List[str] = Field(default_factory=list)
+    negative_examples: List[str] = Field(default_factory=list)
+    capabilities: List[str] = Field(default_factory=list)
+    compatible_skills: List[str] = Field(default_factory=list)
+    agent_scope: List[str] = Field(default_factory=list)
+
+
 class ArtifactModeOverlay(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -27,6 +39,7 @@ class ArtifactManifest(BaseModel):
     requirements: Dict[str, Any] = Field(default_factory=dict)
     content_boundaries: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     modes: Dict[str, ArtifactModeOverlay] = Field(default_factory=dict)
+    retrieval: ArtifactRetrievalProfile | None = None
 
     @field_validator("style", "structure", "forbid", mode="before")
     @classmethod

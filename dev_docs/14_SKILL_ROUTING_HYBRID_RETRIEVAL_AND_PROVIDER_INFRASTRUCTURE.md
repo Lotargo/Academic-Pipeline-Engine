@@ -2,8 +2,8 @@
 
 ## Статус
 
-Реализация начата; foundation этапы 1--3 выполнены, retrieval adapters и
-confidence calibration ещё не реализованы.
+Реализация начата; этапы 1--4 и локальная часть `RoutingIndex` выполнены,
+cloud retrieval adapters и confidence calibration ещё не реализованы.
 
 ### Checkpoint (2026-07-12)
 
@@ -19,10 +19,21 @@ confidence calibration ещё не реализованы.
 - `SkillManifest` расширен версиями, examples, compatibility, role scope,
   preconditions, dependencies, conflicts, provides и gates. Добавлены
   валидируемые `SkillPlan`, typed graph edges и детерминированный DAG order.
-- Regression: после усиления semantic edge validation профильный срез —
-  34 passed; итоговый полный Python suite — 639 passed, 3 skipped.
-- Следующий пакет: этапы 4--5 — retrieval cards и `RoutingIndex` с обязательным
-  `InMemoryRoutingIndex`; Qdrant остаётся необязательным adapter-ом.
+- Artifact и skill manifests содержат versioned bilingual retrieval profiles с
+  positive/negative examples, capabilities, compatibility и agent scope.
+  `RetrievalCard` хранит tenant, active state и readiness для `dense_jina`,
+  `dense_e5`, `sparse_bm25` и `late_colbert`; negative examples не попадают в
+  embedding projection и используются только penalty layer.
+- Добавлены adapter-neutral async `RoutingIndex` и обязательный
+  `InMemoryRoutingIndex`. Локальный adapter поддерживает upsert/delete,
+  deterministic lexical search, latest-version semantics, inactive tombstones,
+  tenant override без cross-tenant visibility и safe healthcheck.
+- Regression: профильный routing/manifests/instructions срез — 52 passed;
+  итоговый полный Python suite — 645 passed, 3 skipped.
+- Следующий пакет: cloud-часть этапов 5--7 — Qdrant adapter, named-vector
+  readiness и provider fallback chain. Реальные integration tests остаются
+  заблокированы точными Qdrant model IDs, endpoint и секретами; локальный
+  pipeline не должен зависеть от их наличия.
 
 Документ продолжает решения из документа №13 и фиксирует обсуждение механизма уверенности, режима skills, графовой составляющей, гибридного поиска, Qdrant Cloud, Jina AI, LangSearch, реранкинга, резервных провайдеров, Airflow и хранения секретов.
 

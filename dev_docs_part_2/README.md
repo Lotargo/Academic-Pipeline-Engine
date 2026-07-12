@@ -141,10 +141,12 @@ Core-pipeline задача отмечается завершённой толь�
   приёмку.
 - `CORE-14`, checkpoint (2026-07-12): foundation этапы 1--3 выполнены — добавлены
   universal SecretResolver, typed provider config, `RoutingDecision`,
-  расширенный `SkillManifest`, `SkillPlan` и валидируемый typed DAG. Следующий
-  локально проверяемый пакет — retrieval cards и `RoutingIndex` с
-  `InMemoryRoutingIndex`; cloud adapters по-прежнему не требуют угадывания
-  production-секретов или model IDs.
+  расширенный `SkillManifest`, `SkillPlan` и валидируемый typed DAG. Этап 4 и
+  локальная часть этапа 5 также выполнены: manifests имеют bilingual retrieval
+  profiles, а adapter-neutral `RoutingIndex` и `InMemoryRoutingIndex` покрывают
+  versioning, inactive state, filters и tenant isolation. Следующий пакет —
+  Qdrant/named-vector adapter и provider fallback chain; реальные cloud tests не
+  выполняются без точных model IDs, endpoint и защищённых секретов.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.

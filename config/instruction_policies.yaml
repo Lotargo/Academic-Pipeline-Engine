@@ -3,6 +3,9 @@ skills:
   - skill_id: direct_claims
     version: 1
     description: State claims directly and remove empty announcements.
+    descriptions:
+      en: [Assign each claim to one section and state it without empty announcements.]
+      ru: [Закреплять тезис за одним разделом и формулировать его без пустых вводных фраз.]
     positive_examples: ["State the owned claim before supporting detail."]
     negative_examples: ["This section will discuss the topic."]
     compatible_artifacts: []
@@ -17,6 +20,9 @@ skills:
   - skill_id: source_triangulation
     version: 1
     description: Compare independent sources and surface conflicts.
+    descriptions:
+      en: [Triangulate material claims across independent SourceCards and preserve conflicts.]
+      ru: [Сопоставлять значимые утверждения по независимым SourceCard и фиксировать противоречия.]
     positive_examples: ["Compare independent SourceCards for a material claim."]
     negative_examples: ["Treat repeated copies of one source as independent support."]
     compatible_artifacts: [academic_paper, report, plan_document, technical_readme]
@@ -31,6 +37,9 @@ skills:
   - skill_id: calculation_audit
     version: 1
     description: Keep quantitative reasoning tied to CalculationCards.
+    descriptions:
+      en: [Trace quantitative reasoning, units, and results to CalculationCards.]
+      ru: [Связывать числовые рассуждения, единицы и результаты с CalculationCard.]
     positive_examples: ["Trace a derived total to its CalculationCard and units."]
     negative_examples: ["Recalculate a value silently in prose."]
     compatible_artifacts: [academic_paper, report, plan_document, technical_readme]
@@ -45,6 +54,9 @@ skills:
   - skill_id: concise_technical
     version: 1
     description: Prefer actionable technical prose with bounded examples.
+    descriptions:
+      en: [Write technical prose around concrete inputs, actions, outputs, and constraints.]
+      ru: [Строить технический текст вокруг конкретных входов, действий, результатов и ограничений.]
     positive_examples: ["Name the input, action, output, and constraint."]
     negative_examples: ["Add a generic paragraph about the importance of technology."]
     compatible_artifacts: [technical_readme, report, plan_document]

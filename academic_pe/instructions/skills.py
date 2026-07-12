@@ -14,6 +14,7 @@ class SkillManifest(BaseModel):
     skill_id: str = Field(..., pattern=r"^[a-z][a-z0-9_.-]*$")
     version: int = Field(default=1, ge=1)
     description: str = Field(..., min_length=1)
+    descriptions: dict[str, list[str]] = Field(default_factory=dict)
     positive_examples: list[str] = Field(default_factory=list)
     negative_examples: list[str] = Field(default_factory=list)
     compatible_artifacts: list[str] = Field(default_factory=list)

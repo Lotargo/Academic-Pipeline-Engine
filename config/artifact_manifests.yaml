@@ -3,6 +3,16 @@ artifacts:
     version: 1
     artifact_type: creative_poem
     description: Lyrical or narrative poetry.
+    retrieval:
+      title: Creative poem
+      descriptions:
+        en: [Poetry organized as lines or stanzas, including lyrical verse.]
+        ru: [Стихотворный текст, лирика или поэтическое произведение со строками и строфами.]
+      positive_examples: [write a poem, сочинить стихотворение]
+      negative_examples: [research paper, техническая инструкция]
+      capabilities: [poetic_composition, stanza_structure]
+      compatible_skills: []
+      agent_scope: [planner, writer, editorial_reviewer]
     style: [creative, human, natural]
     audience: general
     structure: [lines, stanzas]
@@ -16,6 +26,16 @@ artifacts:
     version: 1
     artifact_type: creative_story
     description: Fiction, fairy tale, or narrative prose.
+    retrieval:
+      title: Creative story
+      descriptions:
+        en: [Fictional narrative with scenes, characters, or a story arc.]
+        ru: [Художественный рассказ, сказка или повествование с персонажами и сюжетом.]
+      positive_examples: [write a short story, написать сказку]
+      negative_examples: [analytical report, план проекта]
+      capabilities: [narrative_composition, scene_structure]
+      compatible_skills: []
+      agent_scope: [planner, writer, editorial_reviewer]
     style: [narrative, human, natural]
     audience: general
     structure: [scene, conflict, resolution]
@@ -29,6 +49,16 @@ artifacts:
     version: 1
     artifact_type: school_essay
     description: School composition or age-appropriate essay.
+    retrieval:
+      title: School essay
+      descriptions:
+        en: [Age-appropriate school composition or classroom essay.]
+        ru: [Школьное сочинение или эссе с понятной возрастной аргументацией.]
+      positive_examples: [school essay, школьное сочинение]
+      negative_examples: [peer-reviewed paper, API reference]
+      capabilities: [age_appropriate_argumentation]
+      compatible_skills: [direct_claims]
+      agent_scope: [planner, writer, editorial_reviewer]
     style: [clear, age_appropriate, natural]
     audience: school
     structure: [introduction, body, conclusion]
@@ -43,6 +73,16 @@ artifacts:
     version: 1
     artifact_type: academic_paper
     description: Research-style academic document.
+    retrieval:
+      title: Academic paper
+      descriptions:
+        en: [Research-oriented document with explicit evidence and analytical structure.]
+        ru: [Академическая или научная работа с источниками, методологией и анализом.]
+      positive_examples: [research paper with citations, научная статья с методологией]
+      negative_examples: [poem, рекламный текст]
+      capabilities: [evidence_synthesis, academic_argumentation, calculation_support]
+      compatible_skills: [direct_claims, source_triangulation, calculation_audit]
+      agent_scope: [planner, researcher, writer, evidence_reviewer, editorial_reviewer]
     style: [formal, analytical, precise]
     audience: academic
     structure: [introduction, method, analysis, conclusion]
@@ -58,6 +98,16 @@ artifacts:
     version: 1
     artifact_type: technical_readme
     description: Practical technical README.
+    retrieval:
+      title: Technical README
+      descriptions:
+        en: [Developer documentation covering installation, usage, configuration, or API behavior.]
+        ru: [Техническая документация проекта с установкой, использованием и настройкой.]
+      positive_examples: [README with installation and usage, инструкция по настройке API]
+      negative_examples: [fictional story, литературное сочинение]
+      capabilities: [technical_documentation, reproducible_instructions]
+      compatible_skills: [direct_claims, concise_technical, source_triangulation]
+      agent_scope: [planner, researcher, writer, editorial_reviewer]
     style: [practical, concrete, concise]
     audience: developers
     structure: [overview, installation, usage, configuration]
@@ -72,6 +122,16 @@ artifacts:
     version: 1
     artifact_type: plan_document
     description: Plan, roadmap, or execution document.
+    retrieval:
+      title: Plan or roadmap
+      descriptions:
+        en: [Execution-oriented plan with tasks, milestones, dependencies, and risks.]
+        ru: [План работ, дорожная карта или список этапов с зависимостями и рисками.]
+      positive_examples: [project roadmap, план реализации]
+      negative_examples: [lyrical poem, обзор литературы]
+      capabilities: [task_planning, dependency_mapping, risk_tracking]
+      compatible_skills: [direct_claims, concise_technical, calculation_audit]
+      agent_scope: [planner, writer, editorial_reviewer]
     style: [actionable, structured, concise]
     audience: general
     structure: [goal, tasks, milestones, risks]
@@ -86,6 +146,16 @@ artifacts:
     version: 1
     artifact_type: report
     description: Informational or analytical report.
+    retrieval:
+      title: Analytical report
+      descriptions:
+        en: [Informational or analytical report organized around findings and implications.]
+        ru: [Информационный или аналитический отчёт с выводами и подтверждающими данными.]
+      positive_examples: [analytical report with findings, отчёт по результатам]
+      negative_examples: [fairy tale, стихотворение]
+      capabilities: [evidence_synthesis, findings_reporting, calculation_support]
+      compatible_skills: [direct_claims, source_triangulation, calculation_audit, concise_technical]
+      agent_scope: [planner, researcher, writer, evidence_reviewer, editorial_reviewer]
     style: [clear, structured, evidence_aware]
     audience: general
     structure: [summary, findings, implications]
@@ -100,6 +170,16 @@ artifacts:
     version: 1
     artifact_type: continuation_source
     description: Existing artifact being continued or revised.
+    retrieval:
+      title: Existing document continuation
+      descriptions:
+        en: [Continuation or revision that preserves the source artifact's voice and structure.]
+        ru: [Продолжение или правка существующего документа с сохранением его стиля и структуры.]
+      positive_examples: [continue this document, продолжи в том же стиле]
+      negative_examples: [replace with a new genre, перепиши как научную статью без запроса]
+      capabilities: [style_preservation, structure_preservation]
+      compatible_skills: [direct_claims]
+      agent_scope: [planner, writer, editorial_reviewer]
     style: [preserve_source_style]
     audience: preserve_source_audience
     structure: [preserve_source_structure]
@@ -113,6 +193,16 @@ artifacts:
     version: 1
     artifact_type: unknown_freeform
     description: Preserve-first fallback for unknown or niche artifact requests.
+    retrieval:
+      title: Unknown freeform artifact
+      descriptions:
+        en: [Preserve-first fallback when no known artifact type has adequate evidence.]
+        ru: [Режим сохранения пользовательского замысла, когда тип документа нельзя уверенно определить.]
+      positive_examples: [preserve this unusual structure, сохрани заданную необычную форму]
+      negative_examples: [force academic structure, добавить стандартные разделы без запроса]
+      capabilities: [intent_preservation, ambiguity_escalation]
+      compatible_skills: [direct_claims]
+      agent_scope: [planner, writer, editorial_reviewer]
     style: [preserve_user_intent, natural]
     audience: general
     structure: [preserve_apparent_structure]
