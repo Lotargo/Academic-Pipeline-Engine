@@ -1,22 +1,58 @@
 version: 1
 skills:
   - skill_id: direct_claims
+    version: 1
     description: State claims directly and remove empty announcements.
+    positive_examples: ["State the owned claim before supporting detail."]
+    negative_examples: ["This section will discuss the topic."]
+    compatible_artifacts: []
+    preconditions: []
+    requires: []
+    provides: [direct_claim_structure]
+    conflicts_with: []
+    verified_by: [editorial_integrity]
     fragments:
       writer: "State the owned claim directly. Remove sentences that only announce upcoming content."
       editorial_reviewer: "Flag announcements without content and conclusions repeated from section openings."
   - skill_id: source_triangulation
+    version: 1
     description: Compare independent sources and surface conflicts.
+    positive_examples: ["Compare independent SourceCards for a material claim."]
+    negative_examples: ["Treat repeated copies of one source as independent support."]
+    compatible_artifacts: [academic_paper, report, plan_document, technical_readme]
+    preconditions: [external_evidence_required]
+    requires: [source_cards]
+    provides: [triangulated_evidence]
+    conflicts_with: []
+    verified_by: [evidence_integrity]
     fragments:
       researcher: "For material claims, compare independent sources when available and record conflicts on SourceCards."
       evidence_reviewer: "Check whether material conflicts between SourceCards were disclosed and resolved conservatively."
   - skill_id: calculation_audit
+    version: 1
     description: Keep quantitative reasoning tied to CalculationCards.
+    positive_examples: ["Trace a derived total to its CalculationCard and units."]
+    negative_examples: ["Recalculate a value silently in prose."]
+    compatible_artifacts: [academic_paper, report, plan_document, technical_readme]
+    preconditions: [numeric_claims_present]
+    requires: [calculation_ledger]
+    provides: [validated_calculations]
+    conflicts_with: []
+    verified_by: [calculation_integrity]
     fragments:
       writer: "Use only assigned CalculationCards for quantitative results and preserve their units."
       evidence_reviewer: "Trace external numbers and derived results to the assigned SourceCards or CalculationCards."
   - skill_id: concise_technical
+    version: 1
     description: Prefer actionable technical prose with bounded examples.
+    positive_examples: ["Name the input, action, output, and constraint."]
+    negative_examples: ["Add a generic paragraph about the importance of technology."]
+    compatible_artifacts: [technical_readme, report, plan_document]
+    preconditions: []
+    requires: []
+    provides: [concise_technical_prose]
+    conflicts_with: []
+    verified_by: [editorial_integrity]
     fragments:
       writer: "Prefer concrete actions, inputs, outputs, and constraints; omit generic importance statements."
       editorial_reviewer: "Flag generic significance prose and examples that do not clarify an action or constraint."

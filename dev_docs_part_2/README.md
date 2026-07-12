@@ -139,9 +139,12 @@ Core-pipeline задача отмечается завершённой толь�
   незавершённой и не отмечается `[x]` до стабилизации `CORE-15` и `CORE-14`,
   после которых optional revision flow должен пройти итоговую интеграционную
   приёмку.
-- `CORE-14`: prerequisite `InstructionCompiler` из завершённого `CORE-15`
-  доступен. Можно реализовывать typed routing graph, skill selection, retrieval
-  interfaces, локальные adapters и contract tests без production-секретов.
+- `CORE-14`, checkpoint (2026-07-12): foundation этапы 1--3 выполнены — добавлены
+  universal SecretResolver, typed provider config, `RoutingDecision`,
+  расширенный `SkillManifest`, `SkillPlan` и валидируемый typed DAG. Следующий
+  локально проверяемый пакет — retrieval cards и `RoutingIndex` с
+  `InMemoryRoutingIndex`; cloud adapters по-прежнему не требуют угадывания
+  production-секретов или model IDs.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.

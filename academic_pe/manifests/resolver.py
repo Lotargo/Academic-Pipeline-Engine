@@ -10,9 +10,20 @@ from academic_pe.manifests.evidence import ManifestSelectionEvidence
 from academic_pe.manifests.fallback import fallback_evidence, select_fallback_manifest
 from academic_pe.manifests.loader import ArtifactManifestLoader
 from academic_pe.manifests.models import ArtifactManifest
+from academic_pe.routing.models import ArtifactCandidate, RoutingDecision
 
 
 DEFAULT_ARTIFACT_MANIFEST_PATH = Path("config/artifact_manifests.yaml")
+
+_ARTIFACT_CUES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("technical_readme", ("readme", "installation", "install", "usage", "configuration", "api docs")),
+    ("creative_poem", ("poem", "poetry", "stanza", "verse", "стих", "стихотвор")),
+    ("creative_story", ("story", "fairy tale", "fiction", "narrative", "сказк", "рассказ")),
+    ("school_essay", ("school essay", "composition", "сочинение", "school-level", "for grade")),
+    ("academic_paper", ("academic paper", "research paper", "scientific paper", "methodology", "citation")),
+    ("plan_document", ("plan", "roadmap", "sprint", "milestone", "tasks", "план")),
+    ("report", ("report", "findings", "отчет", "отчёт")),
+)
 
 
 class ResolvedArtifactManifest:
@@ -22,11 +33,13 @@ class ResolvedArtifactManifest:
         contract: ArtifactContract,
         evidence: ManifestSelectionEvidence,
         contract_sexpr: str,
+        routing_decision: RoutingDecision,
     ):
         self.manifest = manifest
         self.contract = contract
         self.evidence = evidence
         self.contract_sexpr = contract_sexpr
+        self.routing_decision = routing_decision
 
     def metadata(self) -> dict:
         return {
@@ -34,6 +47,7 @@ class ResolvedArtifactManifest:
             "resolved_contract": self.contract.model_dump(mode="json"),
             "contract_sexpr": self.contract_sexpr,
             "manifest_selection": self.evidence.model_dump(mode="json"),
+            "routing_decision": self.routing_decision.model_dump(mode="json"),
             "decision_summary": self.decision_summary(),
         }
 
@@ -209,6 +223,14 @@ class ArtifactManifestResolver:
             contract=contract,
             evidence=evidence,
             contract_sexpr=render_contract_sexpr(contract),
+            routing_decision=self._routing_decision(
+                manifests,
+                topic,
+                instructions,
+                manifest,
+                evidence,
+                explicit_override=bool(artifact_override and artifact_override in manifests),
+            ),
         )
 
     def _load_manifests(self) -> Dict[str, ArtifactManifest]:
@@ -224,18 +246,8 @@ class ArtifactManifestResolver:
         instructions: str,
     ) -> tuple[ArtifactManifest, ManifestSelectionEvidence]:
         text = f"{topic}\n{instructions}".casefold()
-        candidates = [
-            ("technical_readme", ["readme", "installation", "install", "usage", "configuration", "api docs"]),
-            ("creative_poem", ["poem", "poetry", "stanza", "verse", "стих", "стихотвор"]),
-            ("creative_story", ["story", "fairy tale", "fiction", "narrative", "сказк", "рассказ"]),
-            ("school_essay", ["school essay", "composition", "сочинение", "school-level", "for grade"]),
-            ("academic_paper", ["academic paper", "research paper", "scientific paper", "methodology", "citation"]),
-            ("plan_document", ["plan", "roadmap", "sprint", "milestone", "tasks", "план"]),
-            ("report", ["report", "findings", "отчет", "отчёт"]),
-        ]
-
         scored: list[tuple[str, list[str]]] = []
-        for manifest_id, phrases in candidates:
+        for manifest_id, phrases in _ARTIFACT_CUES:
             if manifest_id not in manifests:
                 continue
             matches = [phrase for phrase in phrases if phrase in text]
@@ -261,6 +273,60 @@ class ArtifactManifestResolver:
 
         fallback = self._fallback_manifest(manifests)
         return fallback, fallback_evidence(fallback)
+
+    def _routing_decision(
+        self,
+        manifests: Dict[str, ArtifactManifest],
+        topic: str,
+        instructions: str,
+        selected_manifest: ArtifactManifest,
+        evidence: ManifestSelectionEvidence,
+        *,
+        explicit_override: bool,
+    ) -> RoutingDecision:
+        text = f"{topic}\n{instructions}".casefold()
+        candidates: list[ArtifactCandidate] = []
+        for manifest_id, phrases in _ARTIFACT_CUES:
+            if manifest_id not in manifests:
+                continue
+            matches = [phrase for phrase in phrases if phrase in text]
+            if matches:
+                candidates.append(ArtifactCandidate(
+                    artifact_id=manifest_id,
+                    routing_score=min(0.95, 0.55 + (0.15 * len(matches))),
+                    matched_cues=matches,
+                    reasons=[f"matched {len(matches)} lexical cue(s)"],
+                ))
+
+        if explicit_override:
+            candidates = [candidate for candidate in candidates if candidate.artifact_id != selected_manifest.id]
+            candidates.append(ArtifactCandidate(
+                artifact_id=selected_manifest.id,
+                routing_score=1.0,
+                matched_cues=["user override"],
+                reasons=["explicit artifact override"],
+            ))
+        elif selected_manifest.id not in {candidate.artifact_id for candidate in candidates}:
+            candidates.append(ArtifactCandidate(
+                artifact_id=selected_manifest.id,
+                routing_score=evidence.confidence,
+                matched_cues=list(evidence.matched_phrases),
+                reasons=["selected by override, continuation inheritance, or preserve-first fallback"],
+            ))
+
+        return RoutingDecision.from_candidates(
+            candidates,
+            selected_artifact_id=selected_manifest.id,
+            cue_coverage=min(1.0, len(evidence.matched_phrases) / 4),
+            skill_coverage=1.0,
+            conflict_score=0.5 if evidence.ambiguity_notes else 0.0,
+            channel_agreement=1.0,
+            fallback_depth=0 if explicit_override else 3,
+            active_retrieval_path="explicit_override" if explicit_override else "local_rules_only",
+            reasons=["legacy lexical router represented as typed routing evidence"],
+            ambiguity_notes=list(evidence.ambiguity_notes),
+            explicit_override=explicit_override,
+        )
 
     def _fallback_manifest(self, manifests: Dict[str, ArtifactManifest]) -> ArtifactManifest:
         return select_fallback_manifest(manifests)

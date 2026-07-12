@@ -1,0 +1,21 @@
+schema_version: 1
+routing:
+  collection_name: routing_knowledge
+  candidate_top_k: 20
+  rerank_top_k: 8
+  timeout_seconds: 15
+  max_retries: 2
+  fusion: reciprocal_rank
+
+providers:
+  jina:
+    dense_model: jina-embeddings-v5-text-nano
+    challenger_dense_model: jina-embeddings-v5-text-small
+    web_reranker_model: jina-reranker-v3
+  qdrant:
+    multilingual_dense_model_id: null
+    sparse_model_id: null
+    late_interaction_model_id: null
+  langsearch:
+    web_search_enabled: true
+    fallback_reranker_model_id: null

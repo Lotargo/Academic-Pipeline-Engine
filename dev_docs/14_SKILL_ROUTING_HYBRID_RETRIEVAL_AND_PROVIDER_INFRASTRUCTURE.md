@@ -2,7 +2,27 @@
 
 ## Статус
 
-Архитектурная заметка и план будущих изменений.
+Реализация начата; foundation этапы 1--3 выполнены, retrieval adapters и
+confidence calibration ещё не реализованы.
+
+### Checkpoint (2026-07-12)
+
+- Добавлены типизированный `config/providers.yaml` и безопасный
+  `config/secrets.example.json`. Неизвестные Qdrant inference model IDs оставлены
+  пустыми до проверки через реальный UI/API.
+- `SecretResolver` использует приоритет environment -> local JSON -> missing,
+  принимает стандартные имена секретов и сохраняет compatibility API старых
+  provider IDs.
+- Введён отдельный artifact/skill `RoutingDecision` с candidates, margin,
+  coverage, fallback depth и confidence bands. Legacy lexical resolver публикует
+  его в metadata как `local_rules_only`, не меняя пока orchestration policy.
+- `SkillManifest` расширен версиями, examples, compatibility, role scope,
+  preconditions, dependencies, conflicts, provides и gates. Добавлены
+  валидируемые `SkillPlan`, typed graph edges и детерминированный DAG order.
+- Regression: после усиления semantic edge validation профильный срез —
+  34 passed; итоговый полный Python suite — 639 passed, 3 skipped.
+- Следующий пакет: этапы 4--5 — retrieval cards и `RoutingIndex` с обязательным
+  `InMemoryRoutingIndex`; Qdrant остаётся необязательным adapter-ом.
 
 Документ продолжает решения из документа №13 и фиксирует обсуждение механизма уверенности, режима skills, графовой составляющей, гибридного поиска, Qdrant Cloud, Jina AI, LangSearch, реранкинга, резервных провайдеров, Airflow и хранения секретов.
 

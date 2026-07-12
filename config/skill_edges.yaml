@@ -1,0 +1,17 @@
+schema_version: 1
+edges:
+  - source: skill:source_triangulation
+    relation: requires
+    target: capability:source_cards
+  - source: skill:source_triangulation
+    relation: verified_by
+    target: gate:evidence_integrity
+  - source: skill:calculation_audit
+    relation: requires
+    target: capability:calculation_ledger
+  - source: skill:calculation_audit
+    relation: verified_by
+    target: gate:calculation_integrity
+  - source: skill:direct_claims
+    relation: verified_by
+    target: gate:editorial_integrity
