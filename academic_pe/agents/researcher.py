@@ -10,6 +10,7 @@ from academic_pe.agents.base import BaseAgent, StreamCallback
 from academic_pe.core.llm import _call_provider_generate
 from academic_pe.core.document_ledger import SourceCard
 from academic_pe.core.researcher import load_research_findings, run_researcher_pool
+from academic_pe.routing import JinaClient, LangSearchClient, ProviderInfrastructureConfig
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,13 @@ class ResearcherAgent(BaseAgent):
         clean_queries = [q.strip() for q in queries if str(q).strip()]
         if not clean_queries:
             return ""
-        raw_results = run_researcher_pool(clean_queries, run_dir)
+        web_search_client, reranker = _configured_web_research_clients()
+        raw_results = run_researcher_pool(
+            clean_queries,
+            run_dir,
+            web_search_client=web_search_client,
+            reranker=reranker,
+        )
         findings = load_research_findings(run_dir)
         provider = str(getattr(self.config.provider, "value", self.config.provider))
         if provider == "mock" and isinstance(raw_results, list):
@@ -120,6 +127,20 @@ class ResearcherAgent(BaseAgent):
         if on_delta and findings:
             on_delta(findings)
         return findings
+
+
+def _configured_web_research_clients() -> tuple[LangSearchClient | None, JinaClient | None]:
+    try:
+        configuration = ProviderInfrastructureConfig.from_yaml()
+        langsearch = LangSearchClient.from_provider_config(configuration)
+    except (OSError, ValueError) as exc:
+        logger.info("LangSearch is unavailable; Researcher will use its local fallback. Error: %s", exc)
+        return None, None
+    try:
+        return langsearch, JinaClient.from_provider_config(configuration)
+    except (OSError, ValueError) as exc:
+        logger.info("Jina reranker is unavailable; retaining LangSearch order. Error: %s", exc)
+        return langsearch, None
 
 
 def _parse_research_curation(value: str) -> Optional[ResearchCuration]:

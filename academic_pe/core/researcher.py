@@ -1,3 +1,4 @@
+import asyncio
 import os
 import urllib.parse
 import requests
@@ -7,6 +8,8 @@ import time
 import json
 import logging
 import re
+
+from academic_pe.routing.retrieval import JinaClient, LangSearchClient, RetrievalProviderError, WebSearchHit
 
 logger = logging.getLogger(__name__)
 
@@ -201,14 +204,22 @@ def _get_with_retries(
 
 
 class Researcher:
-    def __init__(self, run_dir: str):
+    def __init__(
+        self,
+        run_dir: str,
+        *,
+        web_search_client: LangSearchClient | None = None,
+        reranker: JinaClient | None = None,
+    ):
         self.run_dir = run_dir
         self.research_dir = os.path.join(run_dir, "research")
         os.makedirs(self.research_dir, exist_ok=True)
+        self.web_search_client = web_search_client
+        self.reranker = reranker
 
     def search_and_crawl(self, query: str, idx: int) -> dict:
         """
-        Run DuckDuckGo search for a query, crawl top 3 matches, and write findings to a file.
+        Search with LangSearch when configured, otherwise DuckDuckGo; crawl the top matches.
         """
         logger.info("Researcher searching for query: '%s'", query)
 
@@ -217,36 +228,9 @@ class Researcher:
         # Add a polite delay to respect the site's rate limits
         time.sleep(1.0)
 
-        results = []
-        try:
-            url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
-            res = _get_with_retries(url, headers=headers, timeout=15, attempts=3)
-            if res.ok and not _is_probably_blocked_response(res):
-                soup = BeautifulSoup(res.text, "html.parser")
-                for result_div in soup.find_all("div", class_=lambda x: x and "result" in x):
-                    if "results_links" not in result_div.get("class", []):
-                        continue
-                    result_a = result_div.find("a", class_="result__a")
-                    display_url_a = result_div.find("a", class_="result__url")
-                    snippet_a = result_div.find("a", class_="result__snippet")
-                    link_a = result_a or display_url_a
-                    if link_a:
-                        title = (result_a or link_a).get_text(strip=True)
-                        href = link_a.get("href", "")
-                        actual_url = _resolve_duckduckgo_url(href)
-                        if not actual_url.startswith(("http://", "https://")):
-                            continue
-
-                        snippet = snippet_a.get_text(strip=True) if snippet_a else ""
-                        results.append({
-                            "title": title,
-                            "url": actual_url,
-                            "snippet": snippet
-                        })
-                        if len(results) >= 3:  # crawl top 3 matches
-                            break
-        except Exception as e:
-            logger.error("DuckDuckGo search failed for '%s': %s", query, e)
+        results = self._search_with_configured_providers(query)
+        if not results:
+            results = _search_duckduckgo(query, headers=headers)
 
         # Crawl top matches in this query.
         findings = []
@@ -288,12 +272,58 @@ class Researcher:
             "results": findings
         }
 
+    def _search_with_configured_providers(self, query: str) -> list[dict]:
+        if self.web_search_client is None:
+            return []
+        try:
+            hits = asyncio.run(self.web_search_client.search(query, count=10))
+        except (RetrievalProviderError, ValueError) as exc:
+            logger.warning("LangSearch failed for '%s'; using local fallback. Error: %s", query, exc)
+            return []
+        if not hits:
+            return []
 
-def run_researcher_pool(queries: list[str], run_dir: str) -> list[dict]:
+        ranked_hits = self._rerank_hits(query, hits)
+        return [
+            {
+                "title": hit.title,
+                "url": hit.url,
+                "snippet": hit.summary or hit.snippet,
+            }
+            for hit in ranked_hits[:3]
+        ]
+
+    def _rerank_hits(self, query: str, hits: list[WebSearchHit]) -> list[WebSearchHit]:
+        if self.reranker is None:
+            return hits
+        try:
+            ranked = asyncio.run(self.reranker.rerank(
+                query,
+                [hit.rerank_text for hit in hits],
+                top_n=min(3, len(hits)),
+            ))
+        except (RetrievalProviderError, ValueError) as exc:
+            logger.warning("Jina rerank failed for '%s'; preserving LangSearch order. Error: %s", query, exc)
+            return hits
+        selected = [hits[result.index] for result in ranked if result.index < len(hits)]
+        return selected or hits
+
+
+def run_researcher_pool(
+    queries: list[str],
+    run_dir: str,
+    *,
+    web_search_client: LangSearchClient | None = None,
+    reranker: JinaClient | None = None,
+) -> list[dict]:
     """
     Spawns a pool of parallel search agents to search and crawl websites.
     """
-    researcher = Researcher(run_dir)
+    researcher = Researcher(
+        run_dir,
+        web_search_client=web_search_client,
+        reranker=reranker,
+    )
     results = []
     # Spawn thread pool to run parallel queries
     with ThreadPoolExecutor(max_workers=min(3, len(queries) or 1)) as executor:
@@ -305,6 +335,39 @@ def run_researcher_pool(queries: list[str], run_dir: str) -> list[dict]:
                 results.append(data)
             except Exception as e:
                 logger.error("Researcher worker failed for query '%s': %s", q, e)
+    return results
+
+
+def _search_duckduckgo(query: str, *, headers: dict) -> list[dict]:
+    results = []
+    try:
+        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
+        res = _get_with_retries(url, headers=headers, timeout=15, attempts=3)
+        if res.ok and not _is_probably_blocked_response(res):
+            soup = BeautifulSoup(res.text, "html.parser")
+            for result_div in soup.find_all("div", class_=lambda x: x and "result" in x):
+                if "results_links" not in result_div.get("class", []):
+                    continue
+                result_a = result_div.find("a", class_="result__a")
+                display_url_a = result_div.find("a", class_="result__url")
+                snippet_a = result_div.find("a", class_="result__snippet")
+                link_a = result_a or display_url_a
+                if link_a:
+                    title = (result_a or link_a).get_text(strip=True)
+                    href = link_a.get("href", "")
+                    actual_url = _resolve_duckduckgo_url(href)
+                    if not actual_url.startswith(("http://", "https://")):
+                        continue
+
+                    results.append({
+                        "title": title,
+                        "url": actual_url,
+                        "snippet": snippet_a.get_text(strip=True) if snippet_a else "",
+                    })
+                    if len(results) >= 3:
+                        break
+    except Exception as exc:
+        logger.error("DuckDuckGo search failed for '%s': %s", query, exc)
     return results
 
 

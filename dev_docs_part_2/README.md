@@ -139,14 +139,23 @@ Core-pipeline задача отмечается завершённой толь�
   незавершённой и не отмечается `[x]` до стабилизации `CORE-15` и `CORE-14`,
   после которых optional revision flow должен пройти итоговую интеграционную
   приёмку.
-- `CORE-14`, checkpoint (2026-07-12): foundation этапы 1--3 выполнены — добавлены
+- `CORE-14`, checkpoint (2026-07-13): foundation этапы 1--3 выполнены — добавлены
   universal SecretResolver, typed provider config, `RoutingDecision`,
   расширенный `SkillManifest`, `SkillPlan` и валидируемый typed DAG. Этап 4 и
   локальная часть этапа 5 также выполнены: manifests имеют bilingual retrieval
   profiles, а adapter-neutral `RoutingIndex` и `InMemoryRoutingIndex` покрывают
-  versioning, inactive state, filters и tenant isolation. Следующий пакет —
-  Qdrant/named-vector adapter и provider fallback chain; реальные cloud tests не
-  выполняются без точных model IDs, endpoint и защищённых секретов.
+  versioning, inactive state, filters и tenant isolation. Offline-safe cloud
+  фундамент этапов 5--7 также готов: `QdrantRoutingIndex` использует
+  deterministic UUID, payload cards и отдельные global/tenant scopes;
+  `QdrantRoutingRecord` запрещает readiness без реально переданных named
+  vectors; `RoutingFallbackPolicy` детерминированно выбирает Jina+BM25,
+  E5+BM25, BM25+local rules или local rules only. `routing_knowledge` создана
+  с E5/BM25/ColBERT named representations и tenant filter indexes; live smoke
+  LangSearch, Jina embeddings/rerank и Qdrant Cloud upload/query прошёл с
+  cleanup временного point. `ResearcherAgent` теперь использует LangSearch и
+  Jina reranker с safe legacy fallback. Незавершённый объём CORE-14 — semantic
+  query/fusion в публичном routing path, benchmark и confidence calibration;
+  локальный pipeline от cloud providers не зависит.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.
@@ -159,9 +168,9 @@ Core-pipeline задача отмечается завершённой толь�
 - `FE-06` зависит от `PL-03`. Audit/health views и их e2e-проверки нельзя
   считать готовыми, пока нет schema audit-событий, correlation IDs и безопасных
   health/metrics endpoints.
-- `CORE-14` нельзя завершить без реальных интеграционных проверок, требующих
-  точных model IDs и секретов Qdrant, Jina и LangSearch; их нельзя угадывать
-  или записывать в репозиторий.
+- `CORE-14` нельзя завершить до подключения semantic Qdrant query, rank fusion,
+  graph penalties и confidence calibration к публичному routing path. Базовые
+  cloud integration smoke уже пройдены с защищёнными секретами.
 - Optional revision flow из `CORE-13` завершается только после стабилизации
   routing и instruction bundles из `CORE-14`/`CORE-15`.
 - `PL-02` нельзя завершить до `PL-01` и выбора/подключения production

@@ -24,21 +24,29 @@ class JinaSettings(BaseModel):
     dense_model: str = Field(..., min_length=1)
     challenger_dense_model: str | None = None
     web_reranker_model: str = Field(..., min_length=1)
+    api_base_url: str = "https://api.jina.ai"
 
 
 class QdrantSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    url: str | None = None
+    cluster_id: str | None = None
+    cloud_inference_enabled: bool = False
     multilingual_dense_model_id: str | None = None
+    multilingual_dense_vector_size: int = Field(default=384, ge=1)
     sparse_model_id: str | None = None
     late_interaction_model_id: str | None = None
+    late_interaction_vector_size: int = Field(default=96, ge=1)
 
 
 class LangSearchSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     web_search_enabled: bool = True
-    fallback_reranker_model_id: str | None = None
+    api_base_url: str = "https://api.langsearch.com"
+    fallback_reranker_model_id: str | None = "langsearch-reranker-v1"
+    default_freshness: Literal["oneDay", "oneWeek", "oneMonth", "oneYear", "noLimit"] = "noLimit"
 
 
 class RetrievalProviderSettings(BaseModel):

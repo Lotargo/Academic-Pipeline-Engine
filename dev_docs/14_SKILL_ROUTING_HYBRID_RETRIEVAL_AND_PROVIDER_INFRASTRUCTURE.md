@@ -2,14 +2,15 @@
 
 ## Статус
 
-Реализация начата; этапы 1--4 и локальная часть `RoutingIndex` выполнены,
-cloud retrieval adapters и confidence calibration ещё не реализованы.
+Реализация начата; этапы 1--4 и Cloud/provider foundations этапов 5--7
+выполнены. Semantic Qdrant search в основном routing path, rank fusion,
+ColBERT second-stage query и confidence calibration ещё не реализованы.
 
-### Checkpoint (2026-07-12)
+### Checkpoint (2026-07-13)
 
 - Добавлены типизированный `config/providers.yaml` и безопасный
-  `config/secrets.example.json`. Неизвестные Qdrant inference model IDs оставлены
-  пустыми до проверки через реальный UI/API.
+  `config/secrets.example.json`. Проверенные Qdrant Cloud Inference model IDs
+  закреплены для E5, BM25 и ColBERT.
 - `SecretResolver` использует приоритет environment -> local JSON -> missing,
   принимает стандартные имена секретов и сохраняет compatibility API старых
   provider IDs.
@@ -28,12 +29,44 @@ cloud retrieval adapters и confidence calibration ещё не реализов�
   `InMemoryRoutingIndex`. Локальный adapter поддерживает upsert/delete,
   deterministic lexical search, latest-version semantics, inactive tombstones,
   tenant override без cross-tenant visibility и safe healthcheck.
-- Regression: профильный routing/manifests/instructions срез — 52 passed;
-  итоговый полный Python suite — 645 passed, 3 skipped.
-- Следующий пакет: cloud-часть этапов 5--7 — Qdrant adapter, named-vector
-  readiness и provider fallback chain. Реальные integration tests остаются
-  заблокированы точными Qdrant model IDs, endpoint и секретами; локальный
-  pipeline не должен зависеть от их наличия.
+- Добавлены `QdrantRoutingIndex` и `QdrantRoutingRecord`: cloud projection
+  использует deterministic UUID, Qdrant payload для всей versioned card и
+  отдельный `scope` filter для global/tenant данных. Запрос tenant получает
+  только global scope и свой scope; сторонние tenants не читаются. До проверки
+  model IDs card-only projection повторяет deterministic local scoring,
+  поэтому генерация по-прежнему не зависит от Qdrant.
+- Named vectors разрешены только через `QdrantRoutingRecord`; его readiness
+  обязана в точности совпадать с реально переданными `dense_jina`, `dense_e5`,
+  `sparse_bm25` и `late_colbert` representations. Adapter не угадывает model
+  IDs; Qdrant Cloud Document inputs передаются только с уже проверенными IDs.
+- `RoutingFallbackPolicy` выбирает документированные depth 0--3 только когда
+  все active cards готовы к соответствующему vector channel: Jina+BM25,
+  E5+BM25, BM25+local rules или local rules only с обязательным Planner.
+- Runtime configuration нормализована: `config/secrets.json` использует
+  стандартные secret names, а `providers.yaml` хранит Qdrant endpoint, cluster
+  ID, Cloud Inference flag и подтверждённые model IDs:
+  `intfloat/multilingual-e5-small`, `qdrant/bm25` и
+  `answerdotai/answerai-colbert-small-v1`. Live Cloud Inference показал, что
+  ColBERT output имеет 96 dimensions; это значение фиксируется в schema вместо
+  generic 128. Секреты не дублируются в provider config.
+  `QdrantRoutingIndex.from_provider_config()` получает URL и collection из
+  typed config, а ключ — только через `SecretResolver`.
+- `routing_knowledge` provisioned idempotently с `dense_e5` (384, Cosine),
+  `sparse_bm25`, `late_colbert` (96, Cosine, MaxSim, HNSW disabled) и indexes
+  `scope`, `entity_type`, `entity_id`, `active`. Первый generic ColBERT размер
+  128 был отклонён Cloud Inference; пустая collection была безопасно пересоздана
+  с подтверждённой размерностью 96. Временный smoke point после проверки удалён.
+- `LangSearchClient` реализует Web Search; `JinaClient` реализует embeddings и
+  rerank. `ResearcherAgent` использует LangSearch -> Jina rerank -> top URLs ->
+  existing fetch/read stage; при provider error сохраняется legacy DuckDuckGo
+  fallback, а при ошибке Jina — порядок LangSearch.
+- Live smoke: LangSearch search, Jina embeddings/rerank, Qdrant Cloud
+  inference upload с E5/BM25/ColBERT и E5 query прошли.
+- Regression: целевой provider/routing contract срез — 35 passed; итоговый
+  полный Python suite — 658 passed, 3 skipped.
+- Следующий пакет: подключить semantic Qdrant query, RRF/graph penalties и
+  ColBERT second-stage rerank к `RoutingIndex.search`, затем собрать benchmark
+  и откалибровать confidence. Local-first fallback остаётся обязательным.
 
 Документ продолжает решения из документа №13 и фиксирует обсуждение механизма уверенности, режима skills, графовой составляющей, гибридного поиска, Qdrant Cloud, Jina AI, LangSearch, реранкинга, резервных провайдеров, Airflow и хранения секретов.
 

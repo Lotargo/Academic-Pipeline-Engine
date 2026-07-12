@@ -50,7 +50,10 @@ def test_researcher_agent_runs_deterministic_research(mock_run_pool, mock_load):
     findings = agent.run_research([" query A ", "", "query B"], TEMP_RUN_DIR)
 
     assert findings == "Loaded findings"
-    mock_run_pool.assert_called_once_with(["query A", "query B"], TEMP_RUN_DIR)
+    args, kwargs = mock_run_pool.call_args
+    assert args == (["query A", "query B"], TEMP_RUN_DIR)
+    assert kwargs["web_search_client"] is not None
+    assert kwargs["reranker"] is not None
     mock_load.assert_called_once_with(TEMP_RUN_DIR)
 
 
@@ -79,7 +82,10 @@ def test_researcher_agent_curates_findings_with_llm_for_real_provider(mock_run_p
     findings = agent.run_research([" query A "], TEMP_RUN_DIR)
 
     assert findings == "Curated finding: Example source - https://example.com"
-    mock_run_pool.assert_called_once_with(["query A"], TEMP_RUN_DIR)
+    args, kwargs = mock_run_pool.call_args
+    assert args == (["query A"], TEMP_RUN_DIR)
+    assert kwargs["web_search_client"] is not None
+    assert kwargs["reranker"] is not None
     mock_load.assert_called_once_with(TEMP_RUN_DIR)
     assert provider.calls
     assert "[Raw Findings]" in provider.calls[0][1]

@@ -12,10 +12,18 @@ providers:
     dense_model: jina-embeddings-v5-text-nano
     challenger_dense_model: jina-embeddings-v5-text-small
     web_reranker_model: jina-reranker-v3
+    api_base_url: https://api.jina.ai
   qdrant:
-    multilingual_dense_model_id: null
-    sparse_model_id: null
-    late_interaction_model_id: null
+    url: https://dada70f7-405d-4671-b33c-1e01db5cc206.sa-east-1-0.aws.cloud.qdrant.io
+    cluster_id: dada70f7-405d-4671-b33c-1e01db5cc206
+    cloud_inference_enabled: true
+    multilingual_dense_model_id: intfloat/multilingual-e5-small
+    multilingual_dense_vector_size: 384
+    sparse_model_id: qdrant/bm25
+    late_interaction_model_id: answerdotai/answerai-colbert-small-v1
+    late_interaction_vector_size: 96
   langsearch:
     web_search_enabled: true
-    fallback_reranker_model_id: null
+    api_base_url: https://api.langsearch.com
+    fallback_reranker_model_id: langsearch-reranker-v1
+    default_freshness: noLimit

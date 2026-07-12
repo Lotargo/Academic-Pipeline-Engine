@@ -43,9 +43,12 @@ def test_provider_config_keeps_unknown_qdrant_model_ids_unset():
 
     assert config.routing.collection_name == "routing_knowledge"
     assert config.providers.jina.dense_model == "jina-embeddings-v5-text-nano"
-    assert config.providers.qdrant.multilingual_dense_model_id is None
-    assert config.providers.qdrant.sparse_model_id is None
-    assert config.providers.qdrant.late_interaction_model_id is None
+    assert config.providers.qdrant.url is not None
+    assert config.providers.qdrant.cloud_inference_enabled
+    assert config.providers.qdrant.multilingual_dense_model_id == "intfloat/multilingual-e5-small"
+    assert config.providers.qdrant.sparse_model_id == "qdrant/bm25"
+    assert config.providers.qdrant.late_interaction_model_id == "answerdotai/answerai-colbert-small-v1"
+    assert config.providers.qdrant.late_interaction_vector_size == 96
 
 
 def test_routing_decision_uses_margin_and_fallback_band():

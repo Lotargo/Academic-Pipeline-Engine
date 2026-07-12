@@ -68,6 +68,9 @@ ipython_config.py
 
 # venv
 .env
+.env.*
+!.env.example
+!**/.env.example
 .venv/
 .tools/
 uv.lock
@@ -98,7 +101,6 @@ out/
 .docusaurus/
 .cache/
 *.tsbuildinfo
-.env*.local
 .vercel/
 
 # OS files
