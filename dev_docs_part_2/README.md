@@ -100,7 +100,7 @@ Core-pipeline задача отмечается завершённой толь�
 
 - [ ] **CORE-13** — [Document Integrity and Optional Revision Pipeline](../dev_docs/13_DOCUMENT_INTEGRITY_AND_OPTIONAL_REVISION_PIPELINE.md)
 - [ ] **CORE-14** — [Skill Routing, Hybrid Retrieval and Provider Infrastructure](../dev_docs/14_SKILL_ROUTING_HYBRID_RETRIEVAL_AND_PROVIDER_INFRASTRUCTURE.md)
-- [ ] **CORE-15** — [Agent Instruction Refactor and Editorial Quality](../dev_docs/15_AGENT_INSTRUCTION_REFACTOR_AND_EDITORIAL_QUALITY.md)
+- [x] **CORE-15** — [Agent Instruction Refactor and Editorial Quality](../dev_docs/15_AGENT_INSTRUCTION_REFACTOR_AND_EDITORIAL_QUALITY.md)
 
 ### Порядок выполнения core-блока
 
@@ -139,6 +139,9 @@ Core-pipeline задача отмечается завершённой толь�
   незавершённой и не отмечается `[x]` до стабилизации `CORE-15` и `CORE-14`,
   после которых optional revision flow должен пройти итоговую интеграционную
   приёмку.
+- `CORE-14`: prerequisite `InstructionCompiler` из завершённого `CORE-15`
+  доступен. Можно реализовывать typed routing graph, skill selection, retrieval
+  interfaces, локальные adapters и contract tests без production-секретов.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.
@@ -151,12 +154,9 @@ Core-pipeline задача отмечается завершённой толь�
 - `FE-06` зависит от `PL-03`. Audit/health views и их e2e-проверки нельзя
   считать готовыми, пока нет schema audit-событий, correlation IDs и безопасных
   health/metrics endpoints.
-- `CORE-15` выполняется после фундамента `CORE-13`: role-scoped
-  `InstructionCompiler`, `SectionBrief` и специализированные reviewers должны
-  опираться на DocumentState, ledgers, SourceCards и coverage matrix.
-- `CORE-14` выполняется после `InstructionCompiler` из `CORE-15`. Реальные
-  интеграционные проверки также требуют точных model IDs и секретов Qdrant,
-  Jina и LangSearch; их нельзя угадывать или записывать в репозиторий.
+- `CORE-14` нельзя завершить без реальных интеграционных проверок, требующих
+  точных model IDs и секретов Qdrant, Jina и LangSearch; их нельзя угадывать
+  или записывать в репозиторий.
 - Optional revision flow из `CORE-13` завершается только после стабилизации
   routing и instruction bundles из `CORE-14`/`CORE-15`.
 - `PL-02` нельзя завершить до `PL-01` и выбора/подключения production
@@ -180,10 +180,11 @@ adapter и локальные contract tests; нельзя заявлять, ч�
 
 ### Практический порядок
 
-1. Выполнять фундамент `CORE-13` (этапы A--D); независимо от него допустимы
-   `FE-09`, выбранные пакеты `FE-11`, `PL-01` и базовый `PL-03`.
-2. После фундамента завершить `CORE-15`, затем `CORE-14`.
-3. Вернуться к optional revision flow `CORE-13`, завершить production-часть
+1. `CORE-15` завершён после фундамента `CORE-13`; следующий core-этап —
+   `CORE-14`. Независимо от него допустимы `FE-09`, выбранные пакеты `FE-11`,
+   `PL-01` и базовый `PL-03`.
+2. После стабилизации `CORE-14` вернуться к optional revision flow `CORE-13`.
+3. Затем завершить production-часть
    `PL-03` и зависимый `FE-06`.
 4. После выбора внешней инфраструктуры и получения deployment access выполнить
    `PL-02` и production OAuth e2e-gate.
