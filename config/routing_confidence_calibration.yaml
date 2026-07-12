@@ -1,0 +1,10 @@
+version: routing-isotonic-v1-20260713
+score_thresholds:
+  - 0.973622
+  - 0.989247
+  - 1.0
+calibrated_values:
+  - 0.0
+  - 1.0
+  - 1.0
+observation_count: 16

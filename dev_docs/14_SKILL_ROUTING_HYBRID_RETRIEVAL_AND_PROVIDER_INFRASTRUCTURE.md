@@ -2,11 +2,11 @@
 
 ## Статус
 
-Реализация продолжается; foundations этапов 1--7, semantic Qdrant path,
-rank fusion, ColBERT second-stage rerank и воспроизводимый routing benchmark
+Реализация завершена. Foundations этапов 1--7, semantic Qdrant path, rank
+fusion, ColBERT second-stage rerank, tenant-safe fallback и routing benchmark
 выполнены. `RoutingEngine` публикует фактические channel evidence в
-`RoutingDecision`. Итоговая production-калибровка остаётся зависящей от
-расширенного размеченного набора, а не от одного малого smoke corpus.
+`RoutingDecision`; runtime factory загружает только проверенный holdout profile
+и безопасно остаётся uncalibrated при отсутствии его файла.
 
 ### Checkpoint (2026-07-13)
 
@@ -79,18 +79,21 @@ rank fusion, ColBERT second-stage rerank и воспроизводимый routi
   `scripts/reindex_routing_knowledge.py` и canonical projection. Live reindex
   загрузил 13 artifact/skill cards в `routing_knowledge`; live query вернул
   `qdrant_e5`, `qdrant_bm25`, `colbert`, `rrf` и lexical evidence.
-- Добавлены `config/routing_benchmark.yaml`, async benchmark и
-  `scripts/run_core14_routing_benchmark.py [--qdrant]`. Calibrator использует
-  serializable isotonic PAVA mapping; Brier score считается leave-one-out, а
-  не in-sample. Live 12-case run: path `e5_bm25_colbert` во всех 12 cases,
-  artifact top-1 `0.833333`, top-3 `0.916667`, holdout Brier `0.083333`.
-  Средняя Cloud Inference latency была около 4.1 s и является baseline для
-  последующих latency-оптимизаций, а не постоянным SLA.
-- Regression: полный Python suite — 664 passed, 3 skipped.
-- Следующий пакет для полного закрытия CORE-14: расширить размеченный
-  русско-/англо-/mixed evaluation corpus и зафиксировать holdout-calibration
-  profile перед включением его как runtime default. Local-first fallback
-  остаётся обязательным.
+- `config/routing_benchmark.yaml` расширен до 28 labelled cases: 16
+  calibration и 12 независимых holdout. Corpus покрывает русский, английский
+  и mixed language, negative cues, compound request, continuation и explicit
+  override. `scripts/run_core14_routing_benchmark.py [--qdrant]` обучает
+  serializable isotonic PAVA mapping только на calibration split и считает
+  Brier только на holdout.
+- Зафиксирован runtime default
+  `config/routing_confidence_calibration.yaml`; `RoutingEngine.with_default_calibration()`
+  загружает его без каких-либо network calls. Live 28-case run: path
+  `e5_bm25_colbert` во всех cases, artifact top-1 `0.928571`, top-3
+  `0.964286`, holdout Brier `0.083333`, mean Cloud latency около `2.28 s`.
+  Latency остаётся baseline, а не постоянным SLA.
+- Regression: полный Python suite — 665 passed, 3 skipped.
+- CORE-14 закрыт. Следующий core package — итоговая integration acceptance
+  optional revision flow из CORE-13. Local-first fallback остаётся обязательным.
 
 Документ продолжает решения из документа №13 и фиксирует обсуждение механизма уверенности, режима skills, графовой составляющей, гибридного поиска, Qdrant Cloud, Jina AI, LangSearch, реранкинга, резервных провайдеров, Airflow и хранения секретов.
 

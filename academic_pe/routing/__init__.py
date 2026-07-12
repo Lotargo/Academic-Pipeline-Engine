@@ -1,6 +1,10 @@
 from academic_pe.routing.models import ArtifactCandidate, ConfidenceBand, RoutingDecision
 from academic_pe.routing.evidence import RoutingChannelEvidence, RoutingEvidenceChannel
-from academic_pe.routing.calibration import ConfidenceObservation, RoutingConfidenceCalibrator
+from academic_pe.routing.calibration import (
+    ConfidenceObservation,
+    DEFAULT_ROUTING_CONFIDENCE_CALIBRATION_PATH,
+    RoutingConfidenceCalibrator,
+)
 from academic_pe.routing.engine import RoutingEngine
 from academic_pe.routing.projection import (
     RoutingProjectionReport,
@@ -55,6 +59,7 @@ __all__ = [
     "ArtifactCandidate",
     "ConfidenceBand",
     "ConfidenceObservation",
+    "DEFAULT_ROUTING_CONFIDENCE_CALIBRATION_PATH",
     "GraphEdgeType",
     "GraphNodeType",
     "InMemoryRoutingIndex",

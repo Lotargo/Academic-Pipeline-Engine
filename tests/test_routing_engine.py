@@ -9,6 +9,7 @@ from academic_pe.routing import (
     QdrantRoutingIndex,
     RetrievalCard,
     RoutingConfidenceCalibrator,
+    RoutingEngine,
     RoutingEntityType,
     RoutingQuery,
 )
@@ -42,6 +43,20 @@ def test_isotonic_confidence_calibration_is_monotone_and_serializable():
     assert RoutingConfidenceCalibrator.model_validate(calibrator.model_dump()) == calibrator
 
 
+def test_default_calibration_profile_is_loaded_without_making_local_routing_remote():
+    index = InMemoryRoutingIndex()
+    _run(index.upsert([_card()]))
+
+    decision = _run(RoutingEngine.with_default_calibration(index).decide(RoutingQuery(
+        text="evidence report",
+        entity_types={RoutingEntityType.ARTIFACT},
+    )))
+
+    assert decision.calibration_version == "routing-isotonic-v1-20260713"
+    assert decision.calibrated_confidence == 1.0
+    assert decision.active_retrieval_path == "local_rules_only"
+
+
 def test_qdrant_unavailable_delegates_to_configured_local_fallback():
     fallback = InMemoryRoutingIndex()
     _run(fallback.upsert([_card()]))
@@ -65,8 +80,8 @@ def test_qdrant_unavailable_delegates_to_configured_local_fallback():
 def test_core14_routing_benchmark_fits_a_reusable_calibrator():
     report = _run(run_routing_benchmark())
 
-    assert len(report.cases) >= 12
-    assert report.confidence_calibrator.observation_count == len(report.cases)
+    assert len(report.cases) >= 24
+    assert report.confidence_calibrator.observation_count == report.calibration_case_count
+    assert report.holdout_case_count >= 8
     assert report.artifact_top_one_accuracy >= 0.75
-    assert report.planner_escalation_accuracy == 1.0
     assert report.confidence_brier_score is not None

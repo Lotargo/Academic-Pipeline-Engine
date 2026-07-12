@@ -99,7 +99,7 @@ Core-pipeline задача отмечается завершённой толь�
 Подробный контекст находится в [`dev_docs/README.md`](../dev_docs/README.md). Документы ниже являются единственным подробным планом для этих задач. Не создаются зеркальные `PLAN.md` и `TODO.md`, пересказывающие то же содержание.
 
 - [ ] **CORE-13** — [Document Integrity and Optional Revision Pipeline](../dev_docs/13_DOCUMENT_INTEGRITY_AND_OPTIONAL_REVISION_PIPELINE.md)
-- [ ] **CORE-14** — [Skill Routing, Hybrid Retrieval and Provider Infrastructure](../dev_docs/14_SKILL_ROUTING_HYBRID_RETRIEVAL_AND_PROVIDER_INFRASTRUCTURE.md)
+- [x] **CORE-14** — [Skill Routing, Hybrid Retrieval and Provider Infrastructure](../dev_docs/14_SKILL_ROUTING_HYBRID_RETRIEVAL_AND_PROVIDER_INFRASTRUCTURE.md)
 - [x] **CORE-15** — [Agent Instruction Refactor and Editorial Quality](../dev_docs/15_AGENT_INSTRUCTION_REFACTOR_AND_EDITORIAL_QUALITY.md)
 
 ### Порядок выполнения core-блока
@@ -139,21 +139,19 @@ Core-pipeline задача отмечается завершённой толь�
   незавершённой и не отмечается `[x]` до стабилизации `CORE-15` и `CORE-14`,
   после которых optional revision flow должен пройти итоговую интеграционную
   приёмку.
-- `CORE-14`, checkpoint (2026-07-13): foundation этапы 1--7 и semantic package
-  выполнены: `QdrantRoutingIndex.search()` делает tenant-safe E5/BM25 Cloud
-  Inference queries, RRF fusion, negative/typed-graph penalties и optional
-  ColBERT rerank только для fused top-k. `RoutingEngine` переносит реальные
-  ranks, raw scores и normalised contributions каналов в `RoutingDecision`, а
-  remote outage делегируется optional local fallback index. Добавлены canonical
-  cloud projection/reindex script; live reindex загрузил 13 cards в
-  `routing_knowledge`, а live query вернул E5, BM25, ColBERT и RRF evidence.
-  Созданы versioned local/live benchmark path и isotonic PAVA calibrator с
-  holdout Brier evaluation; live 12-case baseline: top-1 0.833333, top-3
-  0.916667, holdout Brier 0.083333, mean Cloud latency около 4.1 s. Полный
-  Python suite: 664 passed, 3 skipped. `CORE-14` пока остаётся `[ ]`: до
-  финального закрытия требуется расширенный русско-/англо-/mixed labelled
-  corpus и фиксация holdout-calibration profile как runtime default; local
-  pipeline от cloud providers по-прежнему не зависит.
+- `CORE-14`, completed (2026-07-13): `QdrantRoutingIndex.search()` делает
+  tenant-safe E5/BM25 Cloud Inference queries, RRF fusion,
+  negative/typed-graph penalties и optional ColBERT rerank только для fused
+  top-k. `RoutingEngine` переносит реальные ranks, raw scores и normalised
+  contributions каналов в `RoutingDecision`, а remote outage делегируется
+  optional local fallback index. Canonical cloud projection/reindex script
+  загрузил 13 cards в `routing_knowledge`. Benchmark расширен до 28 labelled
+  RU/EN/mixed cases (16 calibration / 12 holdout); holdout PAVA profile
+  зафиксирован в `config/routing_confidence_calibration.yaml` и загружается
+  `RoutingEngine.with_default_calibration()` без network dependency. Live
+  baseline: top-1 0.928571, top-3 0.964286, holdout Brier 0.083333, mean
+  Cloud latency около 2.28 s. Полный Python suite: 665 passed, 3 skipped.
+  Local pipeline от cloud providers по-прежнему не зависит.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.
@@ -166,9 +164,8 @@ Core-pipeline задача отмечается завершённой толь�
 - `FE-06` зависит от `PL-03`. Audit/health views и их e2e-проверки нельзя
   считать готовыми, пока нет schema audit-событий, correlation IDs и безопасных
   health/metrics endpoints.
-- `CORE-14` нельзя финально завершить до расширения labelled benchmark corpus
-  и фиксации holdout-calibration profile. Semantic Qdrant query, RRF, graph
-  penalties, ColBERT second stage и live cloud baseline уже реализованы;
+- Optional revision flow из `CORE-13` теперь можно брать в итоговую
+  integration acceptance: routing и instruction bundles стабилизированы;
   local-first fallback остаётся обязательным.
 - Optional revision flow из `CORE-13` завершается только после стабилизации
   routing и instruction bundles из `CORE-14`/`CORE-15`.
@@ -193,10 +190,11 @@ adapter и локальные contract tests; нельзя заявлять, ч�
 
 ### Практический порядок
 
-1. `CORE-15` завершён после фундамента `CORE-13`; следующий core-этап —
-   `CORE-14`. Независимо от него допустимы `FE-09`, выбранные пакеты `FE-11`,
+1. `CORE-14` и `CORE-15` завершены после фундамента `CORE-13`; следующий
+   core-этап — итоговая integration acceptance optional revision flow
+   `CORE-13`. Независимо от него допустимы `FE-09`, выбранные пакеты `FE-11`,
    `PL-01` и базовый `PL-03`.
-2. После стабилизации `CORE-14` вернуться к optional revision flow `CORE-13`.
+2. После приёмки optional revision flow завершить `CORE-13`.
 3. Затем завершить production-часть
    `PL-03` и зависимый `FE-06`.
 4. После выбора внешней инфраструктуры и получения deployment access выполнить

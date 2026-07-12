@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from pathlib import Path
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field
+
+
+DEFAULT_ROUTING_CONFIDENCE_CALIBRATION_PATH = Path("config/routing_confidence_calibration.yaml")
 
 
 class ConfidenceObservation(BaseModel):
@@ -66,6 +71,21 @@ class RoutingConfidenceCalibrator(BaseModel):
             if bounded <= threshold:
                 return value
         return self.calibrated_values[-1]
+
+    @classmethod
+    def from_yaml(cls, path: str | Path = DEFAULT_ROUTING_CONFIDENCE_CALIBRATION_PATH) -> "RoutingConfidenceCalibrator":
+        file_path = Path(path)
+        if not file_path.exists():
+            return cls()
+        raw = yaml.safe_load(file_path.read_text(encoding="utf-8")) or {}
+        return cls.model_validate(raw)
+
+    def to_yaml(self) -> str:
+        return yaml.safe_dump(
+            self.model_dump(mode="json"),
+            allow_unicode=True,
+            sort_keys=False,
+        )
 
 
 def _block_value(block: dict[str, float | int]) -> float:

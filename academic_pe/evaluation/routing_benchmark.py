@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 from time import perf_counter
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,6 +26,8 @@ class RoutingBenchmarkCase(BaseModel):
     text: str = Field(min_length=1)
     expected_artifact_id: str | None = None
     planner_required: bool = False
+    split: Literal["calibration", "holdout"] = "holdout"
+    artifact_override: str | None = None
 
 
 class RoutingBenchmarkCaseResult(BaseModel):
@@ -54,6 +57,8 @@ class RoutingBenchmarkReport(BaseModel):
     mean_latency_ms: float = Field(ge=0.0)
     confidence_brier_score: float | None = Field(default=None, ge=0.0)
     confidence_calibrator: RoutingConfidenceCalibrator
+    calibration_case_count: int = Field(ge=1)
+    holdout_case_count: int = Field(ge=1)
     retrieval_path_counts: dict[str, int] = Field(default_factory=dict)
 
 
@@ -89,13 +94,23 @@ async def run_routing_benchmark(
             text=case.text,
             entity_types={RoutingEntityType.ARTIFACT},
             top_k=3,
-        ))
+        ), explicit_artifact_override=case.artifact_override)
         elapsed = (perf_counter() - started) * 1000
         correct = decision.selected_artifact_id == case.expected_artifact_id
         observations.append(ConfidenceObservation(routing_score=decision.top_score, correct=correct))
         raw_outcomes.append((case, decision, elapsed))
 
-    calibrator = RoutingConfidenceCalibrator.fit(observations)
+    calibration_indices = [
+        index for index, (case, _, _) in enumerate(raw_outcomes)
+        if case.split == "calibration"
+    ]
+    holdout_indices = [
+        index for index, (case, _, _) in enumerate(raw_outcomes)
+        if case.split == "holdout"
+    ]
+    if not calibration_indices or not holdout_indices:
+        raise ValueError("routing benchmark requires both calibration and holdout cases")
+    calibrator = RoutingConfidenceCalibrator.fit(observations[index] for index in calibration_indices)
     results = [
         _case_result(case, decision, elapsed, calibrator)
         for case, decision, elapsed in raw_outcomes
@@ -107,19 +122,13 @@ async def run_routing_benchmark(
         result.actual_planner_required == result.expected_planner_required
         for result in results
     ) / total
-    # The profile below is fitted on all labels for subsequent use.  Its quality
-    # must be reported out-of-sample, otherwise an in-sample Brier score would
-    # hide an overfit step function on a small routing corpus.
-    held_out_confidences = [
-        RoutingConfidenceCalibrator.fit(
-            observation for index, observation in enumerate(observations) if index != held_out_index
-        ).predict(observations[held_out_index].routing_score)
-        for held_out_index in range(len(observations))
-    ]
+    # This profile is fitted strictly on the calibration split.  The Brier
+    # metric below is therefore a true holdout measurement, not an optimistic
+    # leave-one-out approximation over the same small corpus.
     brier_terms = [
-        (float(confidence) - float(result.correct_top_one)) ** 2
-        for result, confidence in zip(results, held_out_confidences, strict=True)
-        if confidence is not None
+        (float(result.calibrated_confidence) - float(result.correct_top_one)) ** 2
+        for (case, _, _), result in zip(raw_outcomes, results, strict=True)
+        if case.split == "holdout" and result.calibrated_confidence is not None
     ]
     brier = sum(brier_terms) / len(brier_terms) if brier_terms else None
     return RoutingBenchmarkReport(
@@ -131,6 +140,8 @@ async def run_routing_benchmark(
         mean_latency_ms=round(sum(result.latency_ms for result in results) / total, 6),
         confidence_brier_score=round(brier, 6) if brier is not None else None,
         confidence_calibrator=calibrator,
+        calibration_case_count=len(calibration_indices),
+        holdout_case_count=len(holdout_indices),
         retrieval_path_counts={
             path: sum(
                 1

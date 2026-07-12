@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from academic_pe.routing.calibration import RoutingConfidenceCalibrator
 from academic_pe.routing.evidence import RoutingChannelEvidence, RoutingEvidenceChannel
 from academic_pe.routing.index import RoutingIndex, RoutingQuery, RoutingSearchResult
@@ -23,6 +25,25 @@ class RoutingEngine:
     ) -> None:
         self._index = index
         self._confidence_calibrator = confidence_calibrator
+
+    @classmethod
+    def with_default_calibration(
+        cls,
+        index: RoutingIndex,
+        *,
+        calibration_path: str | Path | None = None,
+    ) -> "RoutingEngine":
+        """Build an engine with the checked-in calibration profile when present.
+
+        Missing files intentionally produce an uncalibrated engine so local-first
+        use never needs a deployment artifact to route safely.
+        """
+
+        calibrator = (
+            RoutingConfidenceCalibrator.from_yaml(calibration_path)
+            if calibration_path else RoutingConfidenceCalibrator.from_yaml()
+        )
+        return cls(index, confidence_calibrator=calibrator if calibrator.observation_count else None)
 
     async def decide(
         self,

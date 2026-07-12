@@ -1,50 +1,125 @@
-schema_version: 1
+schema_version: 2
 cases:
-  - case_id: report_en
+  # The calibration split fits the runtime isotonic profile. It must not be
+  # used to report Brier quality; see the independent holdout cases below.
+  - case_id: calibration_report_en
+    split: calibration
     text: "Create an analytical report with findings, evidence and supporting data."
     expected_artifact_id: report
-    planner_required: true
-  - case_id: report_ru
+  - case_id: calibration_report_ru
+    split: calibration
     text: "Подготовь аналитический отчёт с выводами, данными и подтверждающими источниками."
     expected_artifact_id: report
-    planner_required: true
-  - case_id: academic_paper_en
+  - case_id: calibration_academic_en
+    split: calibration
     text: "Draft a scientific research paper with methodology, citations and discussion."
     expected_artifact_id: academic_paper
-    planner_required: true
-  - case_id: academic_paper_ru
+  - case_id: calibration_academic_ru
+    split: calibration
     text: "Напиши научную статью: методология исследования, источники и обсуждение результатов."
     expected_artifact_id: academic_paper
-    planner_required: true
-  - case_id: plan_en
+  - case_id: calibration_plan_en
+    split: calibration
     text: "Prepare a sprint roadmap with milestones, tasks and delivery plan."
     expected_artifact_id: plan_document
-    planner_required: true
-  - case_id: plan_ru
+  - case_id: calibration_plan_ru
+    split: calibration
     text: "Составь план проекта с этапами, задачами и контрольными точками."
     expected_artifact_id: plan_document
-    planner_required: true
-  - case_id: technical_readme
+  - case_id: calibration_readme_en
+    split: calibration
     text: "Write README documentation with installation, configuration and API usage."
     expected_artifact_id: technical_readme
-    planner_required: true
-  - case_id: creative_poem
+  - case_id: calibration_readme_ru
+    split: calibration
+    text: "Подготовь техническую документацию: установка, настройка и примеры API."
+    expected_artifact_id: technical_readme
+  - case_id: calibration_poem_en
+    split: calibration
+    text: "Write a lyrical poem in three stanzas about northern summer."
+    expected_artifact_id: creative_poem
+  - case_id: calibration_poem_ru
+    split: calibration
     text: "Напиши стихотворение в трёх строфах о северном лете."
     expected_artifact_id: creative_poem
-    planner_required: true
-  - case_id: creative_story
+  - case_id: calibration_story_en
+    split: calibration
     text: "Create a short fictional fairy tale with a clear narrative."
     expected_artifact_id: creative_story
-    planner_required: true
-  - case_id: school_essay
+  - case_id: calibration_story_ru
+    split: calibration
+    text: "Напиши короткий художественный рассказ с сюжетом и персонажем."
+    expected_artifact_id: creative_story
+  - case_id: calibration_school_en
+    split: calibration
+    text: "Write a school essay for grade eight about friendship."
+    expected_artifact_id: school_essay
+  - case_id: calibration_school_ru
+    split: calibration
     text: "Напиши школьное сочинение для 8 класса о роли дружбы."
     expected_artifact_id: school_essay
+  - case_id: calibration_continuation
+    split: calibration
+    text: "Continue the existing document while preserving its source voice and structure."
+    expected_artifact_id: continuation_source
     planner_required: true
-  - case_id: negative_not_story
+  - case_id: calibration_explicit_override
+    split: calibration
+    text: "Write a poem about a launch plan."
+    artifact_override: report
+    expected_artifact_id: report
+
+  # Holdout: English, Russian, mixed language, negation, compound, override,
+  # continuation and out-of-distribution scenarios remain unseen by fitting.
+  - case_id: holdout_report_mixed
+    split: holdout
+    text: "Сделай analytical report: key findings, evidence и итоговые выводы."
+    expected_artifact_id: report
+  - case_id: holdout_report_negative
+    split: holdout
     text: "Write a report with findings and evidence, not a fictional story."
     expected_artifact_id: report
+  - case_id: holdout_academic_mixed
+    split: holdout
+    text: "Нужна research paper with methodology, citations and a discussion section."
+    expected_artifact_id: academic_paper
+  - case_id: holdout_plan_mixed
+    split: holdout
+    text: "Build a roadmap: этапы, owners, milestones and release tasks."
+    expected_artifact_id: plan_document
+  - case_id: holdout_readme_api
+    split: holdout
+    text: "Document the SDK: quickstart, install command, configuration and API examples."
+    expected_artifact_id: technical_readme
+  - case_id: holdout_poem_lines
+    split: holdout
+    text: "Сочини лирические стихи со строками и строфами о реке зимой."
+    expected_artifact_id: creative_poem
+  - case_id: holdout_story_ru
+    split: holdout
+    text: "Придумай сказку с конфликтом, героями и счастливым финалом."
+    expected_artifact_id: creative_story
+  - case_id: holdout_school_argument
+    split: holdout
+    text: "Напиши школьное сочинение-рассуждение для 7 класса о честности."
+    expected_artifact_id: school_essay
+  - case_id: holdout_continuation_ru
+    split: holdout
+    text: "Продолжи уже написанный текст, не меняя голос автора и структуру разделов."
+    expected_artifact_id: continuation_source
     planner_required: true
-  - case_id: ambiguous_ood
+  - case_id: holdout_explicit_override
+    split: holdout
+    text: "Составь детальный план релиза."
+    artifact_override: creative_poem
+    expected_artifact_id: creative_poem
+  - case_id: holdout_compound
+    split: holdout
+    text: "Prepare both a release plan and an analytical report with findings."
+    expected_artifact_id: report
+    planner_required: true
+  - case_id: holdout_ood
+    split: holdout
     text: "Help me with a document about the future."
     expected_artifact_id: unknown_freeform
     planner_required: true
