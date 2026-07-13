@@ -77,6 +77,7 @@ Core-pipeline задача отмечается завершённой толь�
 - [ ] **FE-09** — [Workspace Settings and Modes](frontend/FE-09-workspace-settings-and-modes/PLAN.md) · [TODO](frontend/FE-09-workspace-settings-and-modes/TODO.md)
 - [x] **FE-10** — [Main Editor and Unified Jobs](frontend/FE-10-main-editor-and-unified-jobs/PLAN.md) · [TODO](frontend/FE-10-main-editor-and-unified-jobs/TODO.md)
 - [ ] **FE-11** — [Frontend Lint Quality](frontend/FE-11-frontend-lint-quality/PLAN.md) · [TODO](frontend/FE-11-frontend-lint-quality/TODO.md)
+- [ ] **FE-12** — [Provider-only Auth](frontend/FE-12-provider-only-auth/PLAN.md) · [TODO](frontend/FE-12-provider-only-auth/TODO.md)
 
 ### Обязательное уточнение для FE-07
 
@@ -93,6 +94,7 @@ Core-pipeline задача отмечается завершённой толь�
 ## Backend additions
 
 - [x] **BE-12** — [Workspace Data Deletion](backend/BE-12-workspace-data-deletion/PLAN.md) · [TODO](backend/BE-12-workspace-data-deletion/TODO.md)
+- [ ] **BE-13** — [Supabase Identity Adapter](backend/BE-13-supabase-identity-adapter/PLAN.md) · [TODO](backend/BE-13-supabase-identity-adapter/TODO.md)
 
 ## Core pipeline and document quality
 
@@ -116,6 +118,7 @@ Core-pipeline задача отмечается завершённой толь�
 - [ ] **PL-01** — [Docker](platform/PL-01-docker/PLAN.md) · [TODO](platform/PL-01-docker/TODO.md)
 - [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [Temporary OpenShift Sandbox](platform/PL-02-render-deployment/OPENSHIFT_SANDBOX_INTERIM.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
 - [x] **PL-03** — [Observability](platform/PL-03-observability-and-audit/PLAN.md) · [TODO](platform/PL-03-observability-and-audit/TODO.md)
+- [ ] **PL-04** — [Supabase Service Development](platform/PL-04-supabase-service-dev/PLAN.md) · [TODO](platform/PL-04-supabase-service-dev/TODO.md)
 
 ## Актуальная карта выполнения и блокировок (2026-07-13)
 
