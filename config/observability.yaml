@@ -8,3 +8,5 @@ alerts:
   provider_failure_window_seconds: 300
   job_stalled_seconds: 900
   worker_unavailable_seconds: 300
+maintenance:
+  audit_pruning_seconds: 86400

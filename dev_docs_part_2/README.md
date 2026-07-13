@@ -115,7 +115,7 @@ Core-pipeline задача отмечается завершённой толь�
 
 - [ ] **PL-01** — [Docker](platform/PL-01-docker/PLAN.md) · [TODO](platform/PL-01-docker/TODO.md)
 - [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [Temporary OpenShift Sandbox](platform/PL-02-render-deployment/OPENSHIFT_SANDBOX_INTERIM.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
-- [ ] **PL-03** — [Observability](platform/PL-03-observability-and-audit/PLAN.md) · [TODO](platform/PL-03-observability-and-audit/TODO.md)
+- [x] **PL-03** — [Observability](platform/PL-03-observability-and-audit/PLAN.md) · [TODO](platform/PL-03-observability-and-audit/TODO.md)
 
 ## Актуальная карта выполнения и блокировок (2026-07-13)
 
@@ -153,11 +153,12 @@ Core-pipeline задача отмечается завершённой толь�
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.
-- `PL-03`, baseline checkpoint (2026-07-13): event schema, correlation IDs,
-  safe health/metrics endpoints, redaction, audit metadata correlation,
-  retention policy и tests реализованы. Композиция остаётся `[ ]` до
-  provider/worker signals, scheduled pruning, protected audit/health views и
-  итогового walkthrough.
+- `PL-03`, completed (2026-07-13): event schema, correlation IDs, safe
+  health/metrics endpoints, redaction, audit metadata correlation и retention
+  policy дополнены provider/worker failure signals, scheduled audit pruning и
+  protected admin audit/health views. Worker получает correlation ID из
+  persisted job payload, broker message содержит только IDs; raw audit metadata
+  не возвращается API. Regression: `35 passed`.
 
 ### Временное решение для public demo
 
@@ -175,9 +176,6 @@ Core-pipeline задача отмечается завершённой толь�
 
 ### Нельзя завершить до снятия зависимостей
 
-- `FE-06` зависит от `PL-03`. Audit/health views и их e2e-проверки нельзя
-  считать готовыми, пока нет schema audit-событий, correlation IDs и безопасных
-  health/metrics endpoints.
 - Optional revision flow из `CORE-13` теперь можно брать в итоговую
   integration acceptance: routing и instruction bundles стабилизированы;
   local-first fallback остаётся обязательным.
@@ -186,10 +184,6 @@ Core-pipeline задача отмечается завершённой толь�
   и KMS/Vault. Для реального deployment target дополнительно нужны защищённые
   secrets и выбранный canonical HTTPS URL. Временный OpenShift Sandbox можно
   использовать после `PL-01`, но он не снимает этот gate.
-- `PL-03` можно реализовывать поэтапно, но нельзя финально зафиксировать как
-  production observability до завершения `CORE-13`--`CORE-15`: telemetry должна
-  учитывать routing path, active provider, fallback depth, selected skills,
-  instruction bundle version и revision count.
 
 ### Отдельный gate для production OAuth
 
@@ -203,9 +197,8 @@ adapter и локальные contract tests; нельзя заявлять, ч�
 
 ### Практический порядок
 
-1. CORE-13--CORE-15 завершены. Следующий production core — `PL-03`; после его
-   schema audit/health/correlation-id foundation можно завершать зависимый
-   `FE-06`. Независимо доступны `FE-09`, выбранные пакеты `FE-11` и `PL-01`.
+1. CORE-13--CORE-15 и `PL-03` завершены. Теперь доступна зависимая `FE-06`;
+   независимо доступны `FE-09`, выбранные пакеты `FE-11` и `PL-01`.
 2. После `PL-01` можно выполнить ограниченный public smoke в OpenShift Sandbox.
    После выбора постоянной инфраструктуры (home server, VPS либо другой
    managed provider) выполнить `PL-02` и production OAuth e2e-gate.

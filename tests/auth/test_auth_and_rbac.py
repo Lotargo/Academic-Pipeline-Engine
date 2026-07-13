@@ -7,17 +7,25 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from academic_pe.auth import AuthSettings, create_auth_router
+from academic_pe.observability import ObservabilityEvent, TelemetryStore
 from academic_pe.persistence.base import Base
-from academic_pe.persistence.models import ActorRole, Job, JobStatus, LoginSession, Membership, OutboxEvent, User, UserStatus
+from academic_pe.persistence.models import (ActorRole, AuditEvent, Job, JobStatus, LoginSession,
+    Membership, OutboxEvent, User, UserStatus)
 from academic_pe.providers import Capability, InMemoryProviderRegistry, ModelMetadata, ProviderDefinition
 from academic_pe.providers.resources import BudgetKind, BudgetState, FairUsePolicy, ResourceCoordinator
 
 
-def app_and_sessions(provider_registry=None, resource_coordinator=None):
+def app_and_sessions(provider_registry=None, resource_coordinator=None, health_snapshot=None):
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, expire_on_commit=False)
-    router = create_auth_router(sessions, AuthSettings(jwt_secret="x" * 32), provider_registry, resource_coordinator)
+    router = create_auth_router(
+        sessions,
+        AuthSettings(jwt_secret="x" * 32),
+        provider_registry,
+        resource_coordinator,
+        health_snapshot,
+    )
     app = FastAPI()
 
     @app.get("/admin")
@@ -72,6 +80,8 @@ def test_user_cannot_escalate_or_cross_tenant_boundary():
     assert client.get(f"/workspaces/{own}", headers=headers).status_code == 200
     assert client.get(f"/workspaces/{foreign}", headers=headers).status_code == 404
     assert client.get("/api/auth/admin/users", headers=headers).status_code == 403
+    assert client.get("/api/auth/admin/audit-events", headers=headers).status_code == 403
+    assert client.get("/api/auth/admin/health", headers=headers).status_code == 403
 
 
 def test_admin_can_view_safe_user_metadata_only():
@@ -141,6 +151,55 @@ def test_context_only_exposes_callers_active_workspace_memberships():
     assert body["role"] == "user"
     assert len(body["workspaces"]) == 1
     assert body["workspaces"][0]["name"] == "Personal"
+
+
+def test_admin_audit_and_health_views_are_protected_redacted_and_audited():
+    telemetry = TelemetryStore()
+    telemetry.record(ObservabilityEvent(
+        event_type="worker.delivery.failed",
+        severity="error",
+        correlation_id="trace_12345678",
+        source="queue_worker",
+        outcome="failure",
+        details={"credential": "must-not-leak"},
+    ))
+    client, sessions = app_and_sessions(health_snapshot=telemetry.admin_snapshot)
+    tokens = register(client, "admin@example.com").json()
+    with sessions() as session:
+        admin = session.scalar(select(User))
+        admin.actor_role = ActorRole.ADMIN
+        session.add(AuditEvent(
+            event_type="credential.replaced",
+            actor_user_id=admin.id,
+            metadata_json={"correlation_id": "trace_12345678", "credential": "must-not-leak"},
+        ))
+        session.commit()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    audit_response = client.get("/api/auth/admin/audit-events", headers=headers)
+    assert audit_response.status_code == 200
+    audit_body = audit_response.json()
+    assert audit_body["events"][0]["event_type"] == "credential.replaced"
+    assert audit_body["events"][0]["correlation_id"] == "trace_12345678"
+    assert "metadata_json" not in str(audit_body)
+    assert "must-not-leak" not in str(audit_body)
+
+    health_response = client.get("/api/auth/admin/health", headers=headers)
+    assert health_response.status_code == 200
+    health_body = health_response.json()
+    assert health_body["status"] == "ok"
+    assert health_body["telemetry"]["event_counts"] == [{
+        "event_type": "worker.delivery.failed",
+        "severity": "error",
+        "outcome": "failure",
+        "count": 1,
+    }]
+    assert "must-not-leak" not in str(health_body)
+
+    with sessions() as session:
+        assert set(session.scalars(select(AuditEvent.event_type)).all()) >= {
+            "credential.replaced", "admin.audit.viewed", "admin.health.viewed",
+        }
 
 
 def test_block_and_token_version_revoke_access():

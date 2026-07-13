@@ -25,12 +25,21 @@ class AlertThresholds(BaseModel):
     worker_unavailable_seconds: int = Field(default=300, ge=60)
 
 
+class MaintenanceSchedule(BaseModel):
+    """Intervals consumed by the service worker/beat bootstrap."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    audit_pruning_seconds: int = Field(default=86_400, ge=3_600, le=2_592_000)
+
+
 class ObservabilityConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: int = Field(default=1, ge=1)
     retention: RetentionPolicy = Field(default_factory=RetentionPolicy)
     alerts: AlertThresholds = Field(default_factory=AlertThresholds)
+    maintenance: MaintenanceSchedule = Field(default_factory=MaintenanceSchedule)
 
     @classmethod
     def from_yaml(cls, path: str | Path = "config/observability.yaml") -> "ObservabilityConfig":

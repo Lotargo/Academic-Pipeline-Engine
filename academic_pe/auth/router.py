@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+import re
 from typing import Annotated, Callable, Literal
 from uuid import UUID
 
 import jwt
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -14,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from academic_pe.auth.security import (AuthSettings, create_access_token, decode_access_token,
     hash_password, hash_refresh_token, new_refresh_token, verify_password)
-from academic_pe.persistence.models import (ActorRole, Job, JobStatus, LoginSession, Membership,
+from academic_pe.observability import get_correlation_id, safe_audit_metadata
+from academic_pe.persistence.models import (ActorRole, AuditEvent, Job, JobStatus, LoginSession, Membership,
     MembershipRole, MembershipStatus, Organization, OrganizationKind, OutboxEvent, TenantStatus,
     User, UserStatus, Workspace)
 from academic_pe.providers import InMemoryProviderRegistry, ProviderHealth, ProviderRegistry
@@ -120,12 +122,56 @@ class AdminJobsSnapshot(BaseModel):
     generated_at: datetime
 
 
+class AdminAuditEventSummary(BaseModel):
+    id: UUID
+    event_type: str
+    actor_user_id: UUID | None
+    target_user_id: UUID | None
+    correlation_id: str | None
+    created_at: datetime
+
+
+class AdminAuditPage(BaseModel):
+    events: list[AdminAuditEventSummary]
+    limit: int
+    offset: int
+    next_offset: int | None
+
+
+class AdminEventCount(BaseModel):
+    event_type: str
+    severity: Literal["debug", "info", "warning", "error"]
+    outcome: str
+    count: int = Field(ge=0)
+
+
+class AdminHealthTelemetry(BaseModel):
+    events_retained: int = Field(ge=0)
+    http_requests: int = Field(ge=0)
+    event_counts: list[AdminEventCount]
+
+
+class AdminHealthSnapshot(BaseModel):
+    status: Literal["ok"] = "ok"
+    generated_at: datetime
+    telemetry: AdminHealthTelemetry
+
+
+_CORRELATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
+
+
 def create_auth_router(session_factory: Callable[[], Session], settings: AuthSettings,
                        provider_registry: ProviderRegistry | None = None,
-                       resource_coordinator: ResourceCoordinator | None = None) -> APIRouter:
+                       resource_coordinator: ResourceCoordinator | None = None,
+                       health_snapshot: Callable[[], dict[str, object]] | None = None) -> APIRouter:
     router = APIRouter(prefix="/api/auth", tags=["auth"])
     provider_registry = provider_registry or InMemoryProviderRegistry()
     resource_coordinator = resource_coordinator or ResourceCoordinator()
+    health_snapshot = health_snapshot or (lambda: {
+        "events_retained": 0,
+        "http_requests": 0,
+        "event_counts": [],
+    })
 
     def session_dep():
         session = session_factory()
@@ -210,6 +256,21 @@ def create_auth_router(session_factory: Callable[[], Session], settings: AuthSet
             raise HTTPException(status_code=403, detail="admin role required")
         return current
 
+    def audit_admin_view(session: Session, actor_user_id: UUID, event_type: str) -> None:
+        correlation_id = get_correlation_id() or "service_00000000"
+        session.add(AuditEvent(
+            event_type=event_type,
+            actor_user_id=actor_user_id,
+            metadata_json=safe_audit_metadata(correlation_id),
+        ))
+        session.commit()
+
+    def safe_correlation_id(metadata: object) -> str | None:
+        if not isinstance(metadata, dict):
+            return None
+        value = metadata.get("correlation_id")
+        return value if isinstance(value, str) and _CORRELATION_ID_PATTERN.fullmatch(value) else None
+
     @router.get("/context", response_model=UserContext)
     def context(current: Principal = Depends(principal), session: Session = Depends(session_dep)):
         """Return only the caller's active workspace memberships for the cabinet."""
@@ -287,6 +348,51 @@ def create_auth_router(session_factory: Callable[[], Session], settings: AuthSet
                     for workload, pending, retrying in queue_rows],
             generated_at=datetime.now(UTC),
         )
+
+    @router.get("/admin/audit-events", response_model=AdminAuditPage)
+    def admin_audit_events(
+        current: Principal = Depends(require_admin),
+        limit: int = Query(default=50, ge=1, le=100),
+        offset: int = Query(default=0, ge=0, le=10_000),
+        session: Session = Depends(session_dep),
+    ):
+        """Return a bounded, metadata-free audit page to an administrator only."""
+
+        rows = session.scalars(
+            select(AuditEvent)
+            .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+            .offset(offset)
+            .limit(limit + 1)
+        ).all()
+        page = rows[:limit]
+        audit_admin_view(session, current.user_id, "admin.audit.viewed")
+        return AdminAuditPage(
+            events=[
+                AdminAuditEventSummary(
+                    id=row.id,
+                    event_type=row.event_type,
+                    actor_user_id=row.actor_user_id,
+                    target_user_id=row.target_user_id,
+                    correlation_id=safe_correlation_id(row.metadata_json),
+                    created_at=row.created_at,
+                )
+                for row in page
+            ],
+            limit=limit,
+            offset=offset,
+            next_offset=offset + len(page) if len(rows) > limit else None,
+        )
+
+    @router.get("/admin/health", response_model=AdminHealthSnapshot)
+    def admin_health(current: Principal = Depends(require_admin), session: Session = Depends(session_dep)):
+        """Expose only aggregate, redacted process health counters to admins."""
+
+        try:
+            telemetry = AdminHealthTelemetry.model_validate(health_snapshot())
+        except Exception:
+            raise HTTPException(status_code=503, detail="health information unavailable") from None
+        audit_admin_view(session, current.user_id, "admin.health.viewed")
+        return AdminHealthSnapshot(generated_at=datetime.now(UTC), telemetry=telemetry)
 
     def require_workspace(workspace_id: UUID, current: Principal = Depends(principal), session: Session = Depends(session_dep)) -> Membership:
         membership = session.scalar(select(Membership).join(Workspace).where(

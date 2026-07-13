@@ -94,7 +94,11 @@ if os.getenv("APE_DATABASE_SYNC_URL"):
     _database_settings = DatabaseSettings.from_env()
     _auth_engine = create_worker_engine(_database_settings)
     _session_factory = create_worker_session_factory(_auth_engine)
-    _auth_router = create_auth_router(_session_factory, AuthSettings(_auth_secret))
+    _auth_router = create_auth_router(
+        _session_factory,
+        AuthSettings(_auth_secret),
+        health_snapshot=telemetry_store.admin_snapshot,
+    )
     app.include_router(_auth_router)
     app.include_router(create_jobs_router(_session_factory, _auth_router.principal_dependency))
 

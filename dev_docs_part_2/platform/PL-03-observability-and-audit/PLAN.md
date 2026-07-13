@@ -42,7 +42,7 @@
 - admin actions аудируются;
 - redaction и retention tests проходят.
 
-## Baseline checkpoint (2026-07-13)
+## Completion (2026-07-13)
 
 Выполнен безопасный foundation без подключения production alert delivery или
 admin UI: redacted `ObservabilityEvent`/`AuditEventInput`, JSON formatter,
@@ -52,6 +52,14 @@ metadata, а также конфигурируемая retention policy. `health
 раскрывает provider, DB URL или secrets; local-first runtime не зависит от
 наличия database/metrics backend.
 
-Композиция остаётся незавершённой: следующие пакеты должны добавить
-provider/worker failure signals, scheduled audit pruning и защищённые
-admin-facing audit/health views после завершения API-contract части.
+Завершены последующие service-пакеты: provider routing фиксирует circuit-open
+fallback и no-route failures, worker восстанавливает correlation ID из
+persisted job payload и пишет redacted failure events, а безопасные агрегаты
+попадают в process-local metrics. Celery Beat запускает idempotent audit
+pruning в очереди `maintenance`; эксплуатационный контракт описан в
+`reports/2026-07-13-retention-schedule.md`. Admin-only API предоставляет
+metadata-free audit page и aggregate health snapshot, а обращения к этим views
+сами аудируются.
+
+Production alert delivery, dashboards и frontend admin implementation остаются
+вне scope этой композиции. Полный итог — `reports/walkthrough.md`.

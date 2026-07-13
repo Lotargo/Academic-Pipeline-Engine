@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import pytest
 
+from academic_pe.observability import TelemetryStore
 from academic_pe.providers import (
     Capability, CredentialCandidate, CredentialPolicy, CredentialSource, InMemoryProviderRegistry,
     ModelMetadata, ProviderDefinition, ProviderHealth, ProviderRouter, RouteRequest,
@@ -58,10 +59,16 @@ def test_platform_first_and_user_only_are_explicit_policies():
 def test_open_circuit_falls_back_deterministically():
     registry = InMemoryProviderRegistry()
     registry.register(definition("primary", 1)); registry.register(definition("backup", 2))
+    telemetry = TelemetryStore()
     router = ProviderRouter(registry,
         lambda request, provider: [CredentialCandidate(provider, CredentialSource.PLATFORM, uuid4())],
-        lambda provider: ProviderHealth.OPEN if provider == "primary" else ProviderHealth.HEALTHY)
+        lambda provider: ProviderHealth.OPEN if provider == "primary" else ProviderHealth.HEALTHY,
+        event_recorder=telemetry.record)
     assert router.route(RouteRequest(Capability.TEXT_GENERATION, uuid4())).provider_id == "backup"
+    assert [(event.event_type, event.outcome) for event in telemetry.recent_events()] == [
+        ("provider.routing.unavailable", "circuit_open"),
+        ("provider.routing.fallback", "selected_after_fallback"),
+    ]
 
 
 def test_custom_openai_compatible_provider_contract():
@@ -77,9 +84,13 @@ def test_custom_openai_compatible_provider_contract():
 
 def test_missing_capability_or_credentials_has_no_route():
     registry = InMemoryProviderRegistry(); registry.register(definition("openai"))
+    telemetry = TelemetryStore()
     with pytest.raises(ProviderRoutingError):
-        ProviderRouter(registry, lambda request, provider: []).route(
+        ProviderRouter(registry, lambda request, provider: [], event_recorder=telemetry.record).route(
             RouteRequest(Capability.VISION, uuid4()))
+    failure = telemetry.recent_events()[0]
+    assert (failure.event_type, failure.severity, failure.outcome) == (
+        "provider.routing.failed", "error", "no_route")
 
 
 @pytest.mark.parametrize("url", ["relative/v1", "ftp://example/v1", "https://key@example/v1", "https://example/v1?q=x"])

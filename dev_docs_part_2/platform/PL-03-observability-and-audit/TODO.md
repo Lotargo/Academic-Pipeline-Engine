@@ -14,4 +14,7 @@
 - [x] `PL-03-T005` Добавить redaction и retention policy.
 - [x] `PL-03-T006` Определить minimal alerts.
 - [x] `PL-03-T007` Добавить observability/security tests.
-- [ ] `PL-03-T008` Создать walkthrough-отчёт.
+- [x] `PL-03-T008` Создать walkthrough-отчёт baseline checkpoint.
+- [x] `PL-03-T009` Добавить redacted provider/worker failure signals с correlation ID.
+- [x] `PL-03-T010` Добавить scheduled audit-retention pruning и его эксплуатационный контракт.
+- [x] `PL-03-T011` Реализовать защищённые backend views audit/health для будущей admin UI.

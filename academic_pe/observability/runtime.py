@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections import Counter, deque
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from datetime import UTC, datetime, timedelta
 from threading import Lock
 from time import perf_counter
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Generator
 from uuid import uuid4
 
 from fastapi import Request
@@ -20,6 +21,18 @@ _correlation_id: ContextVar[str | None] = ContextVar("ape_correlation_id", defau
 
 def get_correlation_id() -> str | None:
     return _correlation_id.get()
+
+
+@contextmanager
+def correlation_context(correlation_id: str | None) -> Generator[str, None, None]:
+    """Bind a validated ID for non-HTTP execution such as a queue worker."""
+
+    bound = _valid_correlation_id(correlation_id) or "service_00000000"
+    token: Token[str | None] = _correlation_id.set(bound)
+    try:
+        yield bound
+    finally:
+        _correlation_id.reset(token)
 
 
 def _new_correlation_id() -> str:
@@ -47,14 +60,14 @@ class TelemetryStore:
             raise ValueError("telemetry limits must be positive")
         self._events: deque[ObservabilityEvent] = deque(maxlen=max_events)
         self._request_counts: Counter[tuple[str, int]] = Counter()
+        self._event_counts: Counter[tuple[str, str, str]] = Counter()
         self._latency_ms_total: Counter[str] = Counter()
         self._retention = timedelta(seconds=retention_seconds)
         self._lock = Lock()
 
     def record(self, event: ObservabilityEvent) -> None:
         with self._lock:
-            self._prune_locked(event.occurred_at)
-            self._events.append(event)
+            self._append_locked(event)
 
     def record_http(self, *, route: str, status_code: int, correlation_id: str, elapsed_ms: float) -> None:
         # FastAPI supplies route templates rather than concrete dynamic IDs;
@@ -69,10 +82,16 @@ class TelemetryStore:
             details={"route": safe_route, "elapsed_ms": round(max(0.0, elapsed_ms), 3)},
         )
         with self._lock:
-            self._prune_locked(event.occurred_at)
-            self._events.append(event)
+            self._append_locked(event)
             self._request_counts[(safe_route, status_code)] += 1
             self._latency_ms_total[safe_route] += int(max(0.0, elapsed_ms))
+
+    def recent_events(self) -> tuple[ObservabilityEvent, ...]:
+        """Return only the process-local, already-redacted bounded event buffer."""
+
+        with self._lock:
+            self._prune_locked(datetime.now(UTC))
+            return tuple(self._events)
 
     def snapshot(self) -> dict[str, int]:
         with self._lock:
@@ -80,6 +99,25 @@ class TelemetryStore:
             return {
                 "events_retained": len(self._events),
                 "http_requests": sum(self._request_counts.values()),
+            }
+
+    def admin_snapshot(self) -> dict[str, object]:
+        """Return aggregate telemetry safe for an authenticated admin view."""
+
+        with self._lock:
+            self._prune_locked(datetime.now(UTC))
+            return {
+                "events_retained": len(self._events),
+                "http_requests": sum(self._request_counts.values()),
+                "event_counts": [
+                    {
+                        "event_type": event_type,
+                        "severity": severity,
+                        "outcome": outcome,
+                        "count": count,
+                    }
+                    for (event_type, severity, outcome), count in sorted(self._event_counts.items())
+                ],
             }
 
     def prometheus_metrics(self) -> str:
@@ -92,11 +130,25 @@ class TelemetryStore:
             for (route, status), count in sorted(self._request_counts.items()):
                 lines.append(f'ape_http_requests_total{{route="{route}",status="{status}"}} {count}')
             lines.extend([
+                "# HELP ape_observability_events_total Redacted observability events by type, severity, and outcome.",
+                "# TYPE ape_observability_events_total counter",
+            ])
+            for (event_type, severity, outcome), count in sorted(self._event_counts.items()):
+                lines.append(
+                    "ape_observability_events_total"
+                    f'{{event_type="{event_type}",severity="{severity}",outcome="{outcome}"}} {count}'
+                )
+            lines.extend([
                 "# HELP ape_observability_events_retained Number of retained redacted telemetry events.",
                 "# TYPE ape_observability_events_retained gauge",
                 f"ape_observability_events_retained {len(self._events)}",
             ])
             return "\n".join(lines) + "\n"
+
+    def _append_locked(self, event: ObservabilityEvent) -> None:
+        self._prune_locked(event.occurred_at)
+        self._events.append(event)
+        self._event_counts[(event.event_type, event.severity, event.outcome)] += 1
 
     def _prune_locked(self, now: datetime) -> None:
         cutoff = now - self._retention

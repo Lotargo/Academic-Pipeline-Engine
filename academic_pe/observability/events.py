@@ -24,7 +24,7 @@ class ObservabilityEvent(BaseModel):
     severity: Literal["debug", "info", "warning", "error"] = "info"
     correlation_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
     source: str = Field(min_length=1, max_length=80)
-    outcome: str = Field(default="unknown", min_length=1, max_length=40)
+    outcome: str = Field(default="unknown", pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$")
     job_id: str | None = Field(default=None, max_length=64)
     workspace_id: str | None = Field(default=None, max_length=64)
     actor_user_id: str | None = Field(default=None, max_length=64)
