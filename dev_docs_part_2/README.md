@@ -118,7 +118,7 @@ Core-pipeline задача отмечается завершённой толь�
 - [ ] **PL-01** — [Docker](platform/PL-01-docker/PLAN.md) · [TODO](platform/PL-01-docker/TODO.md)
 - [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [Temporary OpenShift Sandbox](platform/PL-02-render-deployment/OPENSHIFT_SANDBOX_INTERIM.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
 - [x] **PL-03** — [Observability](platform/PL-03-observability-and-audit/PLAN.md) · [TODO](platform/PL-03-observability-and-audit/TODO.md)
-- [ ] **PL-04** — [Supabase Service Development](platform/PL-04-supabase-service-dev/PLAN.md) · [TODO](platform/PL-04-supabase-service-dev/TODO.md)
+- [x] **PL-04** — [Supabase Service Development](platform/PL-04-supabase-service-dev/PLAN.md) · [TODO](platform/PL-04-supabase-service-dev/TODO.md)
 
 ## Актуальная карта выполнения и блокировок (2026-07-13)
 

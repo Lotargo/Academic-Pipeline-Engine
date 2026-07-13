@@ -24,7 +24,7 @@
 
 ## Depends on
 
-- PL-01;
+- PL-01 frontend/API image foundation (`T001`, `T002`, `T005`, `T006`);
 - BE-11.
 
 ## Invariants

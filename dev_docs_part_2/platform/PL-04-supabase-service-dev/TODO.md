@@ -15,4 +15,4 @@
 - [x] `PL-04-T004` Перевести service-dev scripts с standalone PostgreSQL на Supabase endpoints.
 - [x] `PL-04-T005` Добавить APE Compose bridge для Linux/WSL и Docker Desktop.
 - [x] `PL-04-T006` Выполнить local Supabase + APE health/migration smoke.
-- [ ] `PL-04-T007` Создать walkthrough-отчёт и зафиксировать production OAuth gate.
+- [x] `PL-04-T007` Создать walkthrough-отчёт и зафиксировать production OAuth gate.
