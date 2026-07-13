@@ -13,6 +13,7 @@ from academic_pe.persistence.models import (
     OutboxEvent, UsageEvent, WorkerDelivery, WorkspaceCleanupRequest,
     WorkspaceCleanupStatus,
 )
+from academic_pe.observability import get_correlation_id, safe_audit_metadata
 from academic_pe.storage import ArtifactStorage
 
 
@@ -39,6 +40,10 @@ class WorkspaceCleanupService:
     def __init__(self, storage: ArtifactStorage):
         self.storage = storage
 
+    @staticmethod
+    def _audit_metadata(**metadata: object) -> dict[str, object]:
+        return safe_audit_metadata(get_correlation_id() or "service_00000000", **metadata)
+
     def request(self, session: Session, workspace_id: UUID, user_id: UUID) -> tuple[WorkspaceCleanupRequest, str]:
         token = secrets.token_urlsafe(32)
         cleanup = WorkspaceCleanupRequest(
@@ -51,7 +56,7 @@ class WorkspaceCleanupService:
         session.add(AuditEvent(
             event_type="workspace.cleanup.requested",
             actor_user_id=user_id,
-            metadata_json={"workspace_id": str(workspace_id), "cleanup_request_id": str(cleanup.id)},
+            metadata_json=self._audit_metadata(workspace_id=str(workspace_id), cleanup_request_id=str(cleanup.id)),
         ))
         session.commit()
         return cleanup, token
@@ -93,7 +98,7 @@ class WorkspaceCleanupService:
             session.add(AuditEvent(
                 event_type="workspace.cleanup.completed",
                 actor_user_id=user_id,
-                metadata_json={"workspace_id": str(workspace_id), "cleanup_request_id": str(cleanup.id)},
+                metadata_json=self._audit_metadata(workspace_id=str(workspace_id), cleanup_request_id=str(cleanup.id)),
             ))
             session.commit()
         except Exception:

@@ -28,8 +28,10 @@ def test_first_admin_is_reproducible_and_exclusive(sessions):
         assert first.actor_role == ActorRole.ADMIN
         with pytest.raises(BootstrapError, match="already exists"):
             bootstrap_first_admin(session, "other@example.com", "correct horse battery staple")
-        assert session.scalar(select(AuditEvent).where(
-            AuditEvent.event_type == "admin.bootstrap.created")) is not None
+        audit = session.scalar(select(AuditEvent).where(
+            AuditEvent.event_type == "admin.bootstrap.created"))
+        assert audit is not None
+        assert audit.metadata_json["correlation_id"] == "service_00000000"
 
 
 def test_invite_hash_single_use_expiry_and_audit(sessions):

@@ -12,6 +12,7 @@ from academic_pe.auth.security import hash_password, hash_refresh_token, new_ref
 from academic_pe.persistence.config import DatabaseSettings, create_worker_engine, create_worker_session_factory
 from academic_pe.persistence.models import (ActorRole, AdminInvite, AuditEvent, Membership,
     MembershipRole, Organization, OrganizationKind, User, UserStatus, Workspace)
+from academic_pe.observability import get_correlation_id, safe_audit_metadata
 
 
 class BootstrapError(ValueError):
@@ -20,8 +21,10 @@ class BootstrapError(ValueError):
 
 def _audit(session: Session, event: str, actor: UUID | None = None,
            target: UUID | None = None, **metadata: object) -> None:
+    correlation_id = get_correlation_id() or "service_00000000"
     session.add(AuditEvent(event_type=event, actor_user_id=actor,
-                           target_user_id=target, metadata_json=metadata))
+                           target_user_id=target,
+                           metadata_json=safe_audit_metadata(correlation_id, **metadata)))
 
 
 def bootstrap_first_admin(session: Session, email: str, password: str) -> User:

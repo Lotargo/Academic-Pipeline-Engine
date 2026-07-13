@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from academic_pe.api_models import Attachment, ContinuationSource
 from academic_pe.jobs.lifecycle import JobLifecycleRepository
+from academic_pe.observability import get_correlation_id
 from academic_pe.persistence.models import (Job, JobEvent, JobStage, JobStatus,
     Membership, MembershipStatus, TenantStatus, Workspace)
 from academic_pe.queueing.dispatchers import Workload
@@ -44,6 +45,7 @@ def _job_payload(job: Job, stages: list[JobStage]) -> dict[str, Any]:
         "editor_options": job.payload.get("editor_options"),
         "current_stage": job.current_stage, "progress": job.progress,
         "active_attempt": job.active_attempt,
+        "correlation_id": job.payload.get("correlation_id"),
         "cancel_requested_at": job.cancel_requested_at.isoformat() if job.cancel_requested_at else None,
         "error_code": job.error_code, "error_message": job.error_message,
         "created_at": job.created_at.isoformat(), "updated_at": job.updated_at.isoformat(),
@@ -87,11 +89,18 @@ def create_jobs_router(session_factory: Callable[[], Session], principal_depende
         if body.kind != "pipeline":
             raise HTTPException(status_code=422, detail="unsupported job kind")
         workspace = workspace_for_current(current, session)
-        payload = {"topic": body.topic.strip(), "instructions": body.instructions}
+        payload = {
+            "topic": body.topic.strip(),
+            "instructions": body.instructions,
+            "correlation_id": get_correlation_id(),
+        }
         if body.editor_options is not None:
             payload["editor_options"] = body.editor_options.model_dump(mode="json", exclude_none=True)
         job = create_job_with_outbox(session, workspace.id, current.user_id, body.kind, payload, Workload.GENERATION)
-        session.add(JobEvent(job_id=job.id, event_type="job.created", data={"status": JobStatus.PENDING.value}))
+        session.add(JobEvent(job_id=job.id, event_type="job.created", data={
+            "status": JobStatus.PENDING.value,
+            "correlation_id": payload["correlation_id"],
+        }))
         session.commit()
         return snapshot(session, job)
 

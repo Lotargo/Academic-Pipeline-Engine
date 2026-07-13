@@ -13,9 +13,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Callable, Any
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 
 from academic_pe.api_models import BulkHistoryPayload, ConfigUpdateRequest, ExportRequest, RevisionCreateRequest, RunRequest, SecretUpdatePayload, PromptEnhanceRequest, PromptEnhanceResponse
 from academic_pe.core.config import TemplateMode, load_config, AppConfig
@@ -25,6 +25,7 @@ from academic_pe.core.orchestrator import create_orchestrator_from_config, Pipel
 from academic_pe.core.template_library import TemplateLibrary
 from academic_pe.tools.export_qa import export_docx_with_qa, export_pdf_with_qa
 from academic_pe.tools.libreoffice import discover_soffice
+from academic_pe.observability import CorrelationIdMiddleware, ObservabilityConfig, TelemetryStore
 
 from academic_pe.core.registry import SQLiteRegistryStore, NoopRegistryStore
 # Initialize registry store
@@ -69,6 +70,16 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(title="Academic PE API Server", version="0.1.0", lifespan=lifespan)
+try:
+    _observability_config = ObservabilityConfig.from_yaml()
+except Exception as exc:
+    logging.getLogger(__name__).warning("Invalid observability configuration; using safe defaults: %s", exc)
+    _observability_config = ObservabilityConfig()
+telemetry_store = TelemetryStore(
+    max_events=_observability_config.retention.telemetry_max_events,
+    retention_seconds=_observability_config.retention.telemetry_event_seconds,
+)
+app.add_middleware(CorrelationIdMiddleware, telemetry=telemetry_store)
 
 # Multi-user auth is enabled only for the service deployment. The legacy local-first
 # server remains usable without PostgreSQL or a JWT secret.
@@ -94,7 +105,34 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Correlation-ID"],
 )
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz(request: Request):
+    """Liveness only: never disclose provider, secret, or database settings."""
+
+    return {
+        "status": "ok",
+        "correlation_id": getattr(request.state, "correlation_id", None),
+    }
+
+
+@app.get("/readyz", include_in_schema=False)
+def readyz(request: Request):
+    """Safe readiness for an API process; dependency diagnostics stay internal."""
+
+    return {
+        "status": "ready",
+        "checks": {"api": "ok"},
+        "correlation_id": getattr(request.state, "correlation_id", None),
+    }
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    return PlainTextResponse(telemetry_store.prometheus_metrics(), media_type="text/plain; version=0.0.4")
 
 # Mount static files for exports directory to serve generated charts and other files
 from fastapi.staticfiles import StaticFiles

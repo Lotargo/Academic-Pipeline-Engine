@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
 from academic_pe.persistence.models import AuditEvent, Credential, CredentialStatus
+from academic_pe.observability import get_correlation_id, safe_audit_metadata
 from academic_pe.secrets.crypto import KeyWrapper, decrypt_payload, encrypt_payload
 
 
@@ -40,6 +41,10 @@ class SqlAlchemyCredentialStore:
     def _aad(credential_id: UUID, workspace_id: UUID, provider: str) -> bytes:
         return f"ape:credential:v1:{credential_id}:{workspace_id}:{provider}".encode()
 
+    @staticmethod
+    def _audit_metadata(**metadata: object) -> dict[str, object]:
+        return safe_audit_metadata(get_correlation_id() or "service_00000000", **metadata)
+
     def _get(self, credential_id: UUID, workspace_id: UUID) -> Credential:
         credential = self.session.get(Credential, credential_id)
         if credential is None or credential.workspace_id != workspace_id:
@@ -57,7 +62,7 @@ class SqlAlchemyCredentialStore:
             encryption_key_id=self.wrapper.key_id, encryption_version=1)
         self.session.add(credential)
         self.session.add(AuditEvent(event_type="credential.created", actor_user_id=user_id,
-            metadata_json={"credential_id": str(credential.id), "workspace_id": str(workspace_id), "provider": provider}))
+            metadata_json=self._audit_metadata(credential_id=str(credential.id), workspace_id=str(workspace_id), provider=provider)))
         self.session.commit()
         return credential
 
@@ -71,7 +76,7 @@ class SqlAlchemyCredentialStore:
         credential.wrapped_data_key, credential.encryption_key_id = wrapped, self.wrapper.key_id
         credential.encryption_version += 1
         self.session.add(AuditEvent(event_type="credential.replaced", actor_user_id=credential.created_by_user_id,
-            metadata_json={"credential_id": str(credential.id), "workspace_id": str(workspace_id)}))
+            metadata_json=self._audit_metadata(credential_id=str(credential.id), workspace_id=str(workspace_id))))
         self.session.commit()
         return credential
 
@@ -82,7 +87,7 @@ class SqlAlchemyCredentialStore:
         credential.wrapped_data_key = os.urandom(max(32, len(credential.wrapped_data_key)))
         credential.payload_nonce = os.urandom(12)
         self.session.add(AuditEvent(event_type="credential.deleted", actor_user_id=user_id,
-            metadata_json={"credential_id": str(credential.id), "workspace_id": str(workspace_id)}))
+            metadata_json=self._audit_metadata(credential_id=str(credential.id), workspace_id=str(workspace_id))))
         self.session.commit()
 
     def use(self, credential_id: UUID, workspace_id: UUID, purpose: WorkerPurpose) -> str:
@@ -97,7 +102,7 @@ class SqlAlchemyCredentialStore:
         plaintext = decrypt_payload(credential.encrypted_payload, credential.payload_nonce,
                                     credential.wrapped_data_key, aad, self.wrapper).decode()
         self.session.add(AuditEvent(event_type="credential.used",
-            metadata_json={"credential_id": str(credential.id), "workspace_id": str(workspace_id), "purpose": purpose.value}))
+            metadata_json=self._audit_metadata(credential_id=str(credential.id), workspace_id=str(workspace_id), purpose=purpose.value)))
         self.session.commit()
         return plaintext
 
@@ -108,6 +113,6 @@ class SqlAlchemyCredentialStore:
         credential.wrapped_data_key = new_wrapper.wrap(data_key, aad)
         credential.encryption_key_id = new_wrapper.key_id
         self.session.add(AuditEvent(event_type="credential.rewrapped",
-            metadata_json={"credential_id": str(credential.id), "workspace_id": str(workspace_id), "key_id": new_wrapper.key_id}))
+            metadata_json=self._audit_metadata(credential_id=str(credential.id), workspace_id=str(workspace_id), key_id=new_wrapper.key_id)))
         self.session.commit()
         self.wrapper = new_wrapper

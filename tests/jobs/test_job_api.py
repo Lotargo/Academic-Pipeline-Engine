@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from academic_pe.auth import AuthSettings, create_auth_router
 from academic_pe.jobs import create_jobs_router
+from academic_pe.observability import CorrelationIdMiddleware, TelemetryStore
 from academic_pe.persistence.base import Base
 
 
@@ -15,6 +16,7 @@ def job_client():
     sessions = sessionmaker(engine, expire_on_commit=False)
     auth = create_auth_router(sessions, AuthSettings(jwt_secret="x" * 32))
     app = FastAPI()
+    app.add_middleware(CorrelationIdMiddleware, telemetry=TelemetryStore())
     app.include_router(auth)
     app.include_router(create_jobs_router(sessions, auth.principal_dependency))  # type: ignore[attr-defined]
     return TestClient(app)
@@ -30,7 +32,7 @@ def test_job_api_creates_lists_cancels_and_hides_foreign_jobs():
     client = job_client()
     one = register(client, "one@example.com")
     two = register(client, "two@example.com")
-    one_headers = {"Authorization": f"Bearer {one['access_token']}"}
+    one_headers = {"Authorization": f"Bearer {one['access_token']}", "X-Correlation-ID": "trace_12345678"}
     two_headers = {"Authorization": f"Bearer {two['access_token']}"}
 
     created = client.post("/api/jobs", headers=one_headers, json={
@@ -46,6 +48,7 @@ def test_job_api_creates_lists_cancels_and_hides_foreign_jobs():
     assert created.status_code == 201
     job = created.json()
     assert job["status"] == "pending"
+    assert job["correlation_id"] == "trace_12345678"
     assert job["topic"] == "Tenant-safe topic"
     assert job["editor_options"] == {
         "academic_mode": True,

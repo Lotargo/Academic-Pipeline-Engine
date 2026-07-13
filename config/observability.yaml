@@ -1,0 +1,10 @@
+schema_version: 1
+retention:
+  audit_event_days: 365
+  telemetry_event_seconds: 86400
+  telemetry_max_events: 512
+alerts:
+  provider_failures_per_window: 5
+  provider_failure_window_seconds: 300
+  job_stalled_seconds: 900
+  worker_unavailable_seconds: 300

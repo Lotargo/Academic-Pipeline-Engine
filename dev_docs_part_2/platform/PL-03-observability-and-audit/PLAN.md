@@ -41,3 +41,17 @@
 - provider/worker failures видимы;
 - admin actions аудируются;
 - redaction и retention tests проходят.
+
+## Baseline checkpoint (2026-07-13)
+
+Выполнен безопасный foundation без подключения production alert delivery или
+admin UI: redacted `ObservabilityEvent`/`AuditEventInput`, JSON formatter,
+request correlation middleware, Prometheus-compatible in-process metrics,
+`/healthz` и `/readyz`, сохранение correlation ID в job payload/event и audit
+metadata, а также конфигурируемая retention policy. `healthz` намеренно не
+раскрывает provider, DB URL или secrets; local-first runtime не зависит от
+наличия database/metrics backend.
+
+Композиция остаётся незавершённой: следующие пакеты должны добавить
+provider/worker failure signals, scheduled audit pruning и защищённые
+admin-facing audit/health views после завершения API-contract части.

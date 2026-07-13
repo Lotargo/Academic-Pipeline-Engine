@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from academic_pe.persistence.base import Base
-from academic_pe.persistence.models import (Credential, CredentialStatus, Membership,
+from academic_pe.persistence.models import (AuditEvent, Credential, CredentialStatus, Membership,
     MembershipRole, Organization, OrganizationKind, User, Workspace)
 from academic_pe.secrets.crypto import LocalAesKeyWrapper
 from academic_pe.secrets.redaction import REDACTED, SecretRedactionFilter, redact
@@ -47,6 +47,8 @@ def test_create_replace_delete_and_database_dump_is_opaque(context):
     assert store.use(credential.id, workspace.id, WorkerPurpose.OCR) == "replacement-secret"
     store.delete(credential.id, workspace.id, user.id)
     assert credential.status == CredentialStatus.DELETED
+    events = session.scalars(select(AuditEvent).order_by(AuditEvent.created_at)).all()
+    assert events and all(event.metadata_json["correlation_id"] == "service_00000000" for event in events)
     with pytest.raises(KeyError):
         store.use(credential.id, workspace.id, WorkerPurpose.GENERATION)
 

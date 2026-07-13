@@ -153,9 +153,11 @@ Core-pipeline задача отмечается завершённой толь�
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
   объём самой композиции, а не внешняя блокировка.
-- `PL-03`, базовый слой: его backend-зависимости завершены, поэтому можно
-  определить event schema, correlation IDs, safe health endpoints, audit,
-  redaction и их тесты.
+- `PL-03`, baseline checkpoint (2026-07-13): event schema, correlation IDs,
+  safe health/metrics endpoints, redaction, audit metadata correlation,
+  retention policy и tests реализованы. Композиция остаётся `[ ]` до
+  provider/worker signals, scheduled pruning, protected audit/health views и
+  итогового walkthrough.
 
 ### Нельзя завершить до снятия зависимостей
 
