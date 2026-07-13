@@ -166,7 +166,8 @@ Alembic migrations в Supabase PostgreSQL и запускает APE API/frontend
 Для WSL рекомендуется держать рабочую копию на Linux filesystem (например,
 `~/projects/Academic-Pipeline-Engine`), а не в `/mnt/c` или `/mnt/f`: Docker
 build context с Windows-mounted диска заметно медленнее. Скрипты остаются
-одинаковыми в WSL и PowerShell.
+одинаковыми в WSL и PowerShell. В WSL нужен native Linux Node.js 22+; script
+приоритетно использует `$HOME/.local/node/bin/npx`, если он установлен.
 
 Этот контур запускает Supabase Postgres/Auth/Storage, но до `BE-13` API ещё
 использует временную legacy JWT compatibility boundary. Реальные Supabase

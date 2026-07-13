@@ -13,7 +13,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / ".env.service-dev"
-NPX = "npx.cmd" if os.name == "nt" else "npx"
+NPX = os.environ.get("APE_NPX_BIN") or ("npx.cmd" if os.name == "nt" else "npx")
 
 
 def _netloc_with_host(url: str, host: str) -> str:

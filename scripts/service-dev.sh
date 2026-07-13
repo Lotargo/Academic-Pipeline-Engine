@@ -4,9 +4,17 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 action="${1:-up}"
 python_bin="${PYTHON_BIN:-python3}"
+npx_bin="${APE_NPX_BIN:-}"
 
 if [[ -x "$root/.venv/bin/python" ]]; then
   python_bin="$root/.venv/bin/python"
+fi
+if [[ -z "$npx_bin" && -x "$HOME/.local/node/bin/npx" ]]; then
+  export PATH="$HOME/.local/node/bin:$PATH"
+  npx_bin="$HOME/.local/node/bin/npx"
+fi
+if [[ -z "$npx_bin" ]]; then
+  npx_bin="npx"
 fi
 
 require_command() {
@@ -19,12 +27,13 @@ compose() {
 
 cd "$root"
 require_command docker
-require_command npx
+require_command "$npx_bin"
 require_command "$python_bin"
+export APE_NPX_BIN="$npx_bin"
 
 case "$action" in
   up)
-    npx --yes supabase start --exclude logflare,vector >/dev/null
+    "$npx_bin" --yes supabase start --exclude logflare,vector >/dev/null
     "$python_bin" "$root/scripts/write_service_dev_env.py"
     compose up --build --detach --wait
     echo "service-dev is ready: http://localhost:3000 (API: http://localhost:8000)"
@@ -40,7 +49,7 @@ case "$action" in
     if [[ -f "$root/.env.service-dev" ]]; then
       compose down
     fi
-    npx --yes supabase stop >/dev/null
+    "$npx_bin" --yes supabase stop >/dev/null
     echo "service-dev is stopped."
     ;;
   *)
