@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import subprocess
+from base64 import urlsafe_b64encode
 from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
 
@@ -60,12 +61,12 @@ def sqlalchemy_url(database_url: str, driver: str) -> str:
     )
 
 
-def previous_secret() -> str | None:
+def previous_value(expected_key: str) -> str | None:
     if not TARGET.exists():
         return None
     for line in TARGET.read_text(encoding="utf-8").splitlines():
         key, separator, value = line.partition("=")
-        if separator and key == "APE_AUTH_JWT_SECRET" and value:
+        if separator and key == expected_key and value:
             return value
     return None
 
@@ -92,14 +93,24 @@ def local_supabase_status() -> dict[str, str]:
 
 def main() -> None:
     status = local_supabase_status()
-    secret = previous_secret() or secrets.token_urlsafe(48)
+    secret = previous_value("APE_AUTH_JWT_SECRET") or secrets.token_urlsafe(48)
+    rabbitmq_password = previous_value("APE_RABBITMQ_PASSWORD") or secrets.token_urlsafe(32)
+    credential_master_key = previous_value("APE_CREDENTIAL_MASTER_KEY") or urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("=")
     content = "\n".join(
         (
             "# Generated from `supabase status`; never commit this file.",
-            "# APE_AUTH_JWT_SECRET is temporary legacy-service compatibility only.",
+            "# Supabase OAuth is deliberately mocked in service-dev; no provider secret is written here.",
             f"APE_DATABASE_SYNC_URL={sqlalchemy_url(status['DB_URL'], 'psycopg')}",
             f"APE_DATABASE_ASYNC_URL={sqlalchemy_url(status['DB_URL'], 'asyncpg')}",
             f"APE_SUPABASE_URL={docker_host_url(status['API_URL'])}",
+            "APE_IDENTITY_ADAPTER=mock",
+            "APE_RUNTIME_PROFILE=service",
+            f"APE_RABBITMQ_PASSWORD={rabbitmq_password}",
+            f"APE_BROKER_URL=amqp://ape:{quote(rabbitmq_password, safe='')}@broker:5672//",
+            "# Development-only envelope key for personal BYOK credentials; production must use KMS/Vault.",
+            "APE_CREDENTIAL_WRAPPER=local-aes",
+            f"APE_CREDENTIAL_MASTER_KEY={credential_master_key}",
+            "APE_CREDENTIAL_KEY_ID=service-dev/local-aes-v1",
             f"APE_AUTH_JWT_SECRET={secret}",
             "",
         )

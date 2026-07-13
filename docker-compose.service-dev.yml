@@ -1,11 +1,36 @@
 name: academic-pipeline-engine-service-dev
 
 services:
+  broker:
+    image: rabbitmq:4.3.2-management-alpine
+    env_file:
+      - .env.service-dev
+    environment:
+      RABBITMQ_DEFAULT_USER: ape
+      # `--env-file .env.service-dev` makes this a generated random password.
+      # The stable fallback keeps direct `docker compose up` useful for a
+      # previously generated service-dev file while remaining local-only.
+      RABBITMQ_DEFAULT_PASS: ${APE_RABBITMQ_PASSWORD:-ape-service-dev}
+    volumes:
+      # Celery's control health check creates a temporary reply queue. RabbitMQ
+      # 4.3 denies that deprecated queue type by default, so keep the local
+      # broker explicitly compatible with the pinned Celery transport.
+      - ./docker/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
   migrate:
-    image: ape-service-dev-backend:local
+    image: ape-service-dev-api:local
     build:
       context: .
       dockerfile: Dockerfile
+      target: api
     command: ["alembic", "upgrade", "head"]
     env_file:
       - .env.service-dev
@@ -15,19 +40,124 @@ services:
     restart: "no"
 
   backend:
-    image: ape-service-dev-backend:local
+    image: ape-service-dev-api:local
     build:
       context: .
       dockerfile: Dockerfile
+      target: api
     ports:
       - "8000:8000"
     env_file:
       - .env.service-dev
+    environment:
+      APE_BROKER_URL: ${APE_BROKER_URL:-amqp://ape:ape-service-dev@broker:5672//}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully
+      broker:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+
+  worker-generation:
+    image: ape-service-dev-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    command: ["celery", "-A", "academic_pe.queueing.celery_app:celery_app", "worker", "--loglevel=INFO", "--hostname=generation@%h", "--queues=generation,research"]
+    env_file:
+      - .env.service-dev
+    environment:
+      APE_BROKER_URL: ${APE_BROKER_URL:-amqp://ape:ape-service-dev@broker:5672//}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A academic_pe.queueing.celery_app:celery_app inspect ping --destination=generation@$$HOSTNAME --timeout=3 >/dev/null"]
+      interval: 20s
+      timeout: 8s
+      retries: 6
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+
+  worker-export:
+    image: ape-service-dev-export:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: export
+    command: ["celery", "-A", "academic_pe.queueing.celery_app:celery_app", "worker", "--loglevel=INFO", "--hostname=export@%h", "--queues=export"]
+    env_file:
+      - .env.service-dev
+    environment:
+      APE_BROKER_URL: ${APE_BROKER_URL:-amqp://ape:ape-service-dev@broker:5672//}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "soffice --headless --version >/dev/null && celery -A academic_pe.queueing.celery_app:celery_app inspect ping --destination=export@$$HOSTNAME --timeout=3 >/dev/null"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 30s
+    init: true
+    restart: unless-stopped
+
+  worker-maintenance:
+    image: ape-service-dev-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    command: ["celery", "-A", "academic_pe.queueing.celery_app:celery_app", "worker", "--loglevel=INFO", "--hostname=maintenance@%h", "--queues=maintenance"]
+    env_file:
+      - .env.service-dev
+    environment:
+      APE_BROKER_URL: ${APE_BROKER_URL:-amqp://ape:ape-service-dev@broker:5672//}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A academic_pe.queueing.celery_app:celery_app inspect ping --destination=maintenance@$$HOSTNAME --timeout=3 >/dev/null"]
+      interval: 20s
+      timeout: 8s
+      retries: 6
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+
+  scheduler:
+    image: ape-service-dev-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    command: ["celery", "-A", "academic_pe.queueing.celery_app:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/ape-celerybeat-schedule"]
+    env_file:
+      - .env.service-dev
+    environment:
+      APE_BROKER_URL: ${APE_BROKER_URL:-amqp://ape:ape-service-dev@broker:5672//}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck_celery_beat.py"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     init: true
     restart: unless-stopped
 
@@ -38,10 +168,14 @@ services:
       args:
         BACKEND_API_URL: http://backend:8000
         NEXT_PUBLIC_APE_RUNTIME_PROFILE: service
+        NEXT_PUBLIC_APE_PROVIDER_AUTH_ADAPTER: mock
     ports:
       - "3000:3000"
     environment:
       BACKEND_API_URL: http://backend:8000
+      APE_PROVIDER_AUTH_ADAPTER: mock
+      # Browser-facing callback origin; do not use Docker's 0.0.0.0 bind host.
+      APE_PUBLIC_APP_ORIGIN: http://localhost:3000
     depends_on:
       backend:
         condition: service_healthy

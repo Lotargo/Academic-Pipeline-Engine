@@ -36,13 +36,12 @@ test("editor job contract preserves advanced options", async () => {
   assert.match(client, /editor_options: editorOptions/)
 })
 
-test("local-first and service launch scripts select their editor profiles explicitly", async () => {
-  const [local, service, localWindows, serviceWindows] = await Promise.all([
+test("local-first and service launch configuration select their editor profiles explicitly", async () => {
+  const [local, serviceCompose, localWindows] = await Promise.all([
     readFile(new URL("../run-local.sh", root), "utf8"),
-    readFile(new URL("../run-service-dev.sh", root), "utf8"),
+    readFile(new URL("../docker-compose.service-dev.yml", root), "utf8"),
     readFile(new URL("../run-local.bat", root), "utf8"),
-    readFile(new URL("../run-service-dev.bat", root), "utf8"),
   ])
   for (const source of [local, localWindows]) assert.match(source, /NEXT_PUBLIC_APE_RUNTIME_PROFILE=local/)
-  for (const source of [service, serviceWindows]) assert.match(source, /NEXT_PUBLIC_APE_RUNTIME_PROFILE=service/)
+  assert.match(serviceCompose, /NEXT_PUBLIC_APE_RUNTIME_PROFILE: service/)
 })

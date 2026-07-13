@@ -136,7 +136,7 @@ export function ProviderSettings() {
   if (!snapshot) return <Unavailable error={error} onRetry={load} />
 
   return <section className="mx-auto max-w-5xl space-y-6">
-    <div><p className="text-sm text-muted-foreground">Рабочее пространство</p><h1 className="text-3xl font-bold tracking-tight">Провайдеры и API-ключи</h1><p className="mt-2 text-sm text-muted-foreground">Выберите модель, используйте общий ресурс платформы или подключите собственный ключ.</p></div>
+    <div><p className="text-sm text-muted-foreground">Личные настройки в текущем workspace</p><h2 className="text-2xl font-bold tracking-tight">Провайдеры и API-ключи</h2><p className="mt-2 text-sm text-muted-foreground">Выберите модель, используйте общий ресурс платформы или подключите собственный ключ. Этот выбор не меняет настройки сервера или других участников.</p></div>
     {error && <Alert variant="destructive"><CircleAlert /><AlertTitle>Не удалось обновить настройки</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
     {snapshot.providers.length === 0 ? <Unavailable error="Сервис ещё не передал список доступных провайдеров." onRetry={load} /> : <>
       <Card><CardHeader><CardTitle className="flex items-center gap-2"><Cloud className="size-5 text-ape-primary" />Выбор провайдера</CardTitle><CardDescription>Модель используется для новых заданий. Платформенные ресурсы предоставляются без платных статусов и без отображения точных квот.</CardDescription></CardHeader><CardContent className="space-y-4">

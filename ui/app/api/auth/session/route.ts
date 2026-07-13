@@ -1,24 +1,35 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { backendAuth, backendContext, clearSession, REFRESH_COOKIE, sessionResponse } from "@/lib/auth-server"
-import type { SessionContext, TokenPair } from "@/lib/auth-contract"
+import { backendContext } from "@/lib/auth-server"
+import {
+  clearProviderAuthCookies,
+  IDENTITY_ACCESS_COOKIE,
+  IDENTITY_REFRESH_COOKIE,
+  providerAuthAdapter,
+  setIdentityCookies,
+} from "@/lib/provider-auth-server"
+import type { SessionContext } from "@/lib/auth-contract"
 
 export async function GET() {
-  const refreshToken = (await cookies()).get(REFRESH_COOKIE)?.value
-  if (!refreshToken) return NextResponse.json({ authenticated: false, reason: "missing" }, { status: 401 })
+  const jar = await cookies()
+  let accessToken = jar.get(IDENTITY_ACCESS_COOKIE)?.value
+  const refreshToken = jar.get(IDENTITY_REFRESH_COOKIE)?.value
+  if (!accessToken) return NextResponse.json({ authenticated: false, reason: "missing" }, { status: 401 })
   try {
-    const upstream = await backendAuth("refresh", { refresh_token: refreshToken })
-    if (upstream.ok) {
-      const tokens = await upstream.json() as TokenPair
-      const context = await backendContext(tokens.access_token)
-      if (!context.ok) {
-        if (context.status === 401 || context.status === 403) return clearSession(NextResponse.json({ authenticated: false, reason: "expired" }, { status: context.status }))
-        return NextResponse.json({ authenticated: false, reason: "unavailable" }, { status: 503 })
+    let context = await backendContext(accessToken)
+    if (!context.ok && context.status === 401 && refreshToken) {
+      const tokens = await providerAuthAdapter().refresh(refreshToken)
+      if (tokens) {
+        accessToken = tokens.access_token
+        context = await backendContext(accessToken)
+        if (context.ok) return setIdentityCookies(NextResponse.json({ authenticated: true, context: await context.json() as SessionContext }), tokens)
       }
-      return sessionResponse(tokens, 200, await context.json() as SessionContext)
     }
-    const reason = upstream.status === 403 ? "blocked" : "expired"
-    return clearSession(NextResponse.json({ authenticated: false, reason }, { status: upstream.status }))
+    if (!context.ok) {
+      const reason = context.status === 403 ? "blocked" : "expired"
+      return clearProviderAuthCookies(NextResponse.json({ authenticated: false, reason }, { status: context.status === 503 ? 503 : context.status }))
+    }
+    return NextResponse.json({ authenticated: true, context: await context.json() as SessionContext })
   } catch {
     return NextResponse.json({ authenticated: false, reason: "unavailable" }, { status: 503 })
   }

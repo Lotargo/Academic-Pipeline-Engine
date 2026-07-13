@@ -15,6 +15,8 @@ develop-eggs/
 dist/
 eggs/
 lib/
+!ui/lib/
+!ui/lib/*.ts
 lib64/
 parts/
 sdist/

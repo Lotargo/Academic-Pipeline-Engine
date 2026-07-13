@@ -128,6 +128,20 @@ class User(TimestampMixin, Base):
     )
 
 
+class UserPreference(TimestampMixin, Base):
+    """Interface preferences that belong to one account, never to the server."""
+
+    __tablename__ = "user_preferences"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    display_name: Mapped[str | None] = mapped_column(String(120))
+    language: Mapped[str] = mapped_column(String(16), default="ru", nullable=False)
+    theme: Mapped[str] = mapped_column(String(16), default="system", nullable=False)
+
+
 class LoginSession(TimestampMixin, Base):
     __tablename__ = "sessions"
 
@@ -138,6 +152,25 @@ class LoginSession(TimestampMixin, Base):
     token_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ExternalIdentity(TimestampMixin, Base):
+    """A verified upstream identity, deliberately independent from email."""
+
+    __tablename__ = "external_identities"
+    __table_args__ = (
+        UniqueConstraint("issuer", "provider_subject", name="uq_external_identities_issuer_subject"),
+        UniqueConstraint("provider", "provider_subject", name="uq_external_identities_provider_subject"),
+        Index("ix_external_identities_user", "user_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    issuer: Mapped[str] = mapped_column(String(500), nullable=False)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    provider_subject: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
 class AdminInvite(TimestampMixin, Base):
@@ -227,6 +260,28 @@ class Membership(TimestampMixin, Base):
         default=MembershipStatus.ACTIVE,
         nullable=False,
     )
+
+
+class WorkspaceMemberSettings(TimestampMixin, Base):
+    """Per-user preferences inside a workspace; never shared implicitly with members."""
+
+    __tablename__ = "workspace_member_settings"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "user_id", name="uq_workspace_member_settings_workspace_user"),
+        Index("ix_workspace_member_settings_user", "user_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    workspace_id: Mapped[UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    editor_defaults_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    provider_id: Mapped[str | None] = mapped_column(String(100))
+    model_id: Mapped[str | None] = mapped_column(String(200))
+    credential_policy: Mapped[str | None] = mapped_column(String(32))
 
 
 class WorkspaceCleanupRequest(Base):

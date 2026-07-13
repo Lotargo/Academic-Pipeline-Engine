@@ -1,16 +1,22 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { ACCESS_COOKIE } from "@/lib/auth-server"
+import { IDENTITY_ACCESS_COOKIE } from "@/lib/provider-auth-server"
 
 const backendUrl = () => process.env.BACKEND_API_URL || "http://127.0.0.1:8000"
+const ACCESS_COOKIES = [IDENTITY_ACCESS_COOKIE, ACCESS_COOKIE]
 
 function cookieToken(cookieHeader?: string | null) {
-  const encoded = cookieHeader?.split(";").map(part => part.trim()).find(part => part.startsWith(`${ACCESS_COOKIE}=`))?.slice(ACCESS_COOKIE.length + 1)
-  return encoded ? decodeURIComponent(encoded) : undefined
+  for (const name of ACCESS_COOKIES) {
+    const encoded = cookieHeader?.split(";").map(part => part.trim()).find(part => part.startsWith(`${name}=`))?.slice(name.length + 1)
+    if (encoded) return decodeURIComponent(encoded)
+  }
+  return undefined
 }
 
 export async function providerBackend(path: string, init: RequestInit = {}, cookieHeader?: string | null) {
-  const token = cookieToken(cookieHeader) || (await cookies()).get(ACCESS_COOKIE)?.value
+  const jar = await cookies()
+  const token = cookieToken(cookieHeader) || jar.get(IDENTITY_ACCESS_COOKIE)?.value || jar.get(ACCESS_COOKIE)?.value
   if (!token) return null
   const headers = new Headers(init.headers)
   headers.set("authorization", `Bearer ${token}`)

@@ -13,6 +13,12 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from academic_pe.auth.identity import (
+    ExternalIdentityVerifier,
+    IdentityProvisioningError,
+    IdentityVerificationError,
+    provision_external_identity,
+)
 from academic_pe.auth.security import (AuthSettings, create_access_token, decode_access_token,
     hash_password, hash_refresh_token, new_refresh_token, verify_password)
 from academic_pe.observability import get_correlation_id, safe_audit_metadata
@@ -160,11 +166,22 @@ class AdminHealthSnapshot(BaseModel):
 _CORRELATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
 
 
-def create_auth_router(session_factory: Callable[[], Session], settings: AuthSettings,
+def create_auth_router(session_factory: Callable[[], Session], settings: AuthSettings | None = None,
                        provider_registry: ProviderRegistry | None = None,
                        resource_coordinator: ResourceCoordinator | None = None,
-                       health_snapshot: Callable[[], dict[str, object]] | None = None) -> APIRouter:
+                       health_snapshot: Callable[[], dict[str, object]] | None = None,
+                       *, identity_verifier: ExternalIdentityVerifier | None = None) -> APIRouter:
+    """Create either the legacy JWT router or the service external-identity router.
+
+    The two modes are mutually exclusive.  In particular, a service router
+    never accepts an APE password JWT just because an old secret remains in an
+    environment file.
+    """
+
+    if (settings is None) == (identity_verifier is None):
+        raise ValueError("configure exactly one of legacy settings or an identity verifier")
     router = APIRouter(prefix="/api/auth", tags=["auth"])
+    is_external_identity_mode = identity_verifier is not None
     provider_registry = provider_registry or InMemoryProviderRegistry()
     resource_coordinator = resource_coordinator or ResourceCoordinator()
     health_snapshot = health_snapshot or (lambda: {
@@ -180,70 +197,86 @@ def create_auth_router(session_factory: Callable[[], Session], settings: AuthSet
         finally:
             session.close()
 
-    def issue(session: Session, user: User, login_session: LoginSession | None = None) -> TokenPair:
-        raw = new_refresh_token()
-        if login_session is None:
-            login_session = LoginSession(user_id=user.id, token_hash=hash_refresh_token(raw),
-                                         expires_at=datetime.now(UTC) + settings.refresh_ttl)
-            session.add(login_session)
-        else:
-            login_session.token_hash = hash_refresh_token(raw)
-            login_session.expires_at = datetime.now(UTC) + settings.refresh_ttl
-        session.commit()
-        return TokenPair(access_token=create_access_token(user.id, user.actor_role.value, user.token_version, settings),
-                         refresh_token=raw)
+    if not is_external_identity_mode:
+        assert settings is not None
 
-    @router.post("/register", response_model=TokenPair, status_code=201)
-    def register(body: Credentials, session: Session = Depends(session_dep)):
-        user = User(email=str(body.email).lower(), password_hash=hash_password(body.password), actor_role=ActorRole.USER)
-        try:
-            session.add(user)
-            session.flush()
-            organization = Organization(owner_user_id=user.id, kind=OrganizationKind.PERSONAL, name="Personal")
-            session.add(organization)
-            session.flush()
-            workspace = Workspace(organization_id=organization.id, name="Personal")
-            session.add(workspace)
-            session.flush()
-            session.add(Membership(workspace_id=workspace.id, user_id=user.id, membership_role=MembershipRole.OWNER))
-            session.flush()
-        except IntegrityError:
-            session.rollback()
-            raise HTTPException(status_code=409, detail="email already registered")
-        return issue(session, user)
-
-    @router.post("/login", response_model=TokenPair)
-    def login(body: Credentials, session: Session = Depends(session_dep)):
-        user = session.scalar(select(User).where(User.email == str(body.email).lower()))
-        if user is None or not verify_password(body.password, user.password_hash):
-            raise HTTPException(status_code=401, detail="invalid credentials")
-        if user.status != UserStatus.ACTIVE:
-            raise HTTPException(status_code=403, detail="user is not active")
-        return issue(session, user)
-
-    @router.post("/refresh", response_model=TokenPair)
-    def refresh(body: RefreshRequest, session: Session = Depends(session_dep)):
-        login_session = session.scalar(select(LoginSession).where(LoginSession.token_hash == hash_refresh_token(body.refresh_token)))
-        now = datetime.now(UTC)
-        if login_session is None or login_session.revoked_at is not None or login_session.expires_at.replace(tzinfo=UTC) <= now:
-            raise HTTPException(status_code=401, detail="invalid refresh token")
-        user = session.get(User, login_session.user_id)
-        if user is None or user.status != UserStatus.ACTIVE:
-            raise HTTPException(status_code=403, detail="user is not active")
-        return issue(session, user, login_session)
-
-    @router.post("/logout", status_code=204)
-    def logout(body: RefreshRequest, session: Session = Depends(session_dep)):
-        login_session = session.scalar(select(LoginSession).where(LoginSession.token_hash == hash_refresh_token(body.refresh_token)))
-        if login_session is not None and login_session.revoked_at is None:
-            login_session.revoked_at = datetime.now(UTC)
+        def issue(session: Session, user: User, login_session: LoginSession | None = None) -> TokenPair:
+            raw = new_refresh_token()
+            if login_session is None:
+                login_session = LoginSession(user_id=user.id, token_hash=hash_refresh_token(raw),
+                                             expires_at=datetime.now(UTC) + settings.refresh_ttl)
+                session.add(login_session)
+            else:
+                login_session.token_hash = hash_refresh_token(raw)
+                login_session.expires_at = datetime.now(UTC) + settings.refresh_ttl
             session.commit()
+            return TokenPair(access_token=create_access_token(user.id, user.actor_role.value, user.token_version, settings),
+                             refresh_token=raw)
+
+        @router.post("/register", response_model=TokenPair, status_code=201)
+        def register(body: Credentials, session: Session = Depends(session_dep)):
+            user = User(email=str(body.email).lower(), password_hash=hash_password(body.password), actor_role=ActorRole.USER)
+            try:
+                session.add(user)
+                session.flush()
+                organization = Organization(owner_user_id=user.id, kind=OrganizationKind.PERSONAL, name="Personal")
+                session.add(organization)
+                session.flush()
+                workspace = Workspace(organization_id=organization.id, name="Personal")
+                session.add(workspace)
+                session.flush()
+                session.add(Membership(workspace_id=workspace.id, user_id=user.id, membership_role=MembershipRole.OWNER))
+                session.flush()
+            except IntegrityError:
+                session.rollback()
+                raise HTTPException(status_code=409, detail="email already registered")
+            return issue(session, user)
+
+        @router.post("/login", response_model=TokenPair)
+        def login(body: Credentials, session: Session = Depends(session_dep)):
+            user = session.scalar(select(User).where(User.email == str(body.email).lower()))
+            if user is None or not verify_password(body.password, user.password_hash):
+                raise HTTPException(status_code=401, detail="invalid credentials")
+            if user.status != UserStatus.ACTIVE:
+                raise HTTPException(status_code=403, detail="user is not active")
+            return issue(session, user)
+
+        @router.post("/refresh", response_model=TokenPair)
+        def refresh(body: RefreshRequest, session: Session = Depends(session_dep)):
+            login_session = session.scalar(select(LoginSession).where(LoginSession.token_hash == hash_refresh_token(body.refresh_token)))
+            now = datetime.now(UTC)
+            if login_session is None or login_session.revoked_at is not None or login_session.expires_at.replace(tzinfo=UTC) <= now:
+                raise HTTPException(status_code=401, detail="invalid refresh token")
+            user = session.get(User, login_session.user_id)
+            if user is None or user.status != UserStatus.ACTIVE:
+                raise HTTPException(status_code=403, detail="user is not active")
+            return issue(session, user, login_session)
+
+        @router.post("/logout", status_code=204)
+        def logout(body: RefreshRequest, session: Session = Depends(session_dep)):
+            login_session = session.scalar(select(LoginSession).where(LoginSession.token_hash == hash_refresh_token(body.refresh_token)))
+            if login_session is not None and login_session.revoked_at is None:
+                login_session.revoked_at = datetime.now(UTC)
+                session.commit()
 
     def principal(authorization: Annotated[str | None, Header()] = None, session: Session = Depends(session_dep)) -> Principal:
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="missing bearer token")
+        bearer_token = authorization[7:]
+        if identity_verifier is not None:
+            try:
+                identity = identity_verifier.verify(bearer_token)
+                user = provision_external_identity(session, identity)
+            except IdentityVerificationError:
+                raise HTTPException(status_code=401, detail="invalid external identity token")
+            except IdentityProvisioningError:
+                raise HTTPException(status_code=409, detail="external identity cannot be provisioned")
+            if user.status != UserStatus.ACTIVE:
+                raise HTTPException(status_code=403, detail="user is not active")
+            return Principal(user_id=user.id, role=user.actor_role)
         try:
-            claims = decode_access_token(authorization[7:], settings)
+            assert settings is not None
+            claims = decode_access_token(bearer_token, settings)
             user = session.get(User, UUID(claims["sub"]))
         except (jwt.InvalidTokenError, KeyError, ValueError):
             raise HTTPException(status_code=401, detail="invalid access token")

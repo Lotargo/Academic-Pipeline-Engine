@@ -1,29 +1,45 @@
+# Canonical direct Docker Compose entry point for the service development stack.
+# Supabase remains a separate local stack (started through Supabase CLI) so its
+# Auth/Postgres/Storage lifecycle is never folded into the application images.
+name: academic-pipeline-engine-service-dev
+
 services:
+  broker:
+    extends:
+      file: docker-compose.service-dev.yml
+      service: broker
+
+  migrate:
+    extends:
+      file: docker-compose.service-dev.yml
+      service: migrate
+
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    init: true
-    restart: unless-stopped
+    extends:
+      file: docker-compose.service-dev.yml
+      service: backend
+
+  worker-generation:
+    extends:
+      file: docker-compose.service-dev.yml
+      service: worker-generation
+
+  worker-export:
+    extends:
+      file: docker-compose.service-dev.yml
+      service: worker-export
+
+  worker-maintenance:
+    extends:
+      file: docker-compose.service-dev.yml
+      service: worker-maintenance
+
+  scheduler:
+    extends:
+      file: docker-compose.service-dev.yml
+      service: scheduler
 
   frontend:
-    build:
-      context: ./ui
-      dockerfile: Dockerfile
-      args:
-        BACKEND_API_URL: http://backend:8000
-        NEXT_PUBLIC_APE_RUNTIME_PROFILE: service
-    ports:
-      - "3000:3000"
-    environment:
-      - BACKEND_API_URL=http://backend:8000
-    depends_on:
-      backend:
-        condition: service_healthy
-    init: true
-    restart: unless-stopped
+    extends:
+      file: docker-compose.service-dev.yml
+      service: frontend

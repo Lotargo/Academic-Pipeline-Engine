@@ -20,13 +20,17 @@ test("unsafe API methods reject declared cross-origin requests", async () => {
 })
 
 test("session secrets are cookie-only and CSS interpolation is constrained", async () => {
-  const [auth, inventory, chart] = await Promise.all([
+  const [auth, providerAuth, inventory, chart] = await Promise.all([
     readFile(new URL("lib/auth-server.ts", root), "utf8"),
+    readFile(new URL("lib/provider-auth-server.ts", root), "utf8"),
     readFile(new URL("../dev_docs_part_2/frontend/FE-08-frontend-security/SECURITY_INVENTORY.md", root), "utf8"),
     readFile(new URL("components/ui/chart.tsx", root), "utf8"),
   ])
   assert.match(auth, /httpOnly: true/)
   assert.match(auth, /sameSite: "lax"/)
+  assert.match(providerAuth, /httpOnly: true/)
+  assert.match(providerAuth, /PKCE_VERIFIER_COOKIE/)
+  assert.doesNotMatch(providerAuth, /localStorage/)
   assert.match(inventory, /no raw HTML parser/)
   assert.match(chart, /function isSafeCssColor/)
   assert.match(chart, /\^\[a-z0-9-\]\+\$/)

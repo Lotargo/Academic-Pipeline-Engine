@@ -10,10 +10,10 @@
 
 ## Tasks
 
-- [ ] `BE-13-T001` Зафиксировать claims/identity-link contract и profile boundary.
-- [ ] `BE-13-T002` Добавить mock external identity verifier и contract tests.
-- [ ] `BE-13-T003` Добавить Supabase JWT/JWKS verifier с safe key refresh.
-- [ ] `BE-13-T004` Реализовать idempotent user/workspace/identity provisioning.
-- [ ] `BE-13-T005` Переключить service auth dependencies на identity adapter.
-- [ ] `BE-13-T006` Добавить negative, RBAC и tenant-isolation tests.
-- [ ] `BE-13-T007` Создать walkthrough-отчёт с production OAuth gate.
+- [x] `BE-13-T001` Зафиксировать claims/identity-link contract и profile boundary.
+- [x] `BE-13-T002` Добавить mock external identity verifier и contract tests.
+- [x] `BE-13-T003` Добавить Supabase JWT/JWKS verifier с safe key refresh.
+- [x] `BE-13-T004` Реализовать idempotent user/workspace/identity provisioning.
+- [x] `BE-13-T005` Переключить service auth dependencies на identity adapter.
+- [x] `BE-13-T006` Добавить negative, RBAC и tenant-isolation tests.
+- [x] `BE-13-T007` Создать walkthrough-отчёт с production OAuth gate.

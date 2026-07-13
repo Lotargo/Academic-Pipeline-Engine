@@ -7,7 +7,6 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $EnvFile = Join-Path $Root ".env.service-dev"
-$ComposeFile = Join-Path $Root "docker-compose.service-dev.yml"
 $Python = if (Test-Path (Join-Path $Root ".venv\Scripts\python.exe")) {
     Join-Path $Root ".venv\Scripts\python.exe"
 } else {
@@ -21,7 +20,7 @@ function Require-Command([string]$Name) {
 }
 
 function Invoke-Compose([string[]]$Arguments) {
-    & docker compose --env-file $EnvFile -f $ComposeFile @Arguments
+    & docker compose --env-file $EnvFile @Arguments
     if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed." }
 }
 

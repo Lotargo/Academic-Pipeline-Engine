@@ -94,7 +94,7 @@ Core-pipeline задача отмечается завершённой толь�
 ## Backend additions
 
 - [x] **BE-12** — [Workspace Data Deletion](backend/BE-12-workspace-data-deletion/PLAN.md) · [TODO](backend/BE-12-workspace-data-deletion/TODO.md)
-- [ ] **BE-13** — [Supabase Identity Adapter](backend/BE-13-supabase-identity-adapter/PLAN.md) · [TODO](backend/BE-13-supabase-identity-adapter/TODO.md)
+- [x] **BE-13** — [Supabase Identity Adapter](backend/BE-13-supabase-identity-adapter/PLAN.md) · [TODO](backend/BE-13-supabase-identity-adapter/TODO.md)
 
 ## Core pipeline and document quality
 
@@ -115,7 +115,7 @@ Core-pipeline задача отмечается завершённой толь�
 
 ## Platform
 
-- [ ] **PL-01** — [Docker](platform/PL-01-docker/PLAN.md) · [TODO](platform/PL-01-docker/TODO.md)
+- [x] **PL-01** — [Docker](platform/PL-01-docker/PLAN.md) · [TODO](platform/PL-01-docker/TODO.md)
 - [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [Temporary OpenShift Sandbox](platform/PL-02-render-deployment/OPENSHIFT_SANDBOX_INTERIM.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
 - [x] **PL-03** — [Observability](platform/PL-03-observability-and-audit/PLAN.md) · [TODO](platform/PL-03-observability-and-audit/TODO.md)
 - [x] **PL-04** — [Supabase Service Development](platform/PL-04-supabase-service-dev/PLAN.md) · [TODO](platform/PL-04-supabase-service-dev/TODO.md)
@@ -128,7 +128,11 @@ Core-pipeline задача отмечается завершённой толь�
 
 ### Можно начинать сейчас
 
-- `FE-09`: его явные зависимости `FE-02`, `FE-05` и `BE-12` завершены.
+- `FE-09`, started (2026-07-13): profile, theme/language и editor defaults
+  сохраняются отдельно для current user; provider selection и BYOK metadata
+  изолированы current user внутри active workspace. В service UI не перенесены
+  global local-first config/secrets. Advanced agent/document configuration,
+  scoped cleanup UX и accessibility acceptance остаются открытыми.
 - `FE-11`: baseline ESLint является контролируемым техническим долгом и не
   блокирует исправления выбранного связанного UI-пакета.
 - `CORE-13`, completed (2026-07-13): этапы A--E реализованы. После
@@ -153,9 +157,21 @@ Core-pipeline задача отмечается завершённой толь�
   baseline: top-1 0.928571, top-3 0.964286, holdout Brier 0.083333, mean
   Cloud latency около 2.28 s. Полный Python suite: 666 passed, 3 skipped.
   Local pipeline от cloud providers по-прежнему не зависит.
-- `PL-01`: frontend и API image уже имеют non-root runtime и liveness/readiness
-  healthchecks. Отдельные worker-процессы, broker и export image ещё не
-  собраны; это объём самой композиции, а не внешняя блокировка.
+- `BE-13`, completed (2026-07-13): service identity adapter принимает только
+  выбранный external verifier (`mock` либо Supabase JWKS); provisioning
+  idempotent по immutable issuer/subject, email не связывает legacy account.
+  Password/register/refresh endpoints не монтируются в service external mode.
+  Реальный provider OAuth всё ещё требует deployment URL и secrets.
+- `FE-12`: automated mock/Supabase-adapter, callback, restore/logout и
+  contract tests завершены. `FE-12-T007` остаётся user-owned visual smoke;
+  composition не отмечается завершённой до подтверждения этой проверки.
+- `PL-01`, completed (2026-07-13): backend image разделён на dependency
+  builder, lean API runtime и LibreOffice-only export target. Service-dev
+  matrix содержит RabbitMQ, generation/research, export и maintenance workers,
+  Celery Beat и health checks. API/export builds и smoke прошли; API image
+  662 MB, export 1.07 GB.
+- Current full Python regression after BE-13/PL-01 and the FE-09 personal
+  settings foundation: `680 passed, 3 skipped`.
 - `PL-03`, completed (2026-07-13): event schema, correlation IDs, safe
   health/metrics endpoints, redaction, audit metadata correlation и retention
   policy дополнены provider/worker failure signals, scheduled audit pruning и
@@ -200,8 +216,9 @@ adapter и локальные contract tests; нельзя заявлять, ч�
 
 ### Практический порядок
 
-1. CORE-13--CORE-15 и `PL-03` завершены. Теперь доступна зависимая `FE-06`;
-   независимо доступны `FE-09`, выбранные пакеты `FE-11` и `PL-01`.
+1. CORE-13--CORE-15, `PL-03`, `PL-01` и `BE-13` завершены. Доступна зависимая
+   `FE-06`; независимо доступны `FE-09`, выбранные пакеты `FE-11` и
+   user-owned visual smoke `FE-12`.
 2. После `PL-01` можно выполнить ограниченный public smoke в OpenShift Sandbox.
    После выбора постоянной инфраструктуры (home server, VPS либо другой
    managed provider) выполнить `PL-02` и production OAuth e2e-gate.

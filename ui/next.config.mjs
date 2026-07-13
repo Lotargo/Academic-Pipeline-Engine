@@ -51,7 +51,9 @@ const nextConfig = {
     const backendUrl = process.env.BACKEND_API_URL || 'http://127.0.0.1:8000';
     return [
       {
-        source: '/api/:path((?!jobs(?:/|$)).*)',
+        // Auth routes are a first-party BFF boundary: provider callbacks and
+        // HTTP-only session cookies must never be proxied straight to FastAPI.
+        source: '/api/:path((?!(?:jobs|auth|provider-settings|credentials|settings)(?:/|$)).*)',
         destination: `${backendUrl}/api/:path*`,
       },
     ]

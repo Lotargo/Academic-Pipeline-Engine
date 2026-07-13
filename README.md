@@ -91,8 +91,30 @@ cp config/agents.example.yaml config/agents.yaml
 
 ### Docker Compose
 
-```bash
-docker compose up --build
+Корневой `docker-compose.yml` — каноническая точка входа для
+многопользовательского `service-dev`: API, frontend, RabbitMQ, миграция и
+workers запускаются одним Compose-проектом. Локальные Supabase
+Postgres/Auth/Storage намеренно остаются отдельным стеком.
+
+При первом запуске в PowerShell подготовьте локальный Supabase и ignored
+`.env.service-dev`:
+
+```powershell
+npx --yes supabase start --exclude logflare,vector
+.\.venv\Scripts\python.exe scripts\write_service_dev_env.py
+```
+
+После этого повседневный запуск не требует WSL-обёрток:
+
+```powershell
+docker compose --env-file .env.service-dev up --build --detach --wait
+docker compose --env-file .env.service-dev ps
+```
+
+Остановить только APE-контейнеры:
+
+```powershell
+docker compose --env-file .env.service-dev down
 ```
 
 После запуска:
@@ -100,7 +122,15 @@ docker compose up --build
 - Backend API: `http://localhost:8000`
 - Frontend UI: `http://localhost:3000`
 
-PDF export требует LibreOffice/`soffice`. Backend Dockerfile не устанавливает LibreOffice автоматически.
+PDF export запускается отдельным worker-образом с LibreOffice/`soffice`;
+общий API-образ его не содержит.
+
+Если старый вариант Compose уже успел создать проект
+`academic-pipeline-engine` и занять порт `8000`, один раз удалите именно его:
+
+```powershell
+docker compose -p academic-pipeline-engine down
+```
 
 ### Локальная Разработка
 
@@ -166,13 +196,14 @@ Alembic migrations в Supabase PostgreSQL и запускает APE API/frontend
 Для WSL рекомендуется держать рабочую копию на Linux filesystem (например,
 `~/projects/Academic-Pipeline-Engine`), а не в `/mnt/c` или `/mnt/f`: Docker
 build context с Windows-mounted диска заметно медленнее. Скрипты остаются
-одинаковыми в WSL и PowerShell. В WSL нужен native Linux Node.js 22+; script
-приоритетно использует `$HOME/.local/node/bin/npx`, если он установлен.
+одинаковыми в WSL и PowerShell. В WSL нужен native Linux Node.js 22 LTS;
+script использует `$HOME/.local/node/bin/npx` и не откатывается на Windows
+`npx`.
 
-Этот контур запускает Supabase Postgres/Auth/Storage, но до `BE-13` API ещё
-использует временную legacy JWT compatibility boundary. Реальные Supabase
-sessions и OAuth providers не считаются готовыми; provider secrets и публичные
-redirect URLs не добавляются в локальный файл.
+Этот контур запускает Supabase Postgres/Auth/Storage и явный mock external
+identity adapter. Реальные Supabase sessions и OAuth providers не считаются
+готовыми; provider secrets и публичные redirect URLs не добавляются в локальный
+файл.
 
 Для прежнего автономного режима без аккаунтов, jobs API и service auth:
 

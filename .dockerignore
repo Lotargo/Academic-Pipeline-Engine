@@ -1,17 +1,16 @@
-.git
-.pytest_cache
-.venv
-__pycache__
-*.py[cod]
-exports
-ui/.next
-ui/node_modules
-ui/.env
-ui/.env.*
-node_modules
-.env
-.env.*
-!*.example
-dev_docs
-dev_docs_part_2
-docs
+# Backend image context is an allow-list.  It avoids sending generated UI
+# bundles, local exports, credentials, and the rest of the development tree.
+*
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!poetry.lock
+!alembic.ini
+!academic_pe/
+!academic_pe/**
+!migrations/
+!migrations/**
+!config/
+!config/**
+!scripts/
+!scripts/**

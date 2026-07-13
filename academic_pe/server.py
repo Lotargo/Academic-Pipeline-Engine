@@ -82,25 +82,51 @@ telemetry_store = TelemetryStore(
 app.add_middleware(CorrelationIdMiddleware, telemetry=telemetry_store)
 
 # Multi-user auth is enabled only for the service deployment. The legacy local-first
-# server remains usable without PostgreSQL or a JWT secret.
+# server remains usable without PostgreSQL or a JWT secret.  Service identity is
+# selected explicitly; a leftover legacy JWT secret must not silently widen the
+# accepted bearer-token format.
 if os.getenv("APE_DATABASE_SYNC_URL"):
-    from academic_pe.auth import AuthSettings, create_auth_router
+    from academic_pe.auth import (
+        AuthSettings,
+        MockExternalIdentityVerifier,
+        SupabaseIdentitySettings,
+        SupabaseJwtVerifier,
+        create_auth_router,
+    )
     from academic_pe.jobs import create_jobs_router
     from academic_pe.persistence.config import DatabaseSettings, create_worker_engine, create_worker_session_factory
+    from academic_pe.user_settings import create_user_settings_router
 
-    _auth_secret = os.getenv("APE_AUTH_JWT_SECRET")
-    if not _auth_secret:
-        raise RuntimeError("APE_AUTH_JWT_SECRET is required when service auth is enabled")
     _database_settings = DatabaseSettings.from_env()
     _auth_engine = create_worker_engine(_database_settings)
     _session_factory = create_worker_session_factory(_auth_engine)
-    _auth_router = create_auth_router(
-        _session_factory,
-        AuthSettings(_auth_secret),
-        health_snapshot=telemetry_store.admin_snapshot,
-    )
+    _identity_adapter = os.getenv("APE_IDENTITY_ADAPTER", "supabase").strip().lower()
+    if _identity_adapter == "legacy":
+        _auth_secret = os.getenv("APE_AUTH_JWT_SECRET")
+        if not _auth_secret:
+            raise RuntimeError("APE_AUTH_JWT_SECRET is required for the explicit legacy identity adapter")
+        _auth_router = create_auth_router(
+            _session_factory,
+            AuthSettings(_auth_secret),
+            health_snapshot=telemetry_store.admin_snapshot,
+        )
+    elif _identity_adapter == "mock":
+        _auth_router = create_auth_router(
+            _session_factory,
+            health_snapshot=telemetry_store.admin_snapshot,
+            identity_verifier=MockExternalIdentityVerifier(),
+        )
+    elif _identity_adapter == "supabase":
+        _auth_router = create_auth_router(
+            _session_factory,
+            health_snapshot=telemetry_store.admin_snapshot,
+            identity_verifier=SupabaseJwtVerifier(SupabaseIdentitySettings.from_env(os.environ)),
+        )
+    else:
+        raise RuntimeError("APE_IDENTITY_ADAPTER must be legacy, mock, or supabase")
     app.include_router(_auth_router)
     app.include_router(create_jobs_router(_session_factory, _auth_router.principal_dependency))
+    app.include_router(create_user_settings_router(_session_factory, _auth_router.principal_dependency))
 
 # CORS middleware for Next.js on port 3000
 app.add_middleware(

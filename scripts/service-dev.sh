@@ -14,6 +14,10 @@ if [[ -z "$npx_bin" && -x "$HOME/.local/node/bin/npx" ]]; then
   npx_bin="$HOME/.local/node/bin/npx"
 fi
 if [[ -z "$npx_bin" ]]; then
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "WSL service-dev requires native Node.js 22 at \$HOME/.local/node/bin; refusing a Windows npx fallback." >&2
+    exit 1
+  fi
   npx_bin="npx"
 fi
 
@@ -22,13 +26,17 @@ require_command() {
 }
 
 compose() {
-  docker compose --env-file "$root/.env.service-dev" -f "$root/docker-compose.service-dev.yml" "$@"
+  docker compose --env-file "$root/.env.service-dev" "$@"
 }
 
 cd "$root"
 require_command docker
 require_command "$npx_bin"
 require_command "$python_bin"
+if [[ "$npx_bin" == "$HOME/.local/node/bin/npx" ]]; then
+  node_version="$($HOME/.local/node/bin/node --version)"
+  [[ "$node_version" == v22.* ]] || { echo "WSL service-dev requires Node.js 22 LTS; found $node_version." >&2; exit 1; }
+fi
 export APE_NPX_BIN="$npx_bin"
 
 case "$action" in

@@ -1,8 +1,10 @@
 # Provider settings API contract
 
-Контракт используют FE-05 и будущая HTTP-адаптация backend. Каждый endpoint
-требует Bearer access token. Backend выбирает workspace по активному membership:
-клиент не передаёт `workspace_id`.
+Контракт используют FE-05 и HTTP-адаптация backend. Каждый endpoint требует
+Bearer access token. Backend выбирает workspace и current user по active
+membership: клиент не передаёт `workspace_id` или `user_id`. Выбор
+provider/model и metadata BYOK принадлежат этому user внутри workspace и не
+меняют server-wide configuration или preferences других участников.
 
 ## Snapshot and selection
 
@@ -56,4 +58,5 @@ type CredentialMetadata = {
 
 Response никогда не содержит исходный `secret`, ciphertext, nonce, wrapped key,
 storage key или provider credential ID. Все list/create/replace/delete операции
-повторно проверяют membership и не раскрывают наличие credential другого tenant.
+повторно проверяют membership и current-user ownership; они не раскрывают
+наличие credential другого tenant или другого участника workspace.

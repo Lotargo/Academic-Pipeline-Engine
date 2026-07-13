@@ -1,9 +1,9 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { backendAuth, clearSession, REFRESH_COOKIE } from "@/lib/auth-server"
+import { clearProviderAuthCookies, IDENTITY_ACCESS_COOKIE, providerAuthAdapter } from "@/lib/provider-auth-server"
 
 export async function POST() {
-  const refreshToken = (await cookies()).get(REFRESH_COOKIE)?.value
-  if (refreshToken) { try { await backendAuth("logout", { refresh_token: refreshToken }) } catch { /* local logout still succeeds */ } }
-  return clearSession(NextResponse.json({ authenticated: false }))
+  const accessToken = (await cookies()).get(IDENTITY_ACCESS_COOKIE)?.value
+  if (accessToken) await providerAuthAdapter().signOut(accessToken)
+  return clearProviderAuthCookies(NextResponse.json({ authenticated: false }))
 }

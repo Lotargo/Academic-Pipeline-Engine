@@ -228,14 +228,16 @@
               <p class="eyebrow">local-first</p>
               <h2>Первый запуск возможен в mock-режиме.</h2>
               <p class="lead">
-                Скопируйте пример конфига и поднимите backend + frontend через Docker Compose.
+                Скопируйте пример конфига и поднимите service-dev через Docker Compose.
                 API-ключи можно добавить позже через UI, переменные окружения или локальный secrets-файл.
               </p>
             </div>
             <div class="code-block">
               <div class="code-title"><span>quick start</span><span>PowerShell / bash</span></div>
               <pre><code>cp config/agents.example.yaml config/agents.yaml
-docker compose up --build
+npx --yes supabase start --exclude logflare,vector
+python scripts/write_service_dev_env.py
+docker compose up --build --detach --wait
 
 # Backend API
 http://localhost:8000

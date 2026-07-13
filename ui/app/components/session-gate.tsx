@@ -9,7 +9,7 @@ const CabinetSessionContext = createContext<SessionContext | null>(null)
 export const useCabinetSession = () => useContext(CabinetSessionContext)
 
 export function SessionGate({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname(); const router = useRouter(); const isPublic = pathname === "/login" || pathname === "/register" || pathname === "/support"; const [ready, setReady] = useState(isPublic); const [session, setSession] = useState<SessionContext | null>(null)
+  const pathname = usePathname(); const router = useRouter(); const isPublic = pathname === "/login" || pathname === "/register" || pathname === "/support" || pathname === "/auth/callback"; const [ready, setReady] = useState(isPublic); const [session, setSession] = useState<SessionContext | null>(null)
   useEffect(() => {
     if (isPublic) { setReady(true); return }
     setReady(false)
