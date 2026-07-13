@@ -1,35 +1,34 @@
-# Build stage for backend
+# syntax=docker/dockerfile:1
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install poetry
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 ENV POETRY_VERSION=1.8.2
-RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
+ENV PORT=8000
 
-# Copy package definition
-COPY pyproject.toml poetry.lock* /app/
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends build-essential curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
-# Configure poetry to not create a virtual environment inside container
+COPY pyproject.toml poetry.lock* ./
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --no-root --no-directory
+    && poetry install --only main --no-interaction --no-ansi --no-root --no-directory
 
-# Copy code and configuration files
-COPY academic_pe /app/academic_pe
-COPY config /app/config
-COPY scripts /app/scripts
+COPY alembic.ini ./
+COPY migrations ./migrations
+COPY academic_pe ./academic_pe
+COPY config ./config
+COPY scripts ./scripts
 
-# Create output folder if it doesn't exist
-RUN mkdir -p /app/output
+RUN useradd --system --create-home --uid 1001 --shell /usr/sbin/nologin ape \
+    && mkdir --parents /app/exports \
+    && chown --recursive ape:ape /app
 
-# Expose port
+USER ape
+
 EXPOSE 8000
 
-# Start server
-CMD ["uvicorn", "academic_pe.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn academic_pe.server:app --host 0.0.0.0 --port ${PORT}"]
