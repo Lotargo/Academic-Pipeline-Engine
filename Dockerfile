@@ -31,4 +31,7 @@ USER ape
 
 EXPOSE 8000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+
 CMD ["sh", "-c", "uvicorn academic_pe.server:app --host 0.0.0.0 --port ${PORT}"]

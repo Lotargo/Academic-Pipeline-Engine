@@ -153,9 +153,9 @@ Core-pipeline задача отмечается завершённой толь�
   baseline: top-1 0.928571, top-3 0.964286, holdout Brier 0.083333, mean
   Cloud latency около 2.28 s. Полный Python suite: 666 passed, 3 skipped.
   Local pipeline от cloud providers по-прежнему не зависит.
-- `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
-  broker, healthchecks, non-root runtime и production process matrix; это
-  объём самой композиции, а не внешняя блокировка.
+- `PL-01`: frontend и API image уже имеют non-root runtime и liveness/readiness
+  healthchecks. Отдельные worker-процессы, broker и export image ещё не
+  собраны; это объём самой композиции, а не внешняя блокировка.
 - `PL-03`, completed (2026-07-13): event schema, correlation IDs, safe
   health/metrics endpoints, redaction, audit metadata correlation и retention
   policy дополнены provider/worker failure signals, scheduled audit pruning и
