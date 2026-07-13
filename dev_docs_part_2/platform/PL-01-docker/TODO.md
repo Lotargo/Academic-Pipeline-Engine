@@ -7,8 +7,8 @@
 
 ## Tasks
 
-- [ ] `PL-01-T001` Определить image/process matrix.
-- [ ] `PL-01-T002` Обновить frontend image.
+- [x] `PL-01-T001` Определить image/process matrix.
+- [x] `PL-01-T002` Обновить frontend image.
 - [ ] `PL-01-T003` Создать shared backend image и process commands.
 - [ ] `PL-01-T004` Изолировать LibreOffice/export dependencies.
 - [ ] `PL-01-T005` Добавить non-root runtime и healthchecks.
