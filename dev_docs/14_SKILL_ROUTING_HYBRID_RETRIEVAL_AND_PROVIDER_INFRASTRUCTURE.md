@@ -91,7 +91,7 @@ fusion, ColBERT second-stage rerank, tenant-safe fallback и routing benchmark
   `e5_bm25_colbert` во всех cases, artifact top-1 `0.928571`, top-3
   `0.964286`, holdout Brier `0.083333`, mean Cloud latency около `2.28 s`.
   Latency остаётся baseline, а не постоянным SLA.
-- Regression: полный Python suite — 665 passed, 3 skipped.
+- Regression: полный Python suite — 666 passed, 3 skipped.
 - CORE-14 закрыт. Следующий core package — итоговая integration acceptance
   optional revision flow из CORE-13. Local-first fallback остаётся обязательным.
 

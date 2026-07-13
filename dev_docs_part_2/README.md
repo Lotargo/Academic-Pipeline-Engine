@@ -98,7 +98,7 @@ Core-pipeline задача отмечается завершённой толь�
 
 Подробный контекст находится в [`dev_docs/README.md`](../dev_docs/README.md). Документы ниже являются единственным подробным планом для этих задач. Не создаются зеркальные `PLAN.md` и `TODO.md`, пересказывающие то же содержание.
 
-- [ ] **CORE-13** — [Document Integrity and Optional Revision Pipeline](../dev_docs/13_DOCUMENT_INTEGRITY_AND_OPTIONAL_REVISION_PIPELINE.md)
+- [x] **CORE-13** — [Document Integrity and Optional Revision Pipeline](../dev_docs/13_DOCUMENT_INTEGRITY_AND_OPTIONAL_REVISION_PIPELINE.md)
 - [x] **CORE-14** — [Skill Routing, Hybrid Retrieval and Provider Infrastructure](../dev_docs/14_SKILL_ROUTING_HYBRID_RETRIEVAL_AND_PROVIDER_INFRASTRUCTURE.md)
 - [x] **CORE-15** — [Agent Instruction Refactor and Editorial Quality](../dev_docs/15_AGENT_INSTRUCTION_REFACTOR_AND_EDITORIAL_QUALITY.md)
 
@@ -128,17 +128,15 @@ Core-pipeline задача отмечается завершённой толь�
 - `FE-09`: его явные зависимости `FE-02`, `FE-05` и `BE-12` завершены.
 - `FE-11`: baseline ESLint является контролируемым техническим долгом и не
   блокирует исправления выбранного связанного UI-пакета.
-- `CORE-13`, checkpoint (2026-07-12): этапы A--D реализованы. В E уже есть
-  versioned `RevisionRequest`/`DocumentRevision`, patch-first revision flow,
-  revision API, snapshots предыдущих версий, selective reviewer pass и READY
-  UI для необязательных замечаний. Текущие regression/contract проверки
-  проходят. Не перечитывать всю историю `CORE-13` для продолжения: до
-  возвращения к задаче достаточно открыть checkpoint в
-  `dev_docs/13_DOCUMENT_INTEGRITY_AND_OPTIONAL_REVISION_PIPELINE.md` и
-  проверить актуальные integration/acceptance tests. `CORE-13` остаётся
-  незавершённой и не отмечается `[x]` до стабилизации `CORE-15` и `CORE-14`,
-  после которых optional revision flow должен пройти итоговую интеграционную
-  приёмку.
+- `CORE-13`, completed (2026-07-13): этапы A--E реализованы. После
+  стабилизации CORE-14 проведена итоговая integration acceptance optional
+  revision flow: API проходит `READY -> REVISING -> READY`, создаёт новую
+  versioned revision от latest ready parent, patch writer получает лишь
+  line-numbered affected section, parent snapshot остаётся неизменным, а
+  export берёт контекст последней ready revision. UI contract подтверждает,
+  что замечание необязательно, пустой input disabled, а запрос использует
+  latest ready `base_revision`. Итог: Python `666 passed, 3 skipped`; frontend
+  revision contract и Next.js production build проходят.
 - `CORE-14`, completed (2026-07-13): `QdrantRoutingIndex.search()` делает
   tenant-safe E5/BM25 Cloud Inference queries, RRF fusion,
   negative/typed-graph penalties и optional ColBERT rerank только для fused
@@ -150,7 +148,7 @@ Core-pipeline задача отмечается завершённой толь�
   зафиксирован в `config/routing_confidence_calibration.yaml` и загружается
   `RoutingEngine.with_default_calibration()` без network dependency. Live
   baseline: top-1 0.928571, top-3 0.964286, holdout Brier 0.083333, mean
-  Cloud latency около 2.28 s. Полный Python suite: 665 passed, 3 skipped.
+  Cloud latency около 2.28 s. Полный Python suite: 666 passed, 3 skipped.
   Local pipeline от cloud providers по-прежнему не зависит.
 - `PL-01`: текущие Docker-файлы ещё не покрывают отдельный worker-процесс,
   broker, healthchecks, non-root runtime и production process matrix; это
@@ -167,8 +165,6 @@ Core-pipeline задача отмечается завершённой толь�
 - Optional revision flow из `CORE-13` теперь можно брать в итоговую
   integration acceptance: routing и instruction bundles стабилизированы;
   local-first fallback остаётся обязательным.
-- Optional revision flow из `CORE-13` завершается только после стабилизации
-  routing и instruction bundles из `CORE-14`/`CORE-15`.
 - `PL-02` нельзя завершить до `PL-01` и выбора/подключения production
   adapters: Supabase PostgreSQL/Auth, S3-compatible object storage, RabbitMQ
   и KMS/Vault. Для реального деплоя дополнительно нужны доступ к Render,
@@ -190,14 +186,10 @@ adapter и локальные contract tests; нельзя заявлять, ч�
 
 ### Практический порядок
 
-1. `CORE-14` и `CORE-15` завершены после фундамента `CORE-13`; следующий
-   core-этап — итоговая integration acceptance optional revision flow
-   `CORE-13`. Независимо от него допустимы `FE-09`, выбранные пакеты `FE-11`,
-   `PL-01` и базовый `PL-03`.
-2. После приёмки optional revision flow завершить `CORE-13`.
-3. Затем завершить production-часть
-   `PL-03` и зависимый `FE-06`.
-4. После выбора внешней инфраструктуры и получения deployment access выполнить
+1. CORE-13--CORE-15 завершены. Следующий production core — `PL-03`; после его
+   schema audit/health/correlation-id foundation можно завершать зависимый
+   `FE-06`. Независимо доступны `FE-09`, выбранные пакеты `FE-11` и `PL-01`.
+2. После выбора внешней инфраструктуры и получения deployment access выполнить
    `PL-02` и production OAuth e2e-gate.
 
 ---

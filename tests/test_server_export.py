@@ -12,6 +12,9 @@ from academic_pe.api_models import ExportRequest
 import json
 import os
 from types import SimpleNamespace
+from copy import deepcopy
+
+from academic_pe.core.config import load_config
 
 def test_export_request_validation():
     # Verify that ExportRequest accepts runtime_template
@@ -117,6 +120,99 @@ def test_revision_api_queues_versioned_patch_without_rewriting_history(monkeypat
         assert [item["revision"] for item in listed.json()] == [1, 2]
         assert listed.json()[0]["context_snapshot"]["introduction"] == "Original introduction."
         assert listed.json()[1]["status"] == "queued"
+    finally:
+        with run_lock:
+            current_run.clear()
+            current_run.update(previous_run)
+
+
+def test_revision_api_executes_patch_preserves_parent_and_promotes_latest_context(monkeypatch, tmp_path):
+    """Exercise READY -> REVISING -> READY without allowing a full redraft."""
+
+    monkeypatch.chdir(tmp_path)
+    metadata_dir = tmp_path / "exports" / "_metadata"
+    metadata_dir.mkdir(parents=True)
+    run_id = "run_20260713_120000"
+    metadata_path = metadata_dir / f"{run_id}.metadata.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "topic": "Patch revision",
+                "instructions": "Keep the report intact.",
+                "timestamp": "2026-07-13T12:00:00+00:00",
+                "status": "COMPLETED",
+                "context": {
+                    "introduction": "Original introduction.",
+                    "conclusion": "Original conclusion.",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class PatchOnlyWriter:
+        def __init__(self):
+            self.calls = []
+
+        def process(self, task, context=None, document_sections=None, **kwargs):
+            self.calls.append({"task": task, "context": context, "sections": document_sections})
+            assert "line-numbered" in context
+            assert "Current section: conclusion" in context
+            return "<<<<<<< REPLACE 1-1\nCorrected conclusion.\n>>>>>>>"
+
+    writer = PatchOnlyWriter()
+    config = deepcopy(load_config(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config", "agents.yaml"))))
+    for gate in (
+        config.quality_gate.volume,
+        config.quality_gate.latex,
+        config.quality_gate.markdown,
+        config.quality_gate.unicode_hygiene,
+        config.quality_gate.prompt_leakage,
+        config.quality_gate.evidence,
+        config.quality_gate.calculation,
+    ):
+        gate.enabled = False
+    orchestrator = SimpleNamespace(
+        _writer=writer,
+        _reviewer=None,
+        _evidence_reviewer=None,
+        _editorial_reviewer=None,
+    )
+    monkeypatch.setattr("academic_pe.server.load_config", lambda _path: deepcopy(config))
+    monkeypatch.setattr("academic_pe.server.create_orchestrator_from_config", lambda *_args, **_kwargs: orchestrator)
+
+    with run_lock:
+        previous_run = dict(current_run)
+        current_run.update({
+            "status": "COMPLETED",
+            "state": "DONE",
+            "run_id": run_id,
+            "context": {"introduction": "Original introduction.", "conclusion": "Original conclusion."},
+            "logs": [],
+        })
+    try:
+        client = TestClient(app)
+        response = client.post(
+            f"/api/runs/{run_id}/revisions",
+            json={"base_revision": 1, "feedback": "Please correct the conclusion."},
+        )
+        assert response.status_code == 200
+
+        revisions = client.get(f"/api/runs/{run_id}/revisions").json()
+        assert [(item["revision"], item["status"]) for item in revisions] == [(1, "ready"), (2, "ready")]
+        assert revisions[0]["context_snapshot"]["conclusion"] == "Original conclusion."
+        assert revisions[1]["context_snapshot"] == {
+            "introduction": "Original introduction.",
+            "conclusion": "Corrected conclusion.",
+        }
+        assert len(writer.calls) == 1
+
+        export_context, *_ = __import__("academic_pe.server", fromlist=["_prepare_export"])._prepare_export(
+            ExportRequest(run_id=run_id)
+        )
+        assert export_context["conclusion"] == "Corrected conclusion."
+        assert export_context["introduction"] == "Original introduction."
     finally:
         with run_lock:
             current_run.clear()

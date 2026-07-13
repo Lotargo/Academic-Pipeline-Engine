@@ -17,6 +17,7 @@
     "test:support": "node --test tests/support-page.mjs",
     "test:security": "node --test tests/frontend-security.mjs",
     "test:editor-jobs": "node --test tests/editor-jobs.mjs",
+    "test:revision": "node --test tests/revision-flow-contract.mjs",
     "start": "next start"
   },
   "dependencies": {

@@ -2,11 +2,13 @@
 
 ## Статус
 
-Архитектурная заметка и план следующих изменений.
+Реализация завершена; документ сохраняет архитектурные решения и acceptance
+evidence.
 
 ### Checkpoint реализации (2026-07-12)
 
-`CORE-13` остаётся незавершённой задачей. Уже подготовлен фундамент:
+`CORE-13` завершена после стабилизации CORE-14 и итоговой integration
+acceptance optional revision flow. Подготовлен и проверен фундамент:
 
 - безопасная Unicode-нормализация, Unicode hygiene, prompt leakage и global
   structural gates (`066ae33`);
@@ -31,14 +33,20 @@ legacy-ответов `APPROVED`/`REJECTED`. Для EvidenceReviewer и
 EditorialReviewer добавлены отдельные role-scoped adapters и объединение их
 решений.
 
-Этап E начат: добавлены versioned `RevisionRequest`/`DocumentRevision`,
+Этап E завершён: добавлены versioned `RevisionRequest`/`DocumentRevision`,
 patch-first executor с запретом fallback на полную перегенерацию, endpoints
 `/api/runs/{run_id}/revisions`, сохранение snapshot каждой готовой версии и
 необязательное поле замечаний на READY-экране. Ревизия повторно запускает
 детерминированные integrity gates и выборочный LLM-review только изменённых
 секций. Экспорт связывается с последней готовой версией, а UI показывает
-состояние каждой сохранённой ревизии. Не отмечать `CORE-13` завершённой до
-прохождения всех критериев из раздела 11 в интеграционном контуре.
+состояние каждой сохранённой ревизии. Integration acceptance покрывает
+`READY -> REVISING -> READY`: API создаёт revision 2 от revision 1, patch writer
+получает только line-numbered target section, parent snapshot остаётся
+неизменным, новая версия становится export context. Отдельный UI contract
+подтверждает, что пустое замечание disabled и READY preview передаёт latest
+ready `base_revision`. Критерии раздела 11 закрыты regression suite.
+Итоговая проверка: Python `666 passed, 3 skipped`; UI revision contract и
+Next.js production build проходят.
 
 Документ фиксирует меры по повышению качества, доказательности и целостности итоговых документов Academic Pipeline Engine. Цель не состоит в создании «антидетектора» или искусственной маскировке генерации. Система должна устранять собственные технические отпечатки, не выпускать служебный текст, проверять источники и расчёты, собирать секции в единый документ и поддерживать реальную, но необязательную авторскую доработку.
 
