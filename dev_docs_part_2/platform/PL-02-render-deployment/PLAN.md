@@ -4,6 +4,14 @@
 
 Развернуть stateless frontend/API/workers на Render с внешними managed dependencies.
 
+## Status and temporary sandbox
+
+`PL-02` сохраняет целью постоянный deployment target и остаётся незавершённой.
+До выбора home server, VPS или другого постоянного provider разрешён ограниченный
+public smoke в Red Hat Developer Sandbox / OpenShift. Он описан в
+[`OPENSHIFT_SANDBOX_INTERIM.md`](OPENSHIFT_SANDBOX_INTERIM.md), не меняет
+acceptance этой композиции и не использует OpenShift Dev Spaces как runtime.
+
 ## Scope
 
 - Render services;
@@ -19,6 +27,7 @@
 - persistent disk как обязательный storage;
 - разработка application features;
 - обход provider limits.
+- признание временного Sandbox deployment production-эквивалентом.
 
 ## Depends on
 

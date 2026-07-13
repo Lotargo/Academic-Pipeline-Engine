@@ -114,10 +114,10 @@ Core-pipeline задача отмечается завершённой толь�
 ## Platform
 
 - [ ] **PL-01** — [Docker](platform/PL-01-docker/PLAN.md) · [TODO](platform/PL-01-docker/TODO.md)
-- [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
+- [ ] **PL-02** — [Render Deployment](platform/PL-02-render-deployment/PLAN.md) · [Temporary OpenShift Sandbox](platform/PL-02-render-deployment/OPENSHIFT_SANDBOX_INTERIM.md) · [TODO](platform/PL-02-render-deployment/TODO.md)
 - [ ] **PL-03** — [Observability](platform/PL-03-observability-and-audit/PLAN.md) · [TODO](platform/PL-03-observability-and-audit/TODO.md)
 
-## Актуальная карта выполнения и блокировок (2026-07-12)
+## Актуальная карта выполнения и блокировок (2026-07-13)
 
 `[ ]` означает только «не завершено». Он не означает автоматически, что всю
 композицию нельзя начинать. Перед началом работы следует различать доступные
@@ -159,6 +159,20 @@ Core-pipeline задача отмечается завершённой толь�
   provider/worker signals, scheduled pruning, protected audit/health views и
   итогового walkthrough.
 
+### Временное решение для public demo
+
+- До появления оплачиваемой либо самостоятельно поддерживаемой инфраструктуры
+  (`home server` или VPS) допустим отдельный `service-demo` deployment в Red Hat
+  Developer Sandbox / OpenShift. Он нужен для проверки контейнеров, Route и
+  end-to-end flow, но не заменяет `PL-02` и не является production-средой.
+- Причина — текущий бесплатный путь Render не даёт continuous worker и one-off
+  migration job, а Vercel не покрывает существующую process matrix Python
+  API + Celery worker. Не использовать искусственный keep-alive или обход
+  ограничений free-tier.
+- OpenShift Dev Spaces — только опциональная browser IDE; она не является
+  deploy target и не должна получать production secrets.
+- Полное описание границы и выхода: [Temporary OpenShift Sandbox](platform/PL-02-render-deployment/OPENSHIFT_SANDBOX_INTERIM.md).
+
 ### Нельзя завершить до снятия зависимостей
 
 - `FE-06` зависит от `PL-03`. Audit/health views и их e2e-проверки нельзя
@@ -169,8 +183,9 @@ Core-pipeline задача отмечается завершённой толь�
   local-first fallback остаётся обязательным.
 - `PL-02` нельзя завершить до `PL-01` и выбора/подключения production
   adapters: Supabase PostgreSQL/Auth, S3-compatible object storage, RabbitMQ
-  и KMS/Vault. Для реального деплоя дополнительно нужны доступ к Render,
-  защищённые secrets и выбранный canonical HTTPS URL.
+  и KMS/Vault. Для реального deployment target дополнительно нужны защищённые
+  secrets и выбранный canonical HTTPS URL. Временный OpenShift Sandbox можно
+  использовать после `PL-01`, но он не снимает этот gate.
 - `PL-03` можно реализовывать поэтапно, но нельзя финально зафиксировать как
   production observability до завершения `CORE-13`--`CORE-15`: telemetry должна
   учитывать routing path, active provider, fallback depth, selected skills,
@@ -191,8 +206,9 @@ adapter и локальные contract tests; нельзя заявлять, ч�
 1. CORE-13--CORE-15 завершены. Следующий production core — `PL-03`; после его
    schema audit/health/correlation-id foundation можно завершать зависимый
    `FE-06`. Независимо доступны `FE-09`, выбранные пакеты `FE-11` и `PL-01`.
-2. После выбора внешней инфраструктуры и получения deployment access выполнить
-   `PL-02` и production OAuth e2e-gate.
+2. После `PL-01` можно выполнить ограниченный public smoke в OpenShift Sandbox.
+   После выбора постоянной инфраструктуры (home server, VPS либо другой
+   managed provider) выполнить `PL-02` и production OAuth e2e-gate.
 
 ---
 
@@ -209,11 +225,17 @@ adapter и локальные contract tests; нельзя заявлять, ч�
 
 ## Целевая модель окружений
 
-Используются три различных runtime profile:
+Используются четыре различных runtime profile:
 
 1. `local` — прежний автономный local-first режим: SQLite, local storage, local dispatcher, без обязательного Supabase.
 2. `service-dev` — разработка многопользовательского сервиса: локальный Supabase stack через Supabase CLI/Docker, локальные migrations и seed data.
-3. `service-prod` — production: Supabase Cloud для PostgreSQL/Auth и stateless frontend/API/workers на Render и/или Vercel.
+3. `service-demo` — временный public smoke: stateless frontend/API/workers в
+   Red Hat Developer Sandbox / OpenShift. Среда ограничена по сроку и квотам,
+   не является canonical production URL и не завершает `PL-02`.
+4. `service-prod` — production: Supabase Cloud для PostgreSQL/Auth и stateless
+   frontend/API/workers на выбранной постоянной инфраструктуре. До выбора
+   допустимыми кандидатами остаются self-hosted home server, VPS, Render,
+   Vercel в составе подходящей process matrix либо другой provider.
 
 Обычный standalone PostgreSQL в Docker не является целевым `service-dev`, если он не входит в локальный Supabase stack. SQLAlchemy и Alembic сохраняются для прикладной схемы, но схема Supabase Auth не изменяется вручную.
 
@@ -246,11 +268,15 @@ adapter и локальные contract tests; нельзя заявлять, ч�
 
 ## Deployment gate для реального OAuth
 
-Полноценная provider-авторизация завершается только после первого публичного деплоя и получения стабильного HTTPS URL. Собственный домен для этого не обязателен:
+Полноценная provider-авторизация завершается только после постоянного публичного деплоя и получения стабильного HTTPS URL. Собственный домен для этого не обязателен:
 
 - Render выдаёт публичный `*.onrender.com`;
 - Vercel выдаёт публичный `*.vercel.app`;
 - один стабильный production URL выбирается как canonical frontend URL.
+
+Временный Route Red Hat Developer Sandbox не используется как canonical OAuth
+URL: sandbox ограничен по сроку, поэтому provider redirects и secrets в нём не
+фиксируются как production-конфигурация.
 
 После появления URL обязательны следующие шаги:
 
@@ -345,7 +371,9 @@ Contracts создаются только для интерфейсов межд
 14. Supabase Auth является целевым source of truth для service identity; FastAPI отвечает за прикладной RBAC и tenant authorization.
 15. Provider-only auth не считается завершённым по mock UI или unit tests без реального deployment E2E.
 16. FE-01 остаётся завершённой legacy-композицией и не доказывает готовность production OAuth.
-17. Отсутствие собственного домена не блокирует запуск: используется стабильный HTTPS URL Render/Vercel.
+17. Отсутствие собственного домена не блокирует production-запуск: используется
+    стабильный HTTPS URL выбранного постоянного deployment provider. Временный
+    Sandbox Route не считается canonical URL.
 18. `dev_docs/13`, `dev_docs/14` и `dev_docs/15` являются authoritative plans для core-pipeline рефакторинга и не дублируются новыми композициями.
 19. Публичные Job API и frontend-контракты стабилизируются в `FE-10` до крупных изменений FSM, document state и revision flow.
 20. Skills, hybrid retrieval и instruction bundles не должны обходить provider routing, tenant isolation или local-first adapters.
