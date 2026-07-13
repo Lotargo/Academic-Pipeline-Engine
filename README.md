@@ -128,8 +128,15 @@ npm run dev
 ```
 
 Скрипты запуска разделяют режимы явно. По умолчанию запускается
-многопользовательский `service-dev`: он поднимает локальный PostgreSQL Docker
-container, применяет Alembic migrations и включает `/api/auth/*`.
+многопользовательский `service-dev`: он поднимает официальный локальный
+Supabase CLI/Docker stack, генерирует ignored `.env.service-dev`, применяет
+Alembic migrations в Supabase PostgreSQL и запускает APE API/frontend в
+отдельном Docker Compose.
+
+Для стабильной совместимости Docker Desktop/WSL этот development profile не
+запускает optional Supabase Logflare/Analytics и Vector logging: они не требуются
+для Auth/Postgres/Storage, а Vector ожидает доступ к Docker socket. Это не
+относится к production observability APE.
 
 ```powershell
 .\run.bat
@@ -142,6 +149,29 @@ container, применяет Alembic migrations и включает `/api/auth/
 # или явно:
 ./run-service-dev.sh
 ```
+
+Проверить состояние или остановить обе локальные композиции можно тем же
+скриптом:
+
+```bash
+./run-service-dev.sh status
+./run-service-dev.sh down
+```
+
+```powershell
+.\run-service-dev.bat status
+.\run-service-dev.bat down
+```
+
+Для WSL рекомендуется держать рабочую копию на Linux filesystem (например,
+`~/projects/Academic-Pipeline-Engine`), а не в `/mnt/c` или `/mnt/f`: Docker
+build context с Windows-mounted диска заметно медленнее. Скрипты остаются
+одинаковыми в WSL и PowerShell.
+
+Этот контур запускает Supabase Postgres/Auth/Storage, но до `BE-13` API ещё
+использует временную legacy JWT compatibility boundary. Реальные Supabase
+sessions и OAuth providers не считаются готовыми; provider secrets и публичные
+redirect URLs не добавляются в локальный файл.
 
 Для прежнего автономного режима без аккаунтов, jobs API и service auth:
 
